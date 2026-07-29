@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-brand-bg: #0b0f1a;
+  --color-brand-card: #151b2b;
+  --color-brand-border: #1e293b;
+  --color-brand-sidebar: #0f172a;
+}
+
+:root {
+  font-family: var(--font-sans);
+}
+
+body {
+  @apply bg-[#0b0f1a] text-slate-200;
+  direction: rtl;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-600;
+}
+
+.markdown-body {
+  @apply text-sm leading-relaxed text-slate-300;
+}
+
+.markdown-body h1 { @apply text-2xl font-bold mb-4 text-white; }
+.markdown-body h2 { @apply text-xl font-bold mb-3 text-white; }
+.markdown-body p { @apply mb-4; }
+.markdown-body ul { @apply list-disc list-inside mb-4; }
+.markdown-body ol { @apply list-decimal list-inside mb-4; }
+
+.glass-card {
+  @apply bg-[#151b2b] border border-[#1e293b] rounded-2xl shadow-xl;
+}
+
+.nav-link-active {
+  @apply bg-blue-600/10 text-blue-400 border-r-4 border-blue-600;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-only, .print-only * {
+    visibility: visible;
+  }
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: black !important;
+    background: white !important;
+  }
+  /* Specific styling for thermal printers (usually 80mm or 58mm width) */
+  .thermal-receipt {
+    width: 80mm;
+    margin: 0 auto;
+    font-size: 12px;
+    font-family: monospace;
+    direction: rtl;
+  }
+}
+

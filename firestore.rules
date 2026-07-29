@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: products
+    // Document ID: auto-generated
+    // Fields: name (string), sku (string), price (number), quantity (number), category (string), description (string)
+    //
+    // Collection: customers
+    // Document ID: auto-generated
+    // Fields: name (string), email (string), phone (string), address (string)
+    //
+    // Collection: suppliers
+    // Document ID: auto-generated
+    // Fields: name (string), email (string), phone (string), address (string)
+    //
+    // Collection: invoices
+    // Document ID: auto-generated
+    // Fields: customerId (string), items (list), totalAmount (number), status (string), date (timestamp)
+    //
+    // Collection: bills
+    // Document ID: auto-generated
+    // Fields: supplierId (string), items (list), totalAmount (number), status (string), date (timestamp)
+    //
+    // Collection: transactions
+    // Document ID: auto-generated
+    // Fields: type (string), amount (number), category (string), date (timestamp), description (string)
+    //
+    // Collection: users
+    // Document ID: user.uid
+    // Fields: name (string), email (string), role (string)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "alkootsh@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.sku is string && data.sku.size() > 0 && data.sku.size() < 50 &&
+             data.price is number && data.price >= 0 &&
+             data.quantity is number && data.quantity >= 0;
+    }
+
+    function isValidCustomer(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('lastPurchaseDate' in data) || data.lastPurchaseDate is timestamp);
+    }
+
+    function isValidInvoice(data) {
+      return data.customerId is string &&
+             data.items is list &&
+             data.totalAmount is number &&
+             data.status in ['paid', 'pending', 'overdue'];
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) && 
+        (request.resource.data.role == 'user' || isAdmin());
+    }
+
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isValidProduct(request.resource.data);
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isValidCustomer(request.resource.data);
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isValidInvoice(request.resource.data);
+    }
+
+    match /bills/{billId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /stock_movements/{movementId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+  }
+}

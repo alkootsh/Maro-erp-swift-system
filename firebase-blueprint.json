@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Inventory product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" },
+        "category": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "sku", "price", "quantity"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Client information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "lastPurchaseDate": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Vendor information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Sales invoice",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "date": { "type": "string", "format": "date-time" },
+        "dueDate": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "items", "totalAmount", "status", "date", "dueDate"]
+    },
+    "Bill": {
+      "title": "Bill",
+      "description": "Purchase bill",
+      "type": "object",
+      "properties": {
+        "supplierId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["supplierId", "items", "totalAmount", "status", "date"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" }
+      },
+      "required": ["type", "amount", "category", "date"]
+    }
+  },
+  "firestore": {
+    "products": { "schema": "Product", "description": "Inventory products" },
+    "customers": { "schema": "Customer", "description": "Customer list" },
+    "suppliers": { "schema": "Supplier", "description": "Supplier list" },
+    "invoices": { "schema": "Invoice", "description": "Sales invoices" },
+    "bills": { "schema": "Bill", "description": "Purchase bills" },
+    "transactions": { "schema": "Transaction", "description": "Financial transactions" }
+  }
+}
