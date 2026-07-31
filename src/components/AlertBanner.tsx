@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { motion, AnimatePresence } from 'motion/react';
 import { Info, AlertTriangle, X, CheckCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -10,12 +9,23 @@ export const AlertBanner: React.FC = () => {
   const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'alerts'), (snap) => {
-      if (snap.exists()) {
-        const activeAlerts = (snap.data().list || []).filter((a: any) => a.isActive);
-        setAlerts(activeAlerts);
-      }
+    const unsub = MaroSyncEngine.subscribe('settings_alerts', (items: any[]) => {
+      const activeAlerts = items.filter((a: any) => a.isActive);
+      setAlerts(activeAlerts);
     });
+    // Fallback default alert if empty
+    const local = MaroSyncEngine.getLocalCollection('settings_alerts');
+    if (local.length === 0) {
+      setAlerts([
+        {
+          id: 'def_1',
+          type: 'info',
+          message: 'مرحباً بك في نظام MARO Business Platform الإصدار 4.0 (PostgreSQL Offline-First)',
+          duration: 10,
+          isActive: true
+        }
+      ]);
+    }
     return () => unsub();
   }, []);
 
@@ -33,6 +43,7 @@ export const AlertBanner: React.FC = () => {
   if (alerts.length === 0) return null;
 
   const alert = alerts[currentAlertIndex];
+  if (!alert) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] px-8 pb-4 pointer-events-none">

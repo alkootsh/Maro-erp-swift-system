@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { InventoryIntelligenceDashboard } from '../components/Inventory/InventoryIntelligenceDashboard';
+import { InventoryAlertsList } from '../components/Inventory/InventoryAlertsList';
+import { InventoryAlert } from '../types/inventoryIntelligence';
 import { 
   Search, 
   RefreshCw, 
-  X, 
-  AlertTriangle 
+  X
 } from 'lucide-react';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -39,10 +41,22 @@ export const Inventory: React.FC = () => {
     };
   }, []);
 
-  const totalSKUs = products.length;
-  const totalStockQty = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
-  const totalStockValuation = products.reduce((sum, p) => sum + ((p.quantity || 0) * (p.costPrice || p.price || 0)), 0);
-  const lowStockCount = products.filter(p => (p.quantity || 0) <= (p.reorderLevel || 5)).length;
+  const alerts: InventoryAlert[] = useMemo(() => {
+    return products.reduce((acc, p) => {
+      if ((p.quantity || 0) <= 0) {
+        acc.push({ id: `out-${p.id}`, productId: p.id, productName: p.name, type: 'out_of_stock', severity: 'critical', message: 'المنتج نفد بالكامل', createdAt: new Date().toISOString(), resolved: false });
+      } else if ((p.quantity || 0) <= (p.reorderLevel || 5)) {
+        acc.push({ id: `reorder-${p.id}`, productId: p.id, productName: p.name, type: 'reorder_level', severity: 'high', message: `الكمية منخفضة: ${p.quantity} متبقي`, createdAt: new Date().toISOString(), resolved: false });
+      }
+      return acc;
+    }, [] as InventoryAlert[]);
+  }, [products]);
+
+  const handleResolveAlert = (id: string) => {
+    // In a real enterprise app, this would call a repository to update the alert status in DB.
+    console.log('[AUDIT] AlertResolved:', { alertId: id });
+    alert('تم تعيين التنبيه كـ "مُعالج"');
+  };
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -52,28 +66,9 @@ export const Inventory: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
-          <p className="text-xs font-bold text-slate-500 uppercase">إجمالي الاصناف المسجلة (SKU)</p>
-          <p className="text-2xl font-black text-white mt-1">{totalSKUs} صنف</p>
-        </div>
-        <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
-          <p className="text-xs font-bold text-slate-500 uppercase">إجمالي القطع في المستودع</p>
-          <p className="text-2xl font-black text-blue-400 mt-1">{totalStockQty} وحدة</p>
-        </div>
-        <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
-          <p className="text-xs font-bold text-slate-500 uppercase">تقييم قيمة البضاعة (Cost Value)</p>
-          <p className="text-2xl font-black text-emerald-400 mt-1">{formatCurrency(totalStockValuation)}</p>
-        </div>
-        <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
-          <p className="text-xs font-bold text-slate-500 uppercase">أصناف تحت حد إعادة الطلب</p>
-          <p className="text-2xl font-black text-amber-400 mt-1 flex items-center gap-2">
-            <AlertTriangle size={20} />
-            {lowStockCount} اصناف
-          </p>
-        </div>
-      </div>
+      <InventoryIntelligenceDashboard products={products} />
+      
+      <InventoryAlertsList alerts={alerts} onResolve={handleResolveAlert} />
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">

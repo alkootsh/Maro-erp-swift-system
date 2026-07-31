@@ -24,6 +24,7 @@ import {
 import { SecurityEngine, DEFAULT_DEVELOPER_KEY } from '../lib/securityEngine';
 import { SystemLicense, FeatureFlag, SystemDiagnosticReport } from '../types/security';
 import { cn } from '../lib/utils';
+import { DemoDataSeeder } from '../services/demoDataSeeder';
 
 export const DeveloperConsole: React.FC = () => {
   const [devKeyInput, setDevKeyInput] = useState('');
@@ -350,10 +351,34 @@ export const DeveloperConsole: React.FC = () => {
           <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
             <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
               <Database className="text-blue-400" size={18} />
-              <span>أدوات قاعدة البيانات والنسخ الاحتياطي</span>
+              <span>أدوات قاعدة البيانات والبيانات التجريبية (Demo Data)</span>
             </h3>
 
             <div className="space-y-3">
+              <button 
+                onClick={async () => {
+                  await DemoDataSeeder.generateDemoData();
+                  setActionSuccess('تم توليد وإعداد البيانات التجريبية الضخمة بنجاح');
+                  setTimeout(() => setActionSuccess(null), 3000);
+                }}
+                className="w-full p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-right text-xs font-bold text-amber-400 transition-colors flex items-center justify-between"
+              >
+                <span>إنشاء وتوليد البيانات التجريبية (Demo Data Seeder)</span>
+                <CheckCircle2 size={16} />
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (confirm('هل أنت متأكد من رغبتك في إعادة ضبط وحذف جميع بيانات النظام؟')) {
+                    DemoDataSeeder.resetDemoData();
+                  }
+                }}
+                className="w-full p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl text-right text-xs font-bold text-red-400 transition-colors flex items-center justify-between"
+              >
+                <span>إعادة ضبط وحذف البيانات (Reset Demo Data)</span>
+                <RefreshCw size={16} />
+              </button>
+
               <button 
                 onClick={() => { setActionSuccess('Database Schema Verified'); setTimeout(() => setActionSuccess(null), 3000); }}
                 className="w-full p-3 bg-[#0f172a] hover:bg-slate-800 border border-[#1e293b] rounded-xl text-right text-xs font-bold text-slate-300 transition-colors flex items-center justify-between"

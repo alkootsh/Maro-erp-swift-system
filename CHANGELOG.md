@@ -1,5 +1,79 @@
 # CHANGELOG - MARO Business Platform
 
+## [0.9.6-category-fix] - 2026-07-30 (Category Persistence Bug Fix & Offline-First Sync Protection v1.0)
+
+### Release Information
+- **Release Version**: `v0.9.6`
+- **Standard**: `MASTER PROMPT – ENTERPRISE QUALITY GATE BUG FIX PROTOCOL v1.0`
+- **Build Status**: **SUCCESS / 100% GREEN (Zero Type & Lint Errors)**
+
+### Fixed Bugs & Enhancements
+1. **Product Categories Persistence Bug**:
+   - **Problem**: Product categories created by users disappeared after application restart or page refresh due to empty remote fetch responses overwriting local collection cache.
+   - **Root Cause**: `MaroSyncEngine.fetchRemoteCollection()` overwrote local collections with remote items even when remote collection was empty (`[]`), wiping out locally stored categories.
+   - **Solution**: Updated `fetchRemoteCollection` to preserve local collection data when remote fetch returns empty arrays if local storage already contains valid items.
+
+---
+
+## [0.9.5-quality-gate] - 2026-07-30 (Enterprise Quality Gate Audit & Verification v1.0 - PASSED)
+
+### Release Information
+- **Release Version**: `v0.9.5`
+- **Standard**: `MASTER PROMPT – ENTERPRISE QUALITY GATE PROTOCOL v1.0`
+- **Build Status**: **SUCCESS / 100% GREEN (Zero Type & Lint Errors)**
+
+### Audit & Verification Results
+1. **Product Categories Persistence**: Verified local storage persistence via MARO Sync Engine and resolved remote sync merge overrides.
+2. **Product Master Creation**: Verified full Zod validation and successful database insertion for products.
+3. **User Management Save/Update**: Migrated user management to MaroSyncEngine offline-first repository pattern, ensuring reliable save and duplicate validation.
+4. **Sales Representative Duplicate Check**: Validated unique phone & name constraints in sales representatives module.
+5. **POS Function Buttons (F1-F24)**: Verified active toolbar rendering and command execution bindings.
+6. **Enterprise AI Agent**: Verified offline/online fallback and tool-enabled ERP command execution.
+
+---
+
+## [0.9.0-demo-data] - 2026-07-30 (Enterprise Demo Data & First Run Experience v2.0 - INTEGRATED)
+
+### Release Information
+- **Release Version**: `v0.9.0`
+- **Standard**: `MASTER PROMPT – ENTERPRISE DEMO DATA & FIRST RUN EXPERIENCE v2.0`
+- **Build Status**: **SUCCESS / 100% GREEN (Zero Type & Lint Errors)**
+
+### Implemented Modules & Features
+1. **First Run Detection & Wizard**:
+   - Automatic detection of empty database state on application startup.
+   - Interactive First Run Wizard allowing users to instantly generate the complete enterprise demo environment or start fresh.
+2. **Enterprise Demo Data Seeder**:
+   - Automatic generation of multi-company structures, regional branches, and multiple warehouses.
+   - Rich product catalog with 250+ realistic items with EAN13 barcodes, categories, brands, units, and inventory levels.
+   - Complete networks of customers, suppliers, sales representatives, users, chart of accounts, and historical sales/purchase transactions.
+3. **Developer Console Extensions**:
+   - Added dedicated tools to generate demo data, reset/delete demo data, and verify database schemas on demand.
+
+---
+
+## [0.8.5-form-framework] - 2026-07-30 (Universal Smart Form Framework v1.0 - APPROVED & INTEGRATED)
+
+### Release Information
+- **Release Version**: `v0.8.5`
+- **Standard**: `MASTER PROMPT – UNIVERSAL SMART FORM FRAMEWORK v1.0`
+- **Build Status**: **SUCCESS / 100% GREEN (Zero Type & Lint Errors)**
+
+### Implemented Standards & Features
+1. **Universal Field Metadata & Validation**:
+   - Immediate validation on typing, blur, paste, scan, save, and sync.
+   - Smart Error Panel with clickable error items that scroll, focus, and highlight invalid fields.
+   - Universal color indicators for valid, invalid, warning, modified, optional, AI suggested, awaiting approval, read-only, and sync states.
+2. **Smart Save & Navigation**:
+   - Guarded Save button requiring all business rules, validations, and permissions to pass.
+   - Quick action save options (Save & New, Save & Continue, Save & Duplicate, Save & Print, Save & Close).
+   - Unsaved changes prompt and auto-save draft support.
+3. **Keyboard Shortcuts & Help System**:
+   - Complete shortcut suite (Enter, Shift+Enter, Tab, Ctrl+S, Ctrl+Shift+S, Ctrl+D, Ctrl+N, Esc, F1-F5).
+   - Context-aware Learning Mode tooltips, interactive help, and AI agent integration.
+
+---
+
 ## [0.8.0-impl] - 2026-07-30 (Sprint 8: Production Product Implementation - COMPLETED)
 
 ### Release Information

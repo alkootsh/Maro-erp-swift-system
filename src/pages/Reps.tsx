@@ -11,20 +11,8 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc,
-  doc,
-  Timestamp,
-  orderBy
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
-import { toast } from 'react-hot-toast';
 
 export interface Rep {
   id: string;
@@ -42,276 +30,171 @@ export const Reps: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRep, setEditingRep] = useState<Rep | null>(null);
 
-  const [formData, setFormData] = useState<{
-    name: string;
-    phone: string;
-    route: string;
-    status: 'active' | 'inactive';
-    notes: string;
-  }>({
-    name: '',
-    phone: '',
-    route: '',
-    status: 'active',
-    notes: ''
-  });
-
   useEffect(() => {
-    const q = query(collection(db, 'reps'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Rep));
-      setReps(list);
+    const unsub = MaroSyncEngine.subscribe<Rep>('reps', (items) => {
+      setReps(items);
       setLoading(false);
     });
-
-    return () => unsubscribe();
+    const local = MaroSyncEngine.getLocalCollection<Rep>('reps');
+    if (local.length === 0) {
+      const defs: Rep[] = [
+        { id: 'rep_1', name: 'أحمد محمود', phone: '+966 50 111 2233', route: 'خط الرياض الشمالي', status: 'active', notes: 'مندوب مبيعات معتمد' },
+        { id: 'rep_2', name: 'سعد العتيبي', phone: '+966 55 444 5566', route: 'خط جدة والوسطى', status: 'active', notes: 'مندوب توزيع رئيسي' }
+      ];
+      defs.forEach(d => MaroSyncEngine.saveDocument('reps', d, true));
+    }
+    return () => unsub();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const duplicatePhone = reps.find(r => r.phone === formData.phone && r.id !== editingRep?.id);
-      if (duplicatePhone) {
-        toast.error('رقم الهاتف مستخدم بالفعل لمندوب آخر');
-        return;
-      }
-      const duplicateName = reps.find(r => r.name.toLowerCase() === formData.name.toLowerCase() && r.id !== editingRep?.id);
-      if (duplicateName) {
-        toast.error('يوجد مندوب مسجل بنفس الاسم');
-        return;
-      }
-
-      if (editingRep) {
-        await updateDoc(doc(db, 'reps', editingRep.id), formData);
-        toast.success('تم تحديث بيانات المندوب بنجاح');
-      } else {
-        await addDoc(collection(db, 'reps'), formData);
-        toast.success('تمت إضافة المندوب بنجاح');
-      }
-      setIsModalOpen(false);
-      setFormData({ name: '', phone: '', route: '', status: 'active', notes: '' });
-      setEditingRep(null);
-    } catch (error) {
-      console.error('Error saving rep:', error);
-      toast.error('حدث خطأ أثناء الحفظ');
-    }
-  };
+  const filteredReps = reps.filter(r => 
+    r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    r.route.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleDelete = async (id: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذا المندوب؟')) {
-      try {
-        await deleteDoc(doc(db, 'reps', id));
-        toast.success('تم حذف المندوب بنجاح');
-      } catch (error) {
-        console.error('Error deleting rep:', error);
-        toast.error('حدث خطأ أثناء الحذف');
-      }
+      await MaroSyncEngine.deleteDocument('reps', id);
     }
   };
 
-  const openEditModal = (rep: Rep) => {
-    setEditingRep(rep);
-    setFormData({
-      name: rep.name,
-      phone: rep.phone,
-      route: rep.route,
-      status: rep.status,
-      notes: rep.notes || ''
-    });
-    setIsModalOpen(true);
-  };
-
-  const filteredReps = reps.filter(rep => 
-    rep.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rep.phone.includes(searchTerm) ||
-    rep.route.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white tracking-tight">المناديب وخطوط السير</h2>
-          <p className="text-slate-400 text-sm mt-1 font-medium">إدارة المناديب وتتبع خطوط سيرهم ومناطق التوزيع</p>
+          <p className="text-slate-500 font-bold text-sm">إدارة مناديب المبيعات وخطوط التوزيع الجغرافية</p>
         </div>
-        <button 
-          onClick={() => {
-            setEditingRep(null);
-            setFormData({ name: '', phone: '', route: '', status: 'active', notes: '' });
-            setIsModalOpen(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-blue-600/20"
-        >
-          <Plus size={20} />
-          <span>إضافة مندوب جديد</span>
-        </button>
-      </div>
-
-      <div className="bg-[#151b2b] p-6 rounded-3xl border border-[#1e293b] shadow-xl">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder="ابحث بالاسم، رقم الهاتف، أو خط السير..." 
-              className="w-full pr-12 pl-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+              placeholder="بحث عن مندوب أو خط سير..." 
+              className="w-full pr-10 pl-4 py-2.5 bg-[#151b2b] border border-[#1e293b] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <button 
+            onClick={() => { setEditingRep(null); setIsModalOpen(true); }}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs uppercase tracking-widest"
+          >
+            <Plus size={18} />
+            <span>إضافة مندوب</span>
+          </button>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            <div className="col-span-full py-12 text-center text-slate-500">جاري التحميل...</div>
-          ) : filteredReps.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-slate-500">لا يوجد مناديب مسجلين</div>
-          ) : (
-            filteredReps.map((rep) => (
-              <div key={rep.id} className="bg-[#0b0f1a] border border-[#1e293b] rounded-2xl p-6 hover:border-blue-500/50 transition-all group">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-500">
-                      <Users size={24} />
+      <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right">
+            <thead className="bg-[#0f172a]/50 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+              <tr>
+                <th className="px-8 py-5">المندوب</th>
+                <th className="px-8 py-5">رقم الهاتف</th>
+                <th className="px-8 py-5">خط السير</th>
+                <th className="px-8 py-5">الحالة</th>
+                <th className="px-8 py-5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1e293b]">
+              {loading ? (
+                <tr><td colSpan={5} className="px-8 py-16 text-center text-slate-600 font-medium">جاري التحميل...</td></tr>
+              ) : filteredReps.length === 0 ? (
+                <tr><td colSpan={5} className="px-8 py-16 text-center text-slate-600 font-medium">لا توجد مناديب حالياً</td></tr>
+              ) : filteredReps.map((rep) => (
+                <tr key={rep.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <td className="px-8 py-5 font-bold text-white">{rep.name}</td>
+                  <td className="px-8 py-5 text-slate-400 font-medium">{rep.phone}</td>
+                  <td className="px-8 py-5 text-slate-300 font-medium">{rep.route}</td>
+                  <td className="px-8 py-5">
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border",
+                      rep.status === 'active' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-slate-800 text-slate-500 border-slate-700"
+                    )}>
+                      {rep.status === 'active' ? 'نشط' : 'متوقف'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-2 justify-end">
+                      <button 
+                        onClick={() => { setEditingRep(rep); setIsModalOpen(true); }}
+                        className="p-2.5 hover:bg-blue-500/10 text-blue-400 rounded-xl transition-colors"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(rep.id)}
+                        className="p-2.5 hover:bg-red-500/10 text-red-400 rounded-xl transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <div>
-                      <h3 className="text-white font-bold text-lg">{rep.name}</h3>
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-widest mt-1 inline-block",
-                        rep.status === 'active' ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-                      )}>
-                        {rep.status === 'active' ? 'نشط' : 'غير نشط'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => openEditModal(rep)}
-                      className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(rep.id)}
-                      className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-slate-400 text-sm">
-                    <Phone size={16} className="text-slate-500" />
-                    <span dir="ltr">{rep.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-400 text-sm">
-                    <MapPin size={16} className="text-slate-500" />
-                    <span>{rep.route}</span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]">
-              <h3 className="text-xl font-bold text-white">
-                {editingRep ? 'تعديل بيانات المندوب' : 'إضافة مندوب جديد'}
-              </h3>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto">
-              <form id="rep-form" onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-slate-300">اسم المندوب</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-slate-300">رقم الهاتف</label>
-                    <input 
-                      type="tel" 
-                      required
-                      dir="ltr"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all text-left"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-slate-300">خط السير (المنطقة)</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.route}
-                    onChange={(e) => setFormData({...formData, route: e.target.value})}
-                    className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-slate-300">الحالة</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
-                    className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                  >
-                    <option value="active">نشط</option>
-                    <option value="inactive">غير نشط</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-slate-300">ملاحظات إضافية</label>
-                  <textarea 
-                    rows={3}
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all resize-none"
-                  ></textarea>
-                </div>
-              </form>
-            </div>
-            
-            <div className="px-6 py-4 border-t border-[#1e293b] bg-[#0f172a] flex justify-end gap-3">
-              <button 
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-6 py-2.5 rounded-xl font-bold text-slate-300 hover:bg-slate-800 transition-colors"
-              >
-                إلغاء
-              </button>
-              <button 
-                type="submit"
-                form="rep-form"
-                className="px-6 py-2.5 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-lg shadow-blue-500/20"
-              >
-                حفظ البيانات
-              </button>
-            </div>
-          </div>
-        </div>
+        <RepModal 
+          rep={editingRep} 
+          onClose={() => setIsModalOpen(false)} 
+        />
       )}
+    </div>
+  );
+};
+
+const RepModal: React.FC<{ rep: Rep | null, onClose: () => void }> = ({ rep, onClose }) => {
+  const [formData, setFormData] = useState({
+    name: rep?.name || '',
+    phone: rep?.phone || '',
+    route: rep?.route || '',
+    status: rep?.status || 'active',
+    notes: rep?.notes || ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (rep) {
+      await MaroSyncEngine.saveDocument('reps', { ...rep, ...formData }, false);
+    } else {
+      const newId = `rep_${Date.now()}`;
+      await MaroSyncEngine.saveDocument('reps', { id: newId, ...formData }, true);
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#151b2b] w-full max-w-md rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-purple-600"></div>
+        <div className="p-8 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/50">
+          <h3 className="font-black text-xl text-white tracking-tight">{rep ? 'تعديل بيانات المندوب' : 'إضافة مندوب جديد'}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">اسم المندوب</label>
+            <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">رقم الهاتف</label>
+            <input type="text" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">خط السير</label>
+            <input type="text" required value={formData.route} onChange={(e) => setFormData({ ...formData, route: e.target.value })} className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" />
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1e293b]">
+            <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs">إلغاء</button>
+            <button type="submit" className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 text-xs">حفظ البيانات</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

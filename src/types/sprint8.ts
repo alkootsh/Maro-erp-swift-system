@@ -224,7 +224,7 @@ export interface JournalEntry {
 // --- Event Bus Event Schema ---
 export interface MaroEvent {
   id: string;
-  type: 'ProductCreated' | 'InvoiceCreated' | 'InvoicePosted' | 'PurchaseApproved' | 'PaymentReceived' | 'StockAdjusted' | 'POSSessionClosed' | 'POSFunctionKeysUpdated' | 'LICENSE_UPDATED' | 'FEATURE_FLAGS_UPDATED' | 'AUDIT_LOG_ADDED' | 'SECURITY_ALERT_TRIGGERED' | 'MAINTENANCE_MODE_CHANGED' | 'NAVIGATE_INTENT' | 'CREATE_NEW_INVOICE_INTENT';
+  type: 'ProductCreated' | 'InvoiceCreated' | 'InvoicePosted' | 'PurchaseApproved' | 'PaymentReceived' | 'StockAdjusted' | 'InventoryMoved' | 'BusinessHealthCalculated' | 'POSSessionClosed' | 'POSFunctionKeysUpdated' | 'LICENSE_UPDATED' | 'FEATURE_FLAGS_UPDATED' | 'AUDIT_LOG_ADDED' | 'SECURITY_ALERT_TRIGGERED' | 'MAINTENANCE_MODE_CHANGED' | 'NAVIGATE_INTENT' | 'CREATE_NEW_INVOICE_INTENT';
   timestamp: string;
   payload: Record<string, any>;
 }

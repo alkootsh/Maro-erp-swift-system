@@ -13,8 +13,7 @@ import {
   MinusCircle,
   FileText
 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, addDoc, doc, getDocs, Timestamp, updateDoc, getDoc, where } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -33,7 +32,7 @@ interface ReturnInvoice {
   customerName: string;
   items: ReturnItem[];
   totalAmount: number;
-  date: any;
+  date: string;
   status: 'completed' | 'pending';
 }
 
@@ -41,29 +40,68 @@ export const Returns: React.FC = () => {
   const [returns, setReturns] = useState<ReturnInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customerName, setCustomerName] = useState('عميل نقدي عام');
+  const [returnItems, setReturnItems] = useState<ReturnItem[]>([
+    { productId: 'p1', name: 'منتج تجريبي', price: 100, quantity: 1, reason: 'تالف' }
+  ]);
 
   useEffect(() => {
-    const q = query(collection(db, 'returns'), orderBy('date', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReturnInvoice));
-      setReturns(list);
+    const unsub = MaroSyncEngine.subscribe<ReturnInvoice>('returns', (items) => {
+      setReturns(items);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'returns');
     });
-
-    return () => unsubscribe();
+    const local = MaroSyncEngine.getLocalCollection<ReturnInvoice>('returns');
+    if (local.length === 0) {
+      const def: ReturnInvoice = {
+        id: `ret_${Date.now()}`,
+        originalInvoiceId: 'inv_1001',
+        customerId: 'cust_1',
+        customerName: 'شركة النور للتجارة',
+        items: [{ productId: 'p1', name: 'شاشة سمارت 55 بوصة', price: 4500, quantity: 1, reason: 'عيب مصنعي' }],
+        totalAmount: 4500,
+        date: new Date().toISOString(),
+        status: 'completed'
+      };
+      MaroSyncEngine.saveDocument('returns', def, true);
+    }
+    return () => unsub();
   }, []);
+
+  const handleCreateReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalAmount = returnItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const newReturn: ReturnInvoice = {
+      id: `ret_${Date.now()}`,
+      customerId: 'cust_gen',
+      customerName,
+      items: returnItems,
+      totalAmount,
+      date: new Date().toISOString(),
+      status: 'completed'
+    };
+    await MaroSyncEngine.saveDocument('returns', newReturn, true);
+    setIsModalOpen(false);
+    setReturnItems([{ productId: 'p1', name: 'منتج تجريبي', price: 100, quantity: 1, reason: 'تالف' }]);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('هل أنت متأكد من حذف سجل المرتجع هذا؟')) {
+      await MaroSyncEngine.deleteDocument('returns', id);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black text-white tracking-tight">مرتجعات المبيعات</h2>
+        <div>
+          <h2 className="text-2xl font-black text-white tracking-tight">مرتجعات المبيعات</h2>
+          <p className="text-slate-500 font-bold text-sm">إدارة بضائع المرتجعات وعمليات الاسترجاع الآلي للمخزون</p>
+        </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-500 transition-all font-bold shadow-lg shadow-red-600/20 active:scale-95"
+          className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-500 transition-all font-bold shadow-lg shadow-red-600/20 active:scale-95 text-xs uppercase tracking-widest"
         >
-          <Plus size={20} />
+          <Plus size={18} />
           <span>إنشاء مرتجع جديد</span>
         </button>
       </div>
@@ -99,15 +137,15 @@ export const Returns: React.FC = () => {
                   <td className="px-8 py-5 text-slate-400 font-medium">{ret.customerName}</td>
                   <td className="px-8 py-5 font-black text-red-400">{formatCurrency(ret.totalAmount)}</td>
                   <td className="px-8 py-5 text-slate-500 text-xs font-medium">
-                    {ret.date?.toDate ? formatDate(ret.date.toDate()) : '---'}
+                    {ret.date ? new Date(ret.date).toLocaleDateString('ar-EG') : '---'}
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-3 justify-end">
-                      <button className="p-2.5 hover:bg-blue-500/10 text-blue-400 rounded-xl transition-colors">
-                        <Eye size={18} />
-                      </button>
-                      <button className="p-2.5 hover:bg-emerald-500/10 text-emerald-400 rounded-xl transition-colors">
-                        <Download size={18} />
+                      <button 
+                        onClick={() => handleDelete(ret.id)}
+                        className="p-2.5 hover:bg-red-500/10 text-red-400 rounded-xl transition-colors"
+                      >
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </td>
@@ -119,194 +157,87 @@ export const Returns: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <ReturnModal 
-          onClose={() => setIsModalOpen(false)} 
-        />
+        <div className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#151b2b] w-full max-w-xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-amber-600"></div>
+            <div className="p-8 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/50">
+              <h3 className="font-black text-xl text-white tracking-tight">إصدار مرتجع مبيعات جديد</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateReturn} className="p-8 space-y-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">اسم العميل</label>
+                <input 
+                  type="text"
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">المنتجات المرتجعة</label>
+                {returnItems.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 mb-2 items-center">
+                    <input 
+                      type="text"
+                      value={item.name}
+                      onChange={(e) => {
+                        const items = [...returnItems];
+                        items[idx].name = e.target.value;
+                        setReturnItems(items);
+                      }}
+                      className="flex-1 bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white text-xs font-medium"
+                      placeholder="اسم المنتج"
+                    />
+                    <input 
+                      type="number"
+                      value={item.price}
+                      onChange={(e) => {
+                        const items = [...returnItems];
+                        items[idx].price = Number(e.target.value);
+                        setReturnItems(items);
+                      }}
+                      className="w-24 bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white text-xs font-medium"
+                      placeholder="السعر"
+                    />
+                    <input 
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const items = [...returnItems];
+                        items[idx].quantity = Number(e.target.value);
+                        setReturnItems(items);
+                      }}
+                      className="w-20 bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white text-xs font-medium"
+                      placeholder="الكمية"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1e293b]">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-6 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition-all shadow-lg shadow-red-600/20 text-xs"
+                >
+                  حفظ وإصدار المرتجع
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
-  );
-};
-
-const ReturnModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [searchInvoiceId, setSearchInvoiceId] = useState('');
-  const [originalInvoice, setOriginalInvoice] = useState<any>(null);
-  const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
-  const searchInvoice = async () => {
-    if (!searchInvoiceId) return;
-    setIsSearching(true);
-    try {
-      // Search by full ID or short ID
-      const q = query(collection(db, 'invoices'), where('__name__', '>=', searchInvoiceId), where('__name__', '<=', searchInvoiceId + '\uf8ff'));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const inv = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
-        setOriginalInvoice(inv);
-        setReturnItems(inv.items.map((item: any) => ({
-          productId: item.productId,
-          name: item.name,
-          price: item.price,
-          quantity: 0,
-          reason: 'مرتجع مبيعات'
-        })));
-      } else {
-        alert('الفاتورة غير موجودة');
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const updateReturnQty = (productId: string, qty: number, max: number) => {
-    setReturnItems(prev => prev.map(item => {
-      if (item.productId === productId) {
-        return { ...item, quantity: Math.min(max, Math.max(0, qty)) };
-      }
-      return item;
-    }));
-  };
-
-  const totalAmount = returnItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-  const handleSubmit = async () => {
-    if (returnItems.filter(i => i.quantity > 0).length === 0) return;
-    try {
-      const now = Timestamp.now();
-      await addDoc(collection(db, 'returns'), {
-        originalInvoiceId: originalInvoice?.id || null,
-        customerId: originalInvoice?.customerId || 'walk-in',
-        customerName: originalInvoice?.customerName || 'عميل نقدي',
-        items: returnItems.filter(i => i.quantity > 0),
-        totalAmount,
-        date: now,
-        status: 'completed'
-      });
-
-      // Update stock back
-      for (const item of returnItems.filter(i => i.quantity > 0)) {
-        const prodRef = doc(db, 'products', item.productId);
-        const prodDoc = await getDoc(prodRef);
-        if (prodDoc.exists()) {
-          await updateDoc(prodRef, {
-            stock: (prodDoc.data().stock || 0) + item.quantity
-          });
-        }
-      }
-
-      onClose();
-      alert('تم حفظ المرتجع وتحديث المخزون');
-    } catch (error) {
-      console.error(error);
-      alert('حدث خطأ أثناء الحفظ');
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#151b2b] w-full max-w-4xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-8 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/50">
-          <h3 className="font-black text-2xl text-white tracking-tight">إنشاء مرتجع مبيعات</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="p-8 space-y-8 overflow-y-auto">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
-              <input 
-                type="text"
-                placeholder="ابحث برقم الفاتورة..."
-                value={searchInvoiceId}
-                onChange={(e) => setSearchInvoiceId(e.target.value)}
-                className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-2xl py-4 pr-12 pl-4 text-white focus:outline-none focus:border-red-500 transition-all"
-              />
-            </div>
-            <button 
-              onClick={searchInvoice}
-              disabled={isSearching}
-              className="px-8 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition-all disabled:opacity-50"
-            >
-              بحث
-            </button>
-          </div>
-
-          {originalInvoice && (
-            <div className="space-y-6">
-              <div className="bg-[#0f172a]/50 p-6 rounded-2xl border border-[#1e293b] flex items-center justify-between">
-                <div className="text-right">
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">تفاصيل الفاتورة</p>
-                  <p className="text-lg font-black text-white">#{originalInvoice.id.slice(0, 8)} - {originalInvoice.customerName}</p>
-                </div>
-                <div className="text-left">
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">إجمالي الفاتورة</p>
-                  <p className="text-lg font-black text-blue-400">{formatCurrency(originalInvoice.totalAmount)}</p>
-                </div>
-              </div>
-
-              <div className="bg-[#0f172a]/30 border border-[#1e293b] rounded-2xl overflow-hidden">
-                <table className="w-full text-right text-sm">
-                  <thead className="bg-slate-900/50 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                    <tr>
-                      <th className="px-6 py-4">المنتج</th>
-                      <th className="px-6 py-4">الكمية المباعة</th>
-                      <th className="px-6 py-4">كمية المرتجع</th>
-                      <th className="px-6 py-4">السعر</th>
-                      <th className="px-6 py-4">الإجمالي</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#1e293b]">
-                    {returnItems.map((item, idx) => {
-                      const originalItem = originalInvoice.items.find((i: any) => i.productId === item.productId);
-                      return (
-                        <tr key={item.productId} className="hover:bg-slate-800/20 transition-colors">
-                          <td className="px-6 py-4 font-bold text-white">{item.name}</td>
-                          <td className="px-6 py-4 text-slate-400">{originalItem?.quantity || 0}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3 justify-end">
-                              <button onClick={() => updateReturnQty(item.productId, item.quantity - 1, originalItem?.quantity || 0)} className="text-slate-500 hover:text-red-400 transition-colors"><MinusCircle size={18} /></button>
-                              <input 
-                                type="number" 
-                                value={item.quantity}
-                                onChange={(e) => updateReturnQty(item.productId, parseInt(e.target.value) || 0, originalItem?.quantity || 0)}
-                                className="w-12 bg-slate-900 border border-slate-800 rounded text-center font-black text-white py-1"
-                              />
-                              <button onClick={() => updateReturnQty(item.productId, item.quantity + 1, originalItem?.quantity || 0)} className="text-slate-500 hover:text-blue-400 transition-colors"><PlusCircle size={18} /></button>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-slate-400">{formatCurrency(item.price)}</td>
-                          <td className="px-6 py-4 font-black text-red-400">{formatCurrency(item.price * item.quantity)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-8 bg-[#0f172a] border-t border-[#1e293b] flex items-center justify-between">
-          <div className="text-right">
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">إجمالي المبلغ المسترد</p>
-            <p className="text-3xl font-black text-red-500 tracking-tighter">{formatCurrency(totalAmount)}</p>
-          </div>
-          <div className="flex gap-4">
-            <button onClick={onClose} className="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all">إلغاء</button>
-            <button 
-              onClick={handleSubmit}
-              disabled={totalAmount <= 0}
-              className="px-8 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-red-600/20 disabled:opacity-50"
-            >
-              تأكيد المرتجع
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

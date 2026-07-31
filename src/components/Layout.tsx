@@ -30,8 +30,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { auth, signOut } from '../firebase';
-import { useFirebase } from './FirebaseProvider';
+import { useAuth } from './AuthProvider';
 import { AlertBanner } from './AlertBanner';
 import { SyncEngineStatusBadge } from './SyncEngineStatusBadge';
 import { useLearningMode } from './learning/LearningModeProvider';
@@ -90,12 +89,13 @@ const navSections = [
 
 export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { user, profile } = useFirebase();
+  const { user, logout } = useAuth();
+  const profile = { role: 'admin', displayName: user?.displayName || 'مدير النظام' };
   const navigate = useNavigate();
   const { isLearningModeEnabled, toggleLearningMode } = useLearningMode();
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
+    logout();
     navigate('/login');
   };
 

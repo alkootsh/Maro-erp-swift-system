@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useFirebase } from '../components/FirebaseProvider';
+import { useAuth } from '../components/AuthProvider';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -13,7 +13,8 @@ import {
   FileText,
   AlertTriangle,
   Plus,
-  BarChart3
+  BarChart3,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -30,8 +31,9 @@ import {
   Pie,
   Legend
 } from 'recharts';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { MaroEventBus } from '../lib/eventBus';
+import { BusinessHealth } from '../types/businessIntelligence';
 import { formatCurrency, cn } from '../lib/utils';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -75,44 +77,42 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, trend, icon: 
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { loading, user } = useFirebase();
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalProducts: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+  const [health, setHealth] = useState<BusinessHealth | null>(null);
   
   const [invoices, setInvoices] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
 
   useEffect(() => {
-    if (loading || !user) return;
-    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
-      setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.warn('[Dashboard] invoices snapshot offline:', err));
+    if (!user) return;
+    
+    // Subscribe to Business Health Updates
+    const unsubHealth = MaroEventBus.subscribe('BusinessHealthCalculated', (event) => {
+        setHealth(event.payload as BusinessHealth);
+    });
 
-    const unsubBills = onSnapshot(collection(db, 'bills'), (snap) => {
-      setBills(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.warn('[Dashboard] bills snapshot offline:', err));
-
-    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snap) => {
-      setStats(prev => ({ ...prev, totalCustomers: snap.size }));
-    }, (err) => console.warn('[Dashboard] customers snapshot offline:', err));
-
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
-      const allProds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const lowStock = allProds.filter((p: any) => p.quantity <= 5).slice(0, 3);
+    const unsubInvoices = MaroSyncEngine.subscribe('invoices', (items) => setInvoices(items));
+    const unsubBills = MaroSyncEngine.subscribe('bills', (items) => setBills(items));
+    const unsubCustomers = MaroSyncEngine.subscribe('customers', (items) => setStats(prev => ({ ...prev, totalCustomers: items.length })));
+    const unsubProducts = MaroSyncEngine.subscribe('products', (items) => {
+      const lowStock = items.filter((p: any) => (p.quantity || 0) <= (p.reorderLevel || 5)).slice(0, 3);
       setLowStockProducts(lowStock);
-      setStats(prev => ({ ...prev, totalProducts: snap.size }));
-    }, (err) => console.warn('[Dashboard] products snapshot offline:', err));
+      setStats(prev => ({ ...prev, totalProducts: items.length }));
+    });
 
     return () => {
       unsubInvoices();
       unsubBills();
       unsubCustomers();
       unsubProducts();
+      unsubHealth();
     };
-  }, [loading, user]);
+  }, [user]);
 
   const { totalSales, totalExpenses, recentInvoices, dailySales, monthlyData, categoryData } = useMemo(() => {
     let totalSales = 0;
@@ -243,6 +243,14 @@ export const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <StatCard 
+          title="Business Health Score" 
+          value={health ? `${health.score}/100` : "---"} 
+          change={health ? health.aiExplanation : "جاري الحساب..."} 
+          trend={health && health.score >= 50 ? "up" : "down"} 
+          icon={ShieldCheck} 
+          color="blue"
+        />
         <StatCard 
           title="إجمالي المبيعات" 
           value={formatCurrency(totalSales)} 

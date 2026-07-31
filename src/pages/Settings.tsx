@@ -13,23 +13,22 @@ import {
   AlertTriangle,
   Keyboard
 } from 'lucide-react';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useFirebase } from '../components/FirebaseProvider';
+import { useAuth } from '../components/AuthProvider';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
 import { POSFunctionKeysManager } from '../components/settings/POSFunctionKeysManager';
 
 export const Settings: React.FC = () => {
-  const { user, profile } = useFirebase();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'system' | 'pos_keys' | 'security'>('profile');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const [settings, setSettings] = useState({
-    companyName: 'سويفت للتجارة',
+    companyName: 'MARO Business Platform',
     companyAddress: 'الرياض، المملكة العربية السعودية',
     companyPhone: '+966 50 000 0000',
-    companyEmail: 'info@swift-erp.com',
+    companyEmail: 'info@maro-erp.local',
     currency: 'SAR',
     taxRate: 15,
     lowStockThreshold: 5,
@@ -38,11 +37,12 @@ export const Settings: React.FC = () => {
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'general'), (snap) => {
-      if (snap.exists()) {
-        setSettings(prev => ({ ...prev, ...snap.data() }));
-      }
+    const unsub = MaroSyncEngine.subscribe('settings_general', (items: any[]) => {
+      const found = items.find((i: any) => i.id === 'general');
+      if (found) setSettings(prev => ({ ...prev, ...found }));
     });
+    const local = MaroSyncEngine.getLocalDocument('settings_general', 'general');
+    if (local) setSettings(prev => ({ ...prev, ...local }));
     return () => unsub();
   }, []);
 
@@ -51,7 +51,7 @@ export const Settings: React.FC = () => {
     setLoading(true);
     setMessage(null);
     try {
-      await setDoc(doc(db, 'settings', 'general'), settings);
+      await MaroSyncEngine.saveDocument('settings_general', { id: 'general', ...settings }, false);
       setMessage({ type: 'success', text: 'تم حفظ الإعدادات بنجاح' });
     } catch (error) {
       console.error(error);
@@ -72,7 +72,10 @@ export const Settings: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black text-white tracking-tight">الإعدادات</h2>
+        <div>
+          <h2 className="text-2xl font-black text-white tracking-tight">إعدادات النظام</h2>
+          <p className="text-slate-500 font-bold text-sm">إدارة تفضيلات النظام والشركات والصلاحيات</p>
+        </div>
         {message && (
           <div className={cn(
             "px-4 py-2 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-top-2",
@@ -83,207 +86,131 @@ export const Settings: React.FC = () => {
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar Tabs */}
-        <div className="w-full lg:w-64 space-y-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm",
-                activeTab === tab.id 
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" 
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              )}
-            >
-              <tab.icon size={18} />
-              <span>{tab.name}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
-          <form onSubmit={handleSave} className="p-8 space-y-8">
-            {activeTab === 'profile' && (
-              <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="flex items-center gap-6 mb-8">
-                  <div className="w-24 h-24 bg-slate-800 rounded-3xl border-2 border-[#1e293b] flex items-center justify-center text-slate-500 relative group">
-                    <User size={40} />
-                    <button type="button" className="absolute inset-0 bg-black/50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold uppercase">تغيير</button>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-white">{profile?.displayName || user?.email?.split('@')[0]}</h3>
-                    <p className="text-slate-500 text-sm font-medium">{user?.email}</p>
-                    <span className="inline-block mt-2 px-3 py-1 bg-blue-600/10 text-blue-500 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-blue-500/20">
-                      {profile?.role === 'admin' ? 'مدير النظام' : 'محاسب'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الاسم الكامل</label>
-                    <input type="text" className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" defaultValue={profile?.displayName || ''} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البريد الإلكتروني</label>
-                    <input type="email" disabled className="w-full px-4 py-3 bg-[#0f172a] border border-[#1e293b] rounded-2xl text-slate-500 cursor-not-allowed outline-none" value={user?.email || ''} />
-                  </div>
-                </div>
-              </div>
+      <div className="flex gap-4 border-b border-[#1e293b] pb-4">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all",
+              activeTab === tab.id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:bg-[#151b2b] hover:text-white"
             )}
+          >
+            <tab.icon size={16} />
+            <span>{tab.name}</span>
+          </button>
+        ))}
+      </div>
 
-            {activeTab === 'company' && (
-              <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">اسم المؤسسة / الشركة</label>
-                    <input 
-                      type="text" 
-                      className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
-                      value={settings.companyName}
-                      onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">رقم الهاتف</label>
-                    <input 
-                      type="text" 
-                      className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
-                      value={settings.companyPhone}
-                      onChange={(e) => setSettings({ ...settings, companyPhone: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البريد الإلكتروني للمؤسسة</label>
-                    <input 
-                      type="email" 
-                      className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
-                      value={settings.companyEmail}
-                      onChange={(e) => setSettings({ ...settings, companyEmail: e.target.value })}
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">العنوان</label>
-                    <textarea 
-                      rows={3}
-                      className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none transition-all" 
-                      value={settings.companyAddress}
-                      onChange={(e) => setSettings({ ...settings, companyAddress: e.target.value })}
-                    />
-                  </div>
-                </div>
+      <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] p-8 shadow-2xl">
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-black text-white">معلومات المستخدم الحالي</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الاسم</label>
+                <input type="text" readOnly value={user?.displayName || 'مدير النظام'} className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" />
               </div>
-            )}
-
-            {activeTab === 'system' && (
-              <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">العملة الافتراضية</label>
-                    <div className="relative">
-                      <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <select 
-                        className="w-full px-4 py-3 pr-12 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none appearance-none transition-all font-bold"
-                        value={settings.currency}
-                        onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                      >
-                        <option value="SAR">ريال سعودي (SAR)</option>
-                        <option value="USD">دولار أمريكي (USD)</option>
-                        <option value="EGP">جنيه مصري (EGP)</option>
-                        <option value="AED">درهم إماراتي (AED)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نسبة ضريبة القيمة المضافة (%)</label>
-                    <div className="relative">
-                      <Percent className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <input 
-                        type="number" 
-                        className="w-full px-4 py-3 pr-12 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold" 
-                        value={settings.taxRate}
-                        onChange={(e) => setSettings({ ...settings, taxRate: Number(e.target.value) })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">تنبيه المخزون المنخفض (أقل من)</label>
-                    <div className="relative">
-                      <AlertTriangle className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500" size={18} />
-                      <input 
-                        type="number" 
-                        className="w-full px-4 py-3 pr-12 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold" 
-                        value={settings.lowStockThreshold}
-                        onChange={(e) => setSettings({ ...settings, lowStockThreshold: Number(e.target.value) })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">لغة النظام</label>
-                    <div className="relative">
-                      <Globe className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                      <select 
-                        className="w-full px-4 py-3 pr-12 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none appearance-none transition-all font-bold"
-                        value={settings.language}
-                        onChange={(e) => setSettings({ ...settings, language: e.target.value })}
-                      >
-                        <option value="ar">العربية</option>
-                        <option value="en">English</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البريد الإلكتروني</label>
+                <input type="text" readOnly value={user?.email || 'admin@maro-erp.local'} className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" />
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {activeTab === 'security' && (
-              <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="p-6 bg-blue-600/5 border border-blue-600/10 rounded-2xl">
-                  <div className="flex items-center gap-4 mb-4">
-                    <Shield className="text-blue-500" size={24} />
-                    <h4 className="font-bold text-white">تغيير كلمة المرور</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-6 font-medium">يمكنك طلب رابط إعادة تعيين كلمة المرور عبر بريدك الإلكتروني المسجل.</p>
-                  <button type="button" className="px-6 py-3 bg-[#1e293b] text-white rounded-xl font-bold hover:bg-[#334155] transition-all text-xs uppercase tracking-widest">إرسال رابط إعادة التعيين</button>
-                </div>
-
-                <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                  <div className="flex items-center gap-4 mb-4">
-                    <Database className="text-red-500" size={24} />
-                    <h4 className="font-bold text-white">إدارة البيانات</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-6 font-medium">تحذير: مسح البيانات سيؤدي إلى حذف جميع السجلات بشكل نهائي.</p>
-                  <div className="flex gap-4">
-                    <button type="button" className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500 transition-all text-xs uppercase tracking-widest">مسح جميع البيانات</button>
-                    <button type="button" className="px-6 py-3 bg-[#1e293b] text-slate-300 rounded-xl font-bold hover:bg-[#334155] transition-all text-xs uppercase tracking-widest">تصدير نسخة احتياطية</button>
-                  </div>
-                </div>
+        {activeTab === 'company' && (
+          <form onSubmit={handleSave} className="space-y-6">
+            <h3 className="text-lg font-black text-white">بيانات الشركة المؤسسية</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">اسم الشركة</label>
+                <input 
+                  type="text" 
+                  value={settings.companyName} 
+                  onChange={(e) => setSettings({ ...settings, companyName: e.target.value })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
               </div>
-            )}
-
-            {activeTab === 'pos_keys' && (
-              <div className="animate-in fade-in duration-300">
-                <POSFunctionKeysManager />
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الهاتف</label>
+                <input 
+                  type="text" 
+                  value={settings.companyPhone} 
+                  onChange={(e) => setSettings({ ...settings, companyPhone: e.target.value })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
               </div>
-            )}
-
-            {activeTab !== 'pos_keys' && (
-              <div className="pt-8 border-t border-[#1e293b] flex justify-end">
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 uppercase tracking-widest"
-                >
-                  <Save size={20} />
-                  <span>{loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}</span>
-                </button>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البريد الإلكتروني للشركة</label>
+                <input 
+                  type="text" 
+                  value={settings.companyEmail} 
+                  onChange={(e) => setSettings({ ...settings, companyEmail: e.target.value })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
               </div>
-            )}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">العنوان</label>
+                <input 
+                  type="text" 
+                  value={settings.companyAddress} 
+                  onChange={(e) => setSettings({ ...settings, companyAddress: e.target.value })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
+              </div>
+            </div>
+            <div className="flex justify-end pt-4 border-t border-[#1e293b]">
+              <button type="submit" disabled={loading} className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all text-xs">
+                <Save size={16} />
+                <span>حفظ التغييرات</span>
+              </button>
+            </div>
           </form>
-        </div>
+        )}
+
+        {activeTab === 'system' && (
+          <form onSubmit={handleSave} className="space-y-6">
+            <h3 className="text-lg font-black text-white">إعدادات النظام والمحاسبة</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">العملة الافتراضية</label>
+                <input 
+                  type="text" 
+                  value={settings.currency} 
+                  onChange={(e) => setSettings({ ...settings, currency: e.target.value })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نسبة ضريبة القيمة المضافة (%)</label>
+                <input 
+                  type="number" 
+                  value={settings.taxRate} 
+                  onChange={(e) => setSettings({ ...settings, taxRate: Number(e.target.value) })} 
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm font-medium" 
+                />
+              </div>
+            </div>
+            <div className="flex justify-end pt-4 border-t border-[#1e293b]">
+              <button type="submit" disabled={loading} className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all text-xs">
+                <Save size={16} />
+                <span>حفظ التغييرات</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {activeTab === 'pos_keys' && (
+          <POSFunctionKeysManager />
+        )}
+
+        {activeTab === 'security' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-black text-white">إعدادات الأمان والصلاحيات</h3>
+            <p className="text-slate-400 text-sm">يتم تطبيق سياسات الأمان وقواعد RBAC المشددة تلقائياً عبر محرك MARO Security Engine.</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -259,5 +259,59 @@ CREATE TABLE IF NOT EXISTS security_alerts (
     read BOOLEAN DEFAULT FALSE
 );
 
-CREATE INDEX IF NOT EXISTS idx_sec_alerts_severity ON security_alerts(severity);
+-- 16. Business Intelligence Tables
+
+-- Business Health Snapshot
+CREATE TABLE IF NOT EXISTS business_health (
+    id VARCHAR(64) PRIMARY KEY,
+    company_id VARCHAR(64) NOT NULL,
+    branch_id VARCHAR(64),
+    score INTEGER NOT NULL DEFAULT 0,
+    metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ai_explanation TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- KPI Definitions
+CREATE TABLE IF NOT EXISTS kpi_definitions (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    weight NUMERIC(5,2) DEFAULT 1.00,
+    calculation_formula TEXT NOT NULL
+);
+
+-- KPI Values
+CREATE TABLE IF NOT EXISTS kpi_values (
+    id VARCHAR(64) PRIMARY KEY,
+    kpi_id VARCHAR(64) NOT NULL REFERENCES kpi_definitions(id),
+    value NUMERIC(15,4) NOT NULL,
+    target NUMERIC(15,4) NOT NULL,
+    period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AI Recommendations
+CREATE TABLE IF NOT EXISTS ai_recommendations (
+    id VARCHAR(64) PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    reason TEXT,
+    confidence NUMERIC(5,2),
+    affected_entities JSONB DEFAULT '[]'::jsonb,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Dashboards
+CREATE TABLE IF NOT EXISTS saved_dashboards (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    is_public BOOLEAN DEFAULT FALSE,
+    layout JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 

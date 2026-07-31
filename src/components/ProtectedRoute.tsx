@@ -1,9 +1,9 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useFirebase } from './FirebaseProvider';
+import { useAuth } from './AuthProvider';
 
 export const ProtectedRoute: React.FC = () => {
-  const { user, loading } = useFirebase();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (

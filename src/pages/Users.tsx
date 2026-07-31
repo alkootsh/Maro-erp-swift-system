@@ -11,8 +11,7 @@ import {
   User as UserIcon,
   X
 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
 import { SecurityEngine } from '../lib/securityEngine';
 
@@ -33,14 +32,20 @@ export const Users: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('displayName'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const userList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
-      setUsers(userList);
+    const unsubscribe = MaroSyncEngine.subscribe<UserProfile>('users', (data) => {
+      setUsers(data);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
     });
+
+    // Seed initial users if empty
+    const local = MaroSyncEngine.getLocalCollection<UserProfile>('users');
+    if (local.length === 0) {
+      const defaultUsers: UserProfile[] = [
+        { id: 'usr_1', displayName: 'مدير النظام العام', email: 'admin@maro-erp.local', role: 'admin', status: 'active', department: 'الإدارة العليا' },
+        { id: 'usr_2', displayName: 'محمد المحاسب', email: 'accountant@maro-erp.local', role: 'accountant', status: 'active', department: 'المالية والحسابات' }
+      ];
+      defaultUsers.forEach(u => MaroSyncEngine.saveDocument('users', u, true));
+    }
 
     return () => unsubscribe();
   }, []);
@@ -53,9 +58,9 @@ export const Users: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
       try {
-        await deleteDoc(doc(db, 'users', id));
+        await MaroSyncEngine.deleteDocument('users', id);
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+        console.error('Delete user failed:', error);
       }
     }
   };
@@ -178,7 +183,6 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Check for duplicates
       const duplicateEmail = users.find(u => u.email.toLowerCase() === formData.email.toLowerCase() && u.id !== user?.id);
       if (duplicateEmail) {
         alert('البريد الإلكتروني مستخدم بالفعل');
@@ -192,13 +196,14 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
       }
 
       if (user) {
-        await updateDoc(doc(db, 'users', user.id), formData);
+        await MaroSyncEngine.saveDocument('users', { ...user, ...formData }, false);
       } else {
-        await addDoc(collection(db, 'users'), formData);
+        const newId = `usr_${Date.now()}`;
+        await MaroSyncEngine.saveDocument('users', { id: newId, ...formData }, true);
       }
       onClose();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'users');
+      console.error('Save user failed:', error);
     }
   };
 
@@ -218,74 +223,62 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الاسم الكامل</label>
             <input 
-              required
               type="text" 
-              className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              required
               value={formData.displayName}
               onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+              className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+              placeholder="محمد أحمد"
             />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البريد الإلكتروني</label>
             <input 
-              required
               type="email" 
-              className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+              placeholder="user@maro-erp.local"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الدور</label>
-              <select 
-                className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold"
+              <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
               >
-                <option value="accountant">محاسب</option>
                 <option value="admin">مدير النظام</option>
+                <option value="accountant">محاسب</option>
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">القسم</label>
-              <select 
-                className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الحالة</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
               >
-                <option value="">بدون قسم</option>
-                <option value="المبيعات">المبيعات</option>
-                <option value="المخازن">المخازن</option>
-                <option value="المحاسبة">المحاسبة</option>
-                <option value="الإدارة">الإدارة</option>
+                <option value="active">نشط</option>
+                <option value="inactive">غير نشط</option>
               </select>
             </div>
           </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الحالة</label>
-            <select 
-              className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold"
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-            >
-              <option value="active">نشط</option>
-              <option value="inactive">غير نشط</option>
-            </select>
-          </div>
-          <div className="pt-4 flex gap-4">
-            <button 
-              type="submit"
-              className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 uppercase tracking-widest"
-            >
-              {user ? 'حفظ التغييرات' : 'إضافة المستخدم'}
-            </button>
-            <button 
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1e293b]">
+            <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#1e293b] text-slate-300 py-4 rounded-2xl font-bold hover:bg-[#334155] transition-all uppercase tracking-widest"
+              className="px-6 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
             >
               إلغاء
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 text-xs"
+            >
+              حفظ المستخدم
             </button>
           </div>
         </form>

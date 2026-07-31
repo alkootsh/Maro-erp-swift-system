@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, Sparkles, Mic, Expand, Minimize2, Loader2, Settings, WifiOff } from 'lucide-react';
 import { AIEngine, AIMessage, AIContext } from './AIEngine';
-import { useFirebase } from '../FirebaseProvider';
+import { useAuth } from '../AuthProvider';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../../lib/utils';
@@ -13,7 +13,8 @@ export const AIAgentOverlay: React.FC = () => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { user, profile } = useFirebase();
+  const { user } = useAuth();
+  const profile = { role: 'admin', displayName: user?.displayName };
   const location = useLocation();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);

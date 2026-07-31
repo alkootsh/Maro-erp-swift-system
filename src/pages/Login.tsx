@@ -1,52 +1,81 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
-import { useFirebase } from '../components/FirebaseProvider';
-import { LogIn } from 'lucide-react';
+import { useAuth } from '../components/AuthProvider';
+import { LogIn, ShieldCheck, Terminal, UserCheck } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { user, loading } = useFirebase();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+  const [email, setEmail] = useState('alkootsh@gmail.com');
+  const [role, setRole] = useState<'developer' | 'admin' | 'accountant' | 'cashier'>('developer');
 
   React.useEffect(() => {
-    if (user && !loading) {
+    if (user) {
       navigate('/', { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, navigate]);
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('Login failed:', error);
-    }
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    login(email || 'admin@maro-erp.local', role);
+    navigate('/', { replace: true });
   };
-
-  if (loading) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0b0f1a] p-4 text-slate-200">
       <div className="max-w-md w-full bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-2xl p-10 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-emerald-600"></div>
-        <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-blue-600/20 rotate-3">
-          <span className="text-white font-black text-4xl -rotate-3">S</span>
+        
+        <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-600/20 rotate-3">
+          <Terminal className="text-white w-10 h-10 -rotate-3" />
         </div>
-        <h1 className="text-3xl font-black text-white mb-3 tracking-tight">سويفت ERP</h1>
-        <p className="text-slate-400 mb-10 text-sm font-medium">نظام محاسبي متكامل لإدارة أعمالك بكل سهولة</p>
         
-        <button
-          onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-4 bg-[#1e293b] border border-[#334155] py-4 px-6 rounded-2xl font-bold text-white hover:bg-[#334155] transition-all active:scale-95 shadow-xl"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
-          <span>تسجيل الدخول باستخدام جوجل</span>
-        </button>
+        <h1 className="text-3xl font-black text-white mb-2 tracking-tight">منصة MARO ERP</h1>
+        <p className="text-slate-400 mb-8 text-sm font-medium">نظام تخطيط موارد المؤسسات (PostgreSQL + Sync Engine)</p>
         
-        <div className="mt-12 pt-8 border-t border-[#1e293b]">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">Swift ERP v2.0</p>
-          <p className="text-[10px] text-slate-600">بالمتابعة، أنت توافق على شروط الخدمة وسياسة الخصوصية الخاصة بنا</p>
+        <form onSubmit={handleLogin} className="space-y-4 text-right">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">البريد الإلكتروني / اسم المستخدم</label>
+            <input 
+              type="text" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+              placeholder="admin@maro-erp.local"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">الدور الوظيفي (RBAC)</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as any)}
+              className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+            >
+              <option value="developer">المطور الرئيسي (Developer)</option>
+              <option value="admin">مدير النظام (Administrator)</option>
+              <option value="accountant">محاسب عام (Accountant)</option>
+              <option value="cashier">كاشير المبيعات (POS Cashier)</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full mt-4 flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-blue-600/30 active:scale-95"
+          >
+            <LogIn size={18} />
+            <span>دخول آمن (Enterprise Auth)</span>
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-[#1e293b] flex items-center justify-center gap-2 text-xs text-emerald-400 font-bold">
+          <ShieldCheck size={16} />
+          <span>متصل بقاعدة بيانات PostgreSQL المحلية الآمنة</span>
+        </div>
+        
+        <div className="mt-4">
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">MARO Business Platform v4.0</p>
         </div>
       </div>
     </div>

@@ -116,6 +116,16 @@ export const ReportDesigner: React.FC = () => {
               </div>
               <div className="p-4 space-y-4">
                 <div>
+                  <div className="text-xs font-bold text-slate-500 mb-2 uppercase">تحليل (Analytics)</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="flex flex-col items-center justify-center p-3 bg-[#0b0f1a] border border-[#1e293b] rounded-lg hover:border-blue-500 transition-colors text-slate-300">
+                      <Activity size={20} className="mb-1 text-red-400" />
+                      <span className="text-[10px] font-bold">What-If</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
                   <div className="text-xs font-bold text-slate-500 mb-2 uppercase">بيانات (Data)</div>
                   <div className="grid grid-cols-2 gap-2">
                     <button className="flex flex-col items-center justify-center p-3 bg-[#0b0f1a] border border-[#1e293b] rounded-lg hover:border-blue-500 transition-colors text-slate-300">

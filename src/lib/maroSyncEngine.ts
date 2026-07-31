@@ -240,11 +240,17 @@ export class MaroSyncEngine {
       if (response.ok) {
         const remoteItems = await response.json();
         if (Array.isArray(remoteItems)) {
+          const currentLocal = this.getLocalCollection(collectionName);
+          
+          // If remote is empty but local has items, preserve local data and push to sync queue if needed
+          if (remoteItems.length === 0 && currentLocal.length > 0) {
+            return;
+          }
+
           // Merge strategy with conflict resolution for non-pending items
           const pendingOps = this.getQueue().filter(op => op.collectionName === collectionName && op.status === 'PENDING');
           const pendingIds = new Set(pendingOps.map(op => op.entityId));
 
-          const currentLocal = this.getLocalCollection(collectionName);
           const merged = [...remoteItems.filter(r => !pendingIds.has(r.id))];
 
           // Re-add locally pending items with conflict check

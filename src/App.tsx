@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { FirebaseProvider } from './components/FirebaseProvider';
+import { AuthProvider } from './components/AuthProvider';
 import { LearningModeProvider } from './components/learning/LearningModeProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
@@ -29,12 +29,22 @@ import { StockAlerts } from './components/StockAlerts';
 import { DeveloperConsole } from './pages/DeveloperConsole';
 import { RolePermissions } from './pages/RolePermissions';
 import { SecurityAudit } from './pages/SecurityAudit';
+import { DemoDataSeeder } from './services/demoDataSeeder';
+import { FirstRunWizard } from './components/FirstRunWizard';
+import { initBusinessIntelligence } from './services/biInitializer';
 
 export default function App() {
+  const [showFirstRun, setShowFirstRun] = useState(DemoDataSeeder.isFirstRun());
+
+  useEffect(() => {
+    initBusinessIntelligence();
+  }, []);
+
   return (
-    <FirebaseProvider>
+    <AuthProvider>
       <LearningModeProvider>
       <StockAlerts />
+      {showFirstRun && <FirstRunWizard onComplete={() => setShowFirstRun(false)} />}
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -71,6 +81,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
           </LearningModeProvider>
-    </FirebaseProvider>
+    </AuthProvider>
   );
 }

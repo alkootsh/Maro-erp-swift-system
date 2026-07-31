@@ -12,8 +12,7 @@ import {
   CheckCircle,
   X
 } from 'lucide-react';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection } from 'firebase/firestore';
-import { db } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,7 +22,7 @@ interface Alert {
   type: 'info' | 'warning' | 'error' | 'success';
   targetDepartments: string[];
   targetUsers: string[];
-  duration: number; // in seconds
+  duration: number;
   isActive: boolean;
   createdAt: any;
 }
@@ -33,19 +32,32 @@ export const AlertSettings: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState<Partial<Alert> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [departments, setDepartments] = useState<string[]>(['المبيعات', 'المخازن', 'المحاسبة', 'الإدارة']);
+  const [departments] = useState<string[]>(['المبيعات', 'المخازن', 'المحاسبة', 'الإدارة']);
   const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsubAlerts = onSnapshot(doc(db, 'settings', 'alerts'), (snap) => {
-      if (snap.exists()) {
-        setAlerts(snap.data().list || []);
-      }
+    const unsubAlerts = MaroSyncEngine.subscribe('settings_alerts', (items: any[]) => {
+      setAlerts(items);
+    });
+    const unsubUsers = MaroSyncEngine.subscribe('users', (items: any[]) => {
+      setUsers(items);
     });
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    // Seed default if empty
+    const local = MaroSyncEngine.getLocalCollection('settings_alerts');
+    if (local.length === 0) {
+      const def: Alert = {
+        id: 'alt_1',
+        message: 'تنبيه النظام: تم تفعيل محرك المزامنة المحلي بنجاح.',
+        type: 'info',
+        targetDepartments: ['الإدارة'],
+        targetUsers: [],
+        duration: 10,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      MaroSyncEngine.saveDocument('settings_alerts', def, true);
+    }
 
     return () => {
       unsubAlerts();
@@ -57,249 +69,191 @@ export const AlertSettings: React.FC = () => {
     if (!editingAlert?.message) return;
     setIsSaving(true);
     try {
-      const newAlerts = [...alerts];
-      if (editingAlert.id) {
-        const index = newAlerts.findIndex(a => a.id === editingAlert.id);
-        newAlerts[index] = { ...editingAlert, createdAt: serverTimestamp() } as Alert;
-      } else {
-        newAlerts.push({
-          ...editingAlert,
-          id: Date.now().toString(),
-          createdAt: serverTimestamp(),
-          isActive: true
-        } as Alert);
-      }
-      await setDoc(doc(db, 'settings', 'alerts'), { list: newAlerts });
+      const alertId = editingAlert.id || `alt_${Date.now()}`;
+      const payload: Alert = {
+        id: alertId,
+        message: editingAlert.message,
+        type: editingAlert.type || 'info',
+        targetDepartments: editingAlert.targetDepartments || [],
+        targetUsers: editingAlert.targetUsers || [],
+        duration: Number(editingAlert.duration) || 10,
+        isActive: editingAlert.isActive ?? true,
+        createdAt: new Date().toISOString()
+      };
+      await MaroSyncEngine.saveDocument('settings_alerts', payload, !editingAlert.id);
       setIsModalOpen(false);
       setEditingAlert(null);
     } catch (error) {
-      console.error(error);
-      alert('حدث خطأ أثناء حفظ التنبيه');
+      console.error('Save alert failed:', error);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const toggleAlert = async (id: string) => {
-    const newAlerts = alerts.map(a => a.id === id ? { ...a, isActive: !a.isActive } : a);
-    await setDoc(doc(db, 'settings', 'alerts'), { list: newAlerts });
+  const handleDelete = async (id: string) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا التنبيه؟')) {
+      await MaroSyncEngine.deleteDocument('settings_alerts', id);
+    }
   };
 
-  const deleteAlert = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا التنبيه؟')) return;
-    const newAlerts = alerts.filter(a => a.id !== id);
-    await setDoc(doc(db, 'settings', 'alerts'), { list: newAlerts });
+  const toggleStatus = async (alert: Alert) => {
+    await MaroSyncEngine.saveDocument('settings_alerts', { ...alert, isActive: !alert.isActive }, false);
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-white tracking-tight">إدارة التنبيهات</h2>
-          <p className="text-slate-500 mt-1">التحكم في رسائل التنبيه التي تظهر للمستخدمين</p>
+          <h2 className="text-2xl font-black text-white tracking-tight">إدارة التنبيهات والإشعارات</h2>
+          <p className="text-slate-500 font-bold text-sm">تخصيص التنبيهات الفورية التي تظهر للمستخدمين في النظام</p>
         </div>
         <button 
-          onClick={() => {
-            setEditingAlert({
-              message: '',
-              type: 'info',
-              targetDepartments: [],
-              targetUsers: [],
-              duration: 30,
-              isActive: true
-            });
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20"
+          onClick={() => { setEditingAlert({ type: 'info', duration: 10, targetDepartments: [], targetUsers: [] }); setIsModalOpen(true); }}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs uppercase tracking-widest"
         >
-          <Plus size={20} />
-          <span>تنبيه جديد</span>
+          <Plus size={18} />
+          <span>إضافة تنبيه جديد</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {alerts.map((alert) => (
-          <div 
-            key={alert.id}
-            className={cn(
-              "bg-[#0f172a] border border-[#1e293b] rounded-2xl p-6 flex items-center justify-between group transition-all hover:border-blue-500/50",
-              !alert.isActive && "opacity-50 grayscale"
-            )}
-          >
-            <div className="flex items-center gap-6 flex-1">
-              <div className={cn(
-                "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg",
-                alert.type === 'info' && "bg-blue-600/20 text-blue-500",
-                alert.type === 'warning' && "bg-amber-600/20 text-amber-500",
-                alert.type === 'error' && "bg-red-600/20 text-red-500",
-                alert.type === 'success' && "bg-emerald-600/20 text-emerald-500",
-              )}>
-                {alert.type === 'info' && <Info size={24} />}
-                {alert.type === 'warning' && <AlertTriangle size={24} />}
-                {alert.type === 'error' && <X size={24} />}
-                {alert.type === 'success' && <CheckCircle size={24} />}
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-white mb-1">{alert.message}</p>
-                <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Clock size={14} />
-                    مدة العرض: {alert.duration} ثانية
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users size={14} />
-                    المستهدفون: {alert.targetDepartments.length > 0 ? alert.targetDepartments.join(', ') : 'الكل'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => toggleAlert(alert.id)}
-                className={cn(
-                  "px-4 py-2 rounded-lg font-bold text-sm transition-all",
-                  alert.isActive ? "bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600 hover:text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                )}
-              >
-                {alert.isActive ? 'نشط' : 'متوقف'}
-              </button>
-              <button 
-                onClick={() => {
-                  setEditingAlert(alert);
-                  setIsModalOpen(true);
-                }}
-                className="p-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white rounded-lg transition-all"
-              >
-                <Layout size={18} />
-              </button>
-              <button 
-                onClick={() => deleteAlert(alert.id)}
-                className="p-2 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white rounded-lg transition-all"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right">
+            <thead className="bg-[#0f172a]/50 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+              <tr>
+                <th className="px-8 py-5">الرسالة والتنبيه</th>
+                <th className="px-8 py-5">النوع</th>
+                <th className="px-8 py-5">المدة (ثانية)</th>
+                <th className="px-8 py-5">الحالة</th>
+                <th className="px-8 py-5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1e293b]">
+              {alerts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-8 py-16 text-center text-slate-600 font-medium">لا توجد تنبيهات حالياً</td>
+                </tr>
+              ) : alerts.map((alert) => (
+                <tr key={alert.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <td className="px-8 py-5 font-bold text-white max-w-md truncate">
+                    {alert.message}
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border",
+                      alert.type === 'info' && "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                      alert.type === 'warning' && "bg-amber-500/10 text-amber-500 border-amber-500/20",
+                      alert.type === 'error' && "bg-red-500/10 text-red-500 border-red-500/20",
+                      alert.type === 'success' && "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+                    )}>
+                      {alert.type}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 text-slate-400 font-medium">{alert.duration} ثوانٍ</td>
+                  <td className="px-8 py-5">
+                    <button 
+                      onClick={() => toggleStatus(alert)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors",
+                        alert.isActive ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20" : "bg-slate-800 text-slate-500 border-slate-700"
+                      )}
+                    >
+                      {alert.isActive ? 'نشط' : 'متوقف'}
+                    </button>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-2 justify-end">
+                      <button 
+                        onClick={() => { setEditingAlert(alert); setIsModalOpen(true); }}
+                        className="p-2.5 hover:bg-blue-500/10 text-blue-400 rounded-xl transition-colors"
+                      >
+                        تعديل
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(alert.id)}
+                        className="p-2.5 hover:bg-red-500/10 text-red-400 rounded-xl transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-[#151b2b] w-full max-w-xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]">
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-500 hover:text-white">
-                  <X size={24} />
-                </button>
-                <h3 className="font-black text-xl text-white">إعداد التنبيه</h3>
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#151b2b] w-full max-w-lg rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-emerald-600"></div>
+            <div className="p-8 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/50">
+              <h3 className="font-black text-xl text-white tracking-tight">
+                {editingAlert?.id ? 'تعديل التنبيه' : 'إضافة تنبيه جديد'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نص التنبيه</label>
+                <textarea 
+                  rows={3}
+                  value={editingAlert?.message || ''}
+                  onChange={(e) => setEditingAlert({ ...editingAlert, message: e.target.value })}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl p-4 text-white text-sm focus:outline-none focus:border-blue-500 font-medium resize-none"
+                  placeholder="أدخل رسالة التنبيه..."
+                />
               </div>
-              <div className="p-8 space-y-6">
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-400 mb-2 text-right">رسالة التنبيه</label>
-                  <textarea 
-                    value={editingAlert?.message}
-                    onChange={(e) => setEditingAlert({ ...editingAlert, message: e.target.value })}
-                    className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl py-3 px-4 text-white text-right focus:outline-none focus:border-blue-600 transition-all min-h-[100px]"
-                    placeholder="اكتب رسالة التنبيه هنا..."
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نوع التنبيه</label>
+                  <select 
+                    value={editingAlert?.type || 'info'}
+                    onChange={(e) => setEditingAlert({ ...editingAlert, type: e.target.value as any })}
+                    className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="info">معلومة (Info)</option>
+                    <option value="warning">تحذير (Warning)</option>
+                    <option value="error">خطأ (Error)</option>
+                    <option value="success">نجاح (Success)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">المدة (بالثواني)</label>
+                  <input 
+                    type="number"
+                    value={editingAlert?.duration || 10}
+                    onChange={(e) => setEditingAlert({ ...editingAlert, duration: Number(e.target.value) })}
+                    className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-400 mb-2 text-right">نوع التنبيه</label>
-                    <select 
-                      value={editingAlert?.type}
-                      onChange={(e) => setEditingAlert({ ...editingAlert, type: e.target.value as any })}
-                      className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl py-3 px-4 text-white text-right focus:outline-none focus:border-blue-600 transition-all"
-                    >
-                      <option value="info">معلومات (أزرق)</option>
-                      <option value="warning">تحذير (أصفر)</option>
-                      <option value="error">خطأ (أحمر)</option>
-                      <option value="success">نجاح (أخضر)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-400 mb-2 text-right">مدة العرض (ثانية)</label>
-                    <input 
-                      type="number"
-                      value={editingAlert?.duration}
-                      onChange={(e) => setEditingAlert({ ...editingAlert, duration: parseInt(e.target.value) })}
-                      className="w-full bg-[#0b0f1a] border border-[#1e293b] rounded-xl py-3 px-4 text-white text-right focus:outline-none focus:border-blue-600 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-400 mb-2 text-right">الأقسام المستهدفة (اترك فارغاً للكل)</label>
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      {departments.map(dept => (
-                        <button
-                          key={dept}
-                          onClick={() => {
-                            const current = editingAlert?.targetDepartments || [];
-                            const next = current.includes(dept) 
-                              ? current.filter(d => d !== dept)
-                              : [...current, dept];
-                            setEditingAlert({ ...editingAlert, targetDepartments: next });
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
-                            editingAlert?.targetDepartments?.includes(dept)
-                              ? "bg-blue-600 border-blue-500 text-white"
-                              : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700"
-                          )}
-                        >
-                          {dept}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-400 mb-2 text-right">المستخدمون المستهدفون (اترك فارغاً للكل)</label>
-                    <div className="flex flex-wrap gap-2 justify-end max-h-32 overflow-y-auto p-2 bg-[#0b0f1a] rounded-xl border border-[#1e293b]">
-                      {users.map(user => (
-                        <button
-                          key={user.id}
-                          onClick={() => {
-                            const current = editingAlert?.targetUsers || [];
-                            const next = current.includes(user.id) 
-                              ? current.filter(u => u !== user.id)
-                              : [...current, user.id];
-                            setEditingAlert({ ...editingAlert, targetUsers: next });
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border",
-                            editingAlert?.targetUsers?.includes(user.id)
-                              ? "bg-emerald-600 border-emerald-500 text-white"
-                              : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"
-                          )}
-                        >
-                          {user.name || user.email}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <button 
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1e293b]">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-6 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-lg transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 text-xs disabled:opacity-50"
                 >
                   {isSaving ? 'جاري الحفظ...' : 'حفظ التنبيه'}
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

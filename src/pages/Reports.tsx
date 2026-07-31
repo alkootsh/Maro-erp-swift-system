@@ -34,8 +34,7 @@ import { BarChart,
   PieChart,
   Pie
 } from 'recharts';
-import { collection, onSnapshot, query, orderBy, getDocs, where, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -55,23 +54,22 @@ export const Reports: React.FC = () => {
   const [topProducts, setTopProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
-      const total = snap.docs.reduce((acc, doc) => acc + (doc.data().totalAmount || 0), 0);
-      const sales = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setStats(prev => ({ ...prev, totalSales: total, salesCount: snap.size }));
-      setRecentSales(sales.slice(0, 10));
-    }, (err) => { console.warn('[Reports] invoices offline:', err); setLoading(false); });
-
-    const unsubBills = onSnapshot(collection(db, 'bills'), (snap) => {
-      const total = snap.docs.reduce((acc, doc) => acc + (doc.data().totalAmount || 0), 0);
-      setStats(prev => ({ ...prev, totalExpenses: total }));
-    }, (err) => console.warn('[Reports] bills offline:', err));
-
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
-      const prods = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setTopProducts(prods.slice(0, 5));
+    const unsubInvoices = MaroSyncEngine.subscribe('invoices', (items: any[]) => {
+      const total = items.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
+      setStats(prev => ({ ...prev, totalSales: total, salesCount: items.length }));
+      setRecentSales(items.slice(0, 10));
       setLoading(false);
-    }, (err) => { console.warn('[Reports] products offline:', err); setLoading(false); });
+    });
+
+    const unsubBills = MaroSyncEngine.subscribe('bills', (items: any[]) => {
+      const total = items.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
+      setStats(prev => ({ ...prev, totalExpenses: total }));
+    });
+
+    const unsubProducts = MaroSyncEngine.subscribe('products', (items: any[]) => {
+      setTopProducts(items.slice(0, 5));
+      setLoading(false);
+    });
 
     return () => {
       unsubInvoices();
@@ -428,8 +426,8 @@ const ReportGenerator: React.FC<{ report: any, onClose: () => void }> = ({ repor
           collectionName = 'invoices';
         }
 
-        const snap = await getDocs(collection(db, collectionName));
-        setData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const items = MaroSyncEngine.getLocalCollection(collectionName);
+        setData(items);
       } catch (error) {
         console.error(error);
       } finally {

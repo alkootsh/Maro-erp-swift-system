@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Save, Settings, FileText, Hash, Layout, User, Warehouse, Building } from 'lucide-react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
 
 interface InvoiceSettingsData {
@@ -36,22 +35,24 @@ export const InvoiceSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'invoices'), (doc) => {
-      if (doc.exists()) {
-        setSettings(doc.data() as InvoiceSettingsData);
-      }
+    const unsub = MaroSyncEngine.subscribe('settings_invoices', (items: any[]) => {
+      const found = items.find((i: any) => i.id === 'invoices');
+      if (found) setSettings(found);
       setLoading(false);
     });
-    return () => unsubscribe();
+    const local = MaroSyncEngine.getLocalDocument('settings_invoices', 'invoices');
+    if (local) setSettings(local);
+    setLoading(false);
+    return () => unsub();
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'invoices'), settings);
+      await MaroSyncEngine.saveDocument('settings_invoices', { id: 'invoices', ...settings }, false);
       alert('تم حفظ الإعدادات بنجاح');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'settings/invoices');
+      console.error('Save failed:', error);
     } finally {
       setSaving(false);
     }
@@ -82,7 +83,6 @@ export const InvoiceSettings: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Sequence Settings */}
         <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] p-8 space-y-6">
           <h3 className="text-lg font-black text-white flex items-center gap-2">
             <Hash size={20} className="text-blue-500" />
@@ -99,124 +99,80 @@ export const InvoiceSettings: React.FC = () => {
                 ].map(type => (
                   <button 
                     key={type.id}
+                    type="button"
                     onClick={() => setSettings({ ...settings, sequenceType: type.id as any })}
                     className={cn(
-                      "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all",
-                      settings.sequenceType === type.id ? "bg-blue-600/10 border-blue-500 text-blue-400" : "bg-[#0b0f1a] border-[#1e293b] text-slate-500 hover:border-slate-700"
+                      "p-4 rounded-2xl border font-bold text-xs flex flex-col items-center gap-2 transition-all",
+                      settings.sequenceType === type.id ? "bg-blue-600/10 border-blue-500 text-blue-400" : "bg-[#0b0f1a] border-[#334155] text-slate-400 hover:border-slate-500"
                     )}
                   >
-                    <type.icon size={18} />
-                    <span className="text-[10px] font-bold">{type.label}</span>
+                    <type.icon size={20} />
+                    <span>{type.label}</span>
                   </button>
                 ))}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">البادئة (Prefix)</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">بادئة الرقم (Prefix)</label>
                 <input 
                   type="text" 
-                  className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all"
                   value={settings.prefix}
                   onChange={(e) => setSettings({ ...settings, prefix: e.target.value })}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">اللاحقة (Suffix)</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الرقم البدائي</label>
                 <input 
-                  type="text" 
-                  className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all"
-                  value={settings.suffix}
-                  onChange={(e) => setSettings({ ...settings, suffix: e.target.value })}
+                  type="number" 
+                  value={settings.startNumber}
+                  onChange={(e) => setSettings({ ...settings, startNumber: Number(e.target.value) })}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">رقم البداية</label>
-              <input 
-                type="number" 
-                className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all"
-                value={settings.startNumber}
-                onChange={(e) => setSettings({ ...settings, startNumber: parseInt(e.target.value) || 0 })}
-              />
             </div>
           </div>
         </div>
 
-        {/* Template Settings */}
         <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] p-8 space-y-6">
           <h3 className="text-lg font-black text-white flex items-center gap-2">
-            <Layout size={20} className="text-emerald-500" />
-            تنسيق الفاتورة
+            <FileText size={20} className="text-emerald-500" />
+            الشروط والضرائب
           </h3>
           <div className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">القالب</label>
-              <select 
-                className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all appearance-none"
-                value={settings.template}
-                onChange={(e) => setSettings({ ...settings, template: e.target.value as any })}
-              >
-                <option value="standard">قياسي (Standard)</option>
-                <option value="compact">مختصر (Compact)</option>
-                <option value="modern">عصري (Modern)</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-[#0b0f1a] rounded-2xl border border-[#1e293b]">
-              <span className="text-sm font-bold text-slate-300">إظهار الشعار</span>
-              <input 
-                type="checkbox" 
-                checked={settings.showLogo}
-                onChange={(e) => setSettings({ ...settings, showLogo: e.target.checked })}
-                className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600"
-              />
-            </div>
-            <div className="flex items-center justify-between p-4 bg-[#0b0f1a] rounded-2xl border border-[#1e293b]">
-              <span className="text-sm font-bold text-slate-300">تفعيل الضريبة</span>
-              <div className="flex items-center gap-3">
-                {settings.showTax && (
-                  <input 
-                    type="number" 
-                    className="w-16 bg-slate-800 border border-slate-700 rounded text-center text-xs text-white py-1"
-                    value={settings.taxRate}
-                    onChange={(e) => setSettings({ ...settings, taxRate: parseInt(e.target.value) || 0 })}
-                  />
-                )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نسبة الضريبة (%)</label>
                 <input 
-                  type="checkbox" 
-                  checked={settings.showTax}
-                  onChange={(e) => setSettings({ ...settings, showTax: e.target.checked })}
-                  className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600"
+                  type="number" 
+                  value={settings.taxRate}
+                  onChange={(e) => setSettings({ ...settings, taxRate: Number(e.target.value) })}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
+              <div className="flex items-center pt-6">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={settings.showTax}
+                    onChange={(e) => setSettings({ ...settings, showTax: e.target.checked })}
+                    className="w-5 h-5 rounded border-[#334155] bg-[#0b0f1a] text-blue-600 focus:ring-0"
+                  />
+                  <span className="text-sm font-bold text-white">إظهار الضريبة بالفاتورة</span>
+                </label>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Content Settings */}
-        <div className="col-span-1 md:col-span-2 bg-[#151b2b] rounded-3xl border border-[#1e293b] p-8 space-y-6">
-          <h3 className="text-lg font-black text-white flex items-center gap-2">
-            <FileText size={20} className="text-amber-500" />
-            نصوص الفاتورة
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">الشروط والأحكام</label>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">شروط وأحكام الفاتورة</label>
               <textarea 
-                rows={4}
-                className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all resize-none"
+                rows={3}
                 value={settings.terms}
                 onChange={(e) => setSettings({ ...settings, terms: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">تذييل الفاتورة</label>
-              <textarea 
-                rows={4}
-                className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-white outline-none focus:border-blue-500 transition-all resize-none"
-                value={settings.footer}
-                onChange={(e) => setSettings({ ...settings, footer: e.target.value })}
-              />
+                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl p-4 text-white text-sm focus:outline-none focus:border-blue-500 font-medium resize-none"
+              ></textarea>
             </div>
           </div>
         </div>
