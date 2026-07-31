@@ -14,6 +14,7 @@ import {
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { cn } from '../lib/utils';
+import { SecurityEngine } from '../lib/securityEngine';
 
 interface UserProfile {
   id: string;
@@ -44,7 +45,7 @@ export const Users: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = SecurityEngine.filterOutSystemDeveloper(users).filter(u => 
     u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     u.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -157,6 +158,7 @@ export const Users: React.FC = () => {
       {isModalOpen && (
         <UserModal 
           user={editingUser} 
+          users={users}
           onClose={() => setIsModalOpen(false)} 
         />
       )}
@@ -164,7 +166,7 @@ export const Users: React.FC = () => {
   );
 };
 
-const UserModal: React.FC<{ user: UserProfile | null, onClose: () => void }> = ({ user, onClose }) => {
+const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onClose: () => void }> = ({ user, users, onClose }) => {
   const [formData, setFormData] = useState({
     displayName: user?.displayName || '',
     email: user?.email || '',
@@ -176,6 +178,19 @@ const UserModal: React.FC<{ user: UserProfile | null, onClose: () => void }> = (
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Check for duplicates
+      const duplicateEmail = users.find(u => u.email.toLowerCase() === formData.email.toLowerCase() && u.id !== user?.id);
+      if (duplicateEmail) {
+        alert('البريد الإلكتروني مستخدم بالفعل');
+        return;
+      }
+      
+      const duplicateName = users.find(u => u.displayName.toLowerCase() === formData.displayName.toLowerCase() && u.id !== user?.id);
+      if (duplicateName) {
+        alert('اسم المستخدم موجود بالفعل');
+        return;
+      }
+
       if (user) {
         await updateDoc(doc(db, 'users', user.id), formData);
       } else {

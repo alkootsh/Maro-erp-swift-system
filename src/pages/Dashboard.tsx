@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFirebase } from '../components/FirebaseProvider';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -74,6 +75,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, trend, icon: 
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { loading, user } = useFirebase();
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalProducts: 0,
@@ -84,24 +86,25 @@ export const Dashboard: React.FC = () => {
   const [bills, setBills] = useState<any[]>([]);
 
   useEffect(() => {
+    if (loading || !user) return;
     const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
       setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (err) => console.warn('[Dashboard] invoices snapshot offline:', err));
 
     const unsubBills = onSnapshot(collection(db, 'bills'), (snap) => {
       setBills(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (err) => console.warn('[Dashboard] bills snapshot offline:', err));
 
     const unsubCustomers = onSnapshot(collection(db, 'customers'), (snap) => {
       setStats(prev => ({ ...prev, totalCustomers: snap.size }));
-    });
+    }, (err) => console.warn('[Dashboard] customers snapshot offline:', err));
 
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
       const allProds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const lowStock = allProds.filter((p: any) => p.quantity <= 5).slice(0, 3);
       setLowStockProducts(lowStock);
       setStats(prev => ({ ...prev, totalProducts: snap.size }));
-    });
+    }, (err) => console.warn('[Dashboard] products snapshot offline:', err));
 
     return () => {
       unsubInvoices();
@@ -109,7 +112,7 @@ export const Dashboard: React.FC = () => {
       unsubCustomers();
       unsubProducts();
     };
-  }, []);
+  }, [loading, user]);
 
   const { totalSales, totalExpenses, recentInvoices, dailySales, monthlyData, categoryData } = useMemo(() => {
     let totalSales = 0;

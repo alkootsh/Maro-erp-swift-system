@@ -34,18 +34,32 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setProfile(userDoc.data() as UserProfile);
-        } else {
-          const newProfile: UserProfile = {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setProfile(userDoc.data() as UserProfile);
+          } else {
+            const newProfile: UserProfile = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              role: currentUser.email === 'alkootsh@gmail.com' ? 'admin' : 'user',
+            };
+            try {
+              await setDoc(doc(db, 'users', currentUser.uid), newProfile);
+            } catch (err) {
+              console.warn('[FirebaseProvider] Could not write user profile:', err);
+            }
+            setProfile(newProfile);
+          }
+        } catch (err) {
+          console.warn('[FirebaseProvider] Could not fetch user profile (offline/permission):', err);
+          setProfile({
             uid: currentUser.uid,
             email: currentUser.email,
             displayName: currentUser.displayName,
             role: currentUser.email === 'alkootsh@gmail.com' ? 'admin' : 'user',
-          };
-          await setDoc(doc(db, 'users', currentUser.uid), newProfile);
-          setProfile(newProfile);
+          });
         }
       } else {
         setProfile(null);

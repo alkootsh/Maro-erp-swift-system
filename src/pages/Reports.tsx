@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
+import { LayoutTemplate, BarChart3, 
   TrendingUp, 
   TrendingDown, 
   Download, 
@@ -22,8 +21,7 @@ import {
   Search,
   X
 } from 'lucide-react';
-import { 
-  BarChart, 
+import { BarChart, 
   Bar, 
   XAxis, 
   YAxis, 
@@ -62,18 +60,18 @@ export const Reports: React.FC = () => {
       const sales = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setStats(prev => ({ ...prev, totalSales: total, salesCount: snap.size }));
       setRecentSales(sales.slice(0, 10));
-    });
+    }, (err) => { console.warn('[Reports] invoices offline:', err); setLoading(false); });
 
     const unsubBills = onSnapshot(collection(db, 'bills'), (snap) => {
       const total = snap.docs.reduce((acc, doc) => acc + (doc.data().totalAmount || 0), 0);
       setStats(prev => ({ ...prev, totalExpenses: total }));
-    });
+    }, (err) => console.warn('[Reports] bills offline:', err));
 
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
       const prods = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setTopProducts(prods.slice(0, 5));
       setLoading(false);
-    });
+    }, (err) => { console.warn('[Reports] products offline:', err); setLoading(false); });
 
     return () => {
       unsubInvoices();
@@ -97,6 +95,12 @@ export const Reports: React.FC = () => {
         <div>
           <h2 className="text-3xl font-black text-white tracking-tight">التقارير والتحليلات</h2>
           <p className="text-slate-500 font-bold text-sm mt-1">مركز التقارير المالية والإدارية الشامل</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <a href="/reports/designer" className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
+            <LayoutTemplate size={18} />
+            تصميم تقرير جديد
+          </a>
         </div>
         <div className="flex bg-[#151b2b] p-1 rounded-2xl border border-[#1e293b]">
           <button 

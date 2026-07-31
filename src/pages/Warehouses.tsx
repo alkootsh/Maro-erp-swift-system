@@ -14,17 +14,12 @@ import {
   History,
   TrendingUp
 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-
-interface WarehouseData {
-  id: string;
-  name: string;
-  location: string;
-  isMain: boolean;
-}
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { CreateWarehouseCommand, UpdateWarehouseCommand, DeleteWarehouseCommand } from '../cqrs/commands';
+import { GetWarehousesQuery, SearchProductsQuery } from '../cqrs/queries';
+import { ProductMaster, WarehouseData } from '../types/productMaster';
 
 interface WarehouseProduct {
   productId: string;
@@ -43,17 +38,19 @@ export const Warehouses: React.FC = () => {
   const [editingWarehouse, setEditingWarehouse] = useState<WarehouseData | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'warehouses'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WarehouseData));
-      setWarehouses(list);
+    const unsub = MaroSyncEngine.subscribe<WarehouseData>('warehouses', (data) => {
+      setWarehouses(data);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'warehouses');
     });
-
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
+
+  const handleDeleteWarehouse = async (id: string, name: string) => {
+    if (confirm(`هل أنت تأكد من حذف المخزن: ${name}؟`)) {
+      const cmd = new DeleteWarehouseCommand(id, name);
+      await cmd.execute();
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -99,76 +96,66 @@ export const Warehouses: React.FC = () => {
             exit={{ opacity: 0, y: -20 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
-            {warehouses.map(w => (
-              <WarehouseCard 
-                key={w.id} 
-                warehouse={w} 
-                onClick={() => setSelectedWarehouse(w)}
-                onEdit={() => { setEditingWarehouse(w); setIsModalOpen(true); }}
-              />
-            ))}
+            {loading ? (
+              <div className="col-span-full text-center py-20 text-slate-500 font-bold">جاري تحميل البيانات من محرك المزامن MARO Sync Engine...</div>
+            ) : warehouses.length === 0 ? (
+              <div className="col-span-full text-center py-20 text-slate-500 font-bold">لا توجد مخازن مضافة بعد. اضغط على إضافة مخزن جديد.</div>
+            ) : (
+              warehouses.map(w => (
+                <div key={w.id} className="bg-[#151b2b] p-8 rounded-3xl border border-[#1e293b] shadow-xl relative overflow-hidden group hover:border-blue-500/50 transition-all">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center border border-blue-500/20">
+                      <Warehouse size={24} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {w.isMain && (
+                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-bold uppercase tracking-widest">المخزن الرئيسي</span>
+                      )}
+                      <button 
+                        onClick={() => { setEditingWarehouse(w); setIsModalOpen(true); }}
+                        className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      {!w.isMain && (
+                        <button 
+                          onClick={() => handleDeleteWarehouse(w.id, w.name)}
+                          className="p-2 hover:bg-red-500/10 rounded-xl text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <h3 className="font-black text-xl text-white tracking-tight mb-2">{w.name}</h3>
+                  <p className="text-slate-400 text-xs font-medium mb-6">{w.location || 'لا يوجد عنوان مسجل'}</p>
+
+                  <div className="pt-6 border-t border-[#1e293b] flex items-center justify-between">
+                    <button 
+                      onClick={() => setSelectedWarehouse(w)}
+                      className="flex items-center gap-2 text-blue-500 hover:text-blue-400 font-bold text-xs transition-colors"
+                    >
+                      <span>عرض محتويات المخزن</span>
+                      <ChevronRight size={16} className="rotate-180" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </motion.div>
         ) : (
-          <motion.div 
-            key="transfers"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <TransfersList />
-          </motion.div>
+          <TransfersList />
         )}
       </AnimatePresence>
 
       {selectedWarehouse && (
-        <WarehouseDetails 
-          warehouse={selectedWarehouse} 
-          onClose={() => setSelectedWarehouse(null)} 
-        />
+        <WarehouseDetails warehouse={selectedWarehouse} onClose={() => setSelectedWarehouse(null)} />
       )}
 
       {isModalOpen && (
-        <WarehouseModal 
-          warehouse={editingWarehouse}
-          onClose={() => setIsModalOpen(false)}
-        />
+        <WarehouseModal warehouse={editingWarehouse} onClose={() => setIsModalOpen(false)} />
       )}
-    </div>
-  );
-};
-
-const WarehouseCard: React.FC<{ warehouse: WarehouseData, onClick: () => void, onEdit: () => void }> = ({ warehouse, onClick, onEdit }) => {
-  return (
-    <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] shadow-xl overflow-hidden group hover:border-blue-500/50 transition-all cursor-pointer" onClick={onClick}>
-      <div className="p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
-            <Warehouse size={24} />
-          </div>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors"
-          >
-            <Edit2 size={18} />
-          </button>
-        </div>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-xl font-black text-white tracking-tight">{warehouse.name}</h3>
-            {warehouse.isMain && (
-              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-bold uppercase tracking-widest rounded border border-emerald-500/20">رئيسي</span>
-            )}
-          </div>
-          <p className="text-sm text-slate-500 font-medium">{warehouse.location}</p>
-        </div>
-        <div className="pt-6 border-t border-[#1e293b] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Package size={16} className="text-blue-500" />
-            <span className="text-xs font-bold">150 صنف</span>
-          </div>
-          <ChevronRight size={18} className="text-slate-600 group-hover:translate-x-[-4px] transition-transform" />
-        </div>
-      </div>
     </div>
   );
 };
@@ -180,15 +167,14 @@ const WarehouseDetails: React.FC<{ warehouse: WarehouseData, onClose: () => void
 
   useEffect(() => {
     const fetchProducts = async () => {
-      // In a real app, products would be linked to warehouses via a 'warehouse_stocks' collection
-      // For now, we'll simulate it by fetching all products
-      const snap = await getDocs(collection(db, 'products'));
-      setProducts(snap.docs.map(d => ({
-        productId: d.id,
-        productName: d.data().name,
-        sku: d.data().sku,
-        category: d.data().category,
-        quantity: Math.floor(Math.random() * 100) // Simulated per-warehouse quantity
+      const query = new SearchProductsQuery('', 'all', 'all');
+      const allProds = await query.execute();
+      setProducts(allProds.map(p => ({
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku,
+        category: p.category,
+        quantity: p.quantity || 0
       })));
       setLoading(false);
     };
@@ -208,14 +194,9 @@ const WarehouseDetails: React.FC<{ warehouse: WarehouseData, onClose: () => void
               <p className="text-slate-500 font-bold text-sm mt-1">{warehouse.location}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex bg-[#1e293b] p-1 rounded-xl border border-[#334155]">
-              <button className="p-2 text-slate-500 hover:text-white transition-colors"><Settings size={18} /></button>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
-              <X size={24} />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
+            <X size={24} />
+          </button>
         </div>
 
         <div className="p-8 bg-[#0f172a]/30 border-b border-[#1e293b] grid grid-cols-4 gap-6">
@@ -228,51 +209,23 @@ const WarehouseDetails: React.FC<{ warehouse: WarehouseData, onClose: () => void
             <p className="text-2xl font-black text-blue-500">{products.reduce((s, p) => s + p.quantity, 0)}</p>
           </div>
           <div className="bg-[#1e293b] p-6 rounded-2xl border border-[#334155]">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">قيمة المخزون</p>
-            <p className="text-2xl font-black text-emerald-500">{formatCurrency(125400)}</p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">معمارية التخزين</p>
+            <p className="text-sm font-black text-emerald-500">PostgreSQL Offline-First</p>
           </div>
           <div className="bg-[#1e293b] p-6 rounded-2xl border border-[#334155]">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">معدل الدوران</p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-black text-amber-500">12%</p>
-              <TrendingUp size={18} className="text-emerald-500" />
-            </div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">حالة المزامن</p>
+            <p className="text-sm font-black text-amber-500">MARO Sync Active</p>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="text" 
-                placeholder="بحث في المخزن..." 
-                className="w-full pr-10 pl-4 py-2.5 bg-[#0b0f1a] border border-[#1e293b] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all"
-              />
-            </div>
-            <div className="flex gap-2">
-              {['sku', 'name', 'category', 'quantity'].map(col => (
-                <button 
-                  key={col}
-                  onClick={() => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col])}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all",
-                    visibleColumns.includes(col) ? "bg-blue-600/10 text-blue-400 border-blue-500/20" : "bg-slate-800 text-slate-500 border-slate-700"
-                  )}
-                >
-                  {col === 'sku' ? 'الرمز' : col === 'name' ? 'الاسم' : col === 'category' ? 'الفئة' : 'الكمية'}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <table className="w-full text-right">
             <thead className="text-slate-500 text-[10px] font-bold uppercase tracking-widest border-b border-[#1e293b]">
               <tr>
-                {visibleColumns.includes('sku') && <th className="px-4 py-4">الرمز (SKU)</th>}
-                {visibleColumns.includes('name') && <th className="px-4 py-4">اسم المنتج</th>}
-                {visibleColumns.includes('category') && <th className="px-4 py-4">الفئة</th>}
-                {visibleColumns.includes('quantity') && <th className="px-4 py-4">الكمية المتوفرة</th>}
+                <th className="px-4 py-4">الرمز (SKU)</th>
+                <th className="px-4 py-4">اسم المنتج</th>
+                <th className="px-4 py-4">الفئة</th>
+                <th className="px-4 py-4">الكمية المتوفرة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e293b]">
@@ -280,17 +233,10 @@ const WarehouseDetails: React.FC<{ warehouse: WarehouseData, onClose: () => void
                 <tr><td colSpan={4} className="py-20 text-center text-slate-600">جاري التحميل...</td></tr>
               ) : products.map(p => (
                 <tr key={p.productId} className="hover:bg-slate-800/20 transition-colors">
-                  {visibleColumns.includes('sku') && <td className="px-4 py-4 text-slate-500 font-mono text-xs">{p.sku}</td>}
-                  {visibleColumns.includes('name') && <td className="px-4 py-4 font-bold text-white">{p.productName}</td>}
-                  {visibleColumns.includes('category') && <td className="px-4 py-4 text-slate-400 text-xs">{p.category}</td>}
-                  {visibleColumns.includes('quantity') && (
-                    <td className="px-4 py-4">
-                      <span className={cn(
-                        "font-black text-lg",
-                        p.quantity < 10 ? "text-red-500" : "text-white"
-                      )}>{p.quantity}</span>
-                    </td>
-                  )}
+                  <td className="px-4 py-4 text-slate-500 font-mono text-xs">{p.sku}</td>
+                  <td className="px-4 py-4 font-bold text-white">{p.productName}</td>
+                  <td className="px-4 py-4 text-slate-400 text-xs">{p.category}</td>
+                  <td className="px-4 py-4 font-black text-lg text-white">{p.quantity}</td>
                 </tr>
               ))}
             </tbody>
@@ -306,11 +252,10 @@ const TransfersList: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'warehouse_transfers'), orderBy('date', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransfers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const unsub = MaroSyncEngine.subscribe('warehouse_transfers', (data) => {
+      setTransfers(data);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   return (
@@ -347,7 +292,7 @@ const TransfersList: React.FC = () => {
                 <td className="px-8 py-5 text-slate-400">{t.fromWarehouseName}</td>
                 <td className="px-8 py-5 text-slate-400">{t.toWarehouseName}</td>
                 <td className="px-8 py-5 font-black text-white">{t.itemsCount}</td>
-                <td className="px-8 py-5 text-slate-500 text-xs">{t.date.toDate().toLocaleDateString('ar-EG')}</td>
+                <td className="px-8 py-5 text-slate-500 text-xs">{new Date(t.date).toLocaleDateString('ar-EG')}</td>
                 <td className="px-8 py-5">
                   <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-emerald-500/20">مكتمل</span>
                 </td>
@@ -371,10 +316,10 @@ const TransferModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const wSnap = await getDocs(collection(db, 'warehouses'));
-      setWarehouses(wSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      const pSnap = await getDocs(collection(db, 'products'));
-      setProducts(pSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const wCmd = new GetWarehousesQuery();
+      setWarehouses(await wCmd.execute());
+      const pCmd = new SearchProductsQuery('', 'all', 'all');
+      setProducts(await pCmd.execute());
     };
     fetchData();
   }, []);
@@ -389,15 +334,17 @@ const TransferModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     try {
       const fromW = warehouses.find(w => w.id === fromId);
       const toW = warehouses.find(w => w.id === toId);
-      await addDoc(collection(db, 'warehouse_transfers'), {
+      const transferDoc = {
+        id: `tr_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
         fromWarehouseId: fromId,
-        fromWarehouseName: fromW.name,
+        fromWarehouseName: fromW?.name || '',
         toWarehouseId: toId,
-        toWarehouseName: toW.name,
+        toWarehouseName: toW?.name || '',
         itemsCount: items.length,
         items,
-        date: Timestamp.now()
-      });
+        date: new Date().toISOString()
+      };
+      await MaroSyncEngine.saveDocument('warehouse_transfers', transferDoc, true);
       onClose();
     } catch (error) {
       console.error(error);
@@ -475,10 +422,6 @@ const TransferModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           <div className="bg-[#0f172a]/50 rounded-3xl p-6 border border-[#1e293b] flex flex-col gap-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-widest">اختر الأصناف</h4>
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input type="text" placeholder="بحث عن منتج..." className="w-full pr-10 pl-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-xs text-white outline-none" />
-            </div>
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               {products.map(p => (
                 <button 
@@ -514,13 +457,15 @@ const WarehouseModal: React.FC<{ warehouse: WarehouseData | null, onClose: () =>
     e.preventDefault();
     try {
       if (warehouse) {
-        await updateDoc(doc(db, 'warehouses', warehouse.id), formData);
+        const cmd = new UpdateWarehouseCommand(warehouse.id, formData);
+        await cmd.execute();
       } else {
-        await addDoc(collection(db, 'warehouses'), formData);
+        const cmd = new CreateWarehouseCommand(formData);
+        await cmd.execute();
       }
       onClose();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'warehouses');
+      console.error(error);
     }
   };
 

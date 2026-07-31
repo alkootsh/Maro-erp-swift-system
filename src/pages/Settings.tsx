@@ -10,16 +10,18 @@ import {
   Globe,
   DollarSign,
   Percent,
-  AlertTriangle
+  AlertTriangle,
+  Keyboard
 } from 'lucide-react';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useFirebase } from '../components/FirebaseProvider';
 import { cn } from '../lib/utils';
+import { POSFunctionKeysManager } from '../components/settings/POSFunctionKeysManager';
 
 export const Settings: React.FC = () => {
   const { user, profile } = useFirebase();
-  const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'system' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'system' | 'pos_keys' | 'security'>('profile');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -63,6 +65,7 @@ export const Settings: React.FC = () => {
     { id: 'profile', name: 'الملف الشخصي', icon: User },
     { id: 'company', name: 'بيانات المؤسسة', icon: Building2 },
     { id: 'system', name: 'إعدادات النظام', icon: SettingsIcon },
+    { id: 'pos_keys', name: 'مفاتيح وظائف POS', icon: Keyboard },
     { id: 'security', name: 'الأمان والخصوصية', icon: Shield },
   ];
 
@@ -261,16 +264,24 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            <div className="pt-8 border-t border-[#1e293b] flex justify-end">
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 uppercase tracking-widest"
-              >
-                <Save size={20} />
-                <span>{loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}</span>
-              </button>
-            </div>
+            {activeTab === 'pos_keys' && (
+              <div className="animate-in fade-in duration-300">
+                <POSFunctionKeysManager />
+              </div>
+            )}
+
+            {activeTab !== 'pos_keys' && (
+              <div className="pt-8 border-t border-[#1e293b] flex justify-end">
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 uppercase tracking-widest"
+                >
+                  <Save size={20} />
+                  <span>{loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}</span>
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>

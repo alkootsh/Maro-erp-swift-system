@@ -18,17 +18,26 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  LayoutTemplate,
   ShoppingCart,
   ShieldCheck,
   History,
   Warehouse,
   RotateCcw,
-  Bell
+  Bell,
+  ShieldAlert,
+  Lock,
+  Terminal
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { auth, signOut } from '../firebase';
 import { useFirebase } from './FirebaseProvider';
 import { AlertBanner } from './AlertBanner';
+import { SyncEngineStatusBadge } from './SyncEngineStatusBadge';
+import { useLearningMode } from './learning/LearningModeProvider';
+import { BookOpen } from 'lucide-react';
+
+import { AIAgentOverlay } from './AIAgent/AIAgentOverlay';
 
 const navSections = [
   {
@@ -36,7 +45,6 @@ const navSections = [
     items: [
       { name: 'لوحة التحكم', path: '/', icon: LayoutDashboard },
       { name: 'نقطة البيع', path: '/pos', icon: ShoppingCart },
-      { name: 'المساعد الذكي', path: '/ai', icon: Sparkles },
     ]
   },
   {
@@ -65,12 +73,16 @@ const navSections = [
     ]
   },
   {
-    title: 'الإدارة',
+    title: 'الإدارة والأمان',
     items: [
+      { name: 'إدارة الصلاحيات (RBAC)', path: '/settings/security/roles', icon: Lock, adminOnly: true },
+      { name: 'سجل المراجعة والتنبيهات', path: '/settings/security/audit', icon: ShieldAlert, adminOnly: true },
+      { name: 'المستخدمين', path: '/users', icon: ShieldCheck, adminOnly: true },
       { name: 'المناديب وخطوط السير', path: '/reps', icon: Truck, adminOnly: true },
+      { name: 'مخططات الشاشة (POS Layout)', path: '/settings/pos/layout', icon: LayoutTemplate, adminOnly: true },
       { name: 'إعدادات الفواتير', path: '/settings/invoices', icon: FileText, adminOnly: true },
       { name: 'التنبيهات', path: '/alerts', icon: Bell, adminOnly: true },
-      { name: 'المستخدمين', path: '/users', icon: ShieldCheck, adminOnly: true },
+      { name: 'لوحة المطور (Developer)', path: '/developer/console', icon: Terminal, adminOnly: true },
       { name: 'الإعدادات العامة', path: '/settings', icon: Settings },
     ]
   }
@@ -80,6 +92,7 @@ export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { user, profile } = useFirebase();
   const navigate = useNavigate();
+  const { isLearningModeEnabled, toggleLearningMode } = useLearningMode();
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -104,15 +117,18 @@ export const Layout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-             <div className="w-8 h-8 bg-blue-600/10 text-blue-500 rounded-full flex items-center justify-center">
-               <Sparkles size={18} />
-             </div>
+            <button onClick={toggleLearningMode} className={cn('p-2 rounded-full transition-colors relative', isLearningModeEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white')} title='وضع التعلم الذكي'><BookOpen size={20} />{isLearningModeEnabled && <span className='absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#0f172a]'></span>}</button>
+            <SyncEngineStatusBadge />
+            <div className="w-8 h-8 bg-blue-600/10 text-blue-500 rounded-full flex items-center justify-center">
+              <Sparkles size={18} />
+            </div>
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-8">
           <Outlet />
         </div>
         <AlertBanner />
+        <AIAgentOverlay />
       </main>
 
       {/* Sidebar (Right) */}

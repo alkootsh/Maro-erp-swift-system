@@ -70,6 +70,17 @@ export const Reps: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const duplicatePhone = reps.find(r => r.phone === formData.phone && r.id !== editingRep?.id);
+      if (duplicatePhone) {
+        toast.error('رقم الهاتف مستخدم بالفعل لمندوب آخر');
+        return;
+      }
+      const duplicateName = reps.find(r => r.name.toLowerCase() === formData.name.toLowerCase() && r.id !== editingRep?.id);
+      if (duplicateName) {
+        toast.error('يوجد مندوب مسجل بنفس الاسم');
+        return;
+      }
+
       if (editingRep) {
         await updateDoc(doc(db, 'reps', editingRep.id), formData);
         toast.success('تم تحديث بيانات المندوب بنجاح');
