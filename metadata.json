@@ -1,5 +1,8 @@
 {
   "name": "سويفت ERP - نظام محاسبي شامل",
   "description": "نظام محاسبي متكامل لإدارة المبيعات والمشتريات والمخازن والحسابات مع مساعد ذكي ودعم الباركود",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

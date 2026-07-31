@@ -1,6 +1,6 @@
 // MARO ERP - Product Service Layer for Business Logic
 import { ProductRepository } from '../repositories/productRepository';
-import { ProductMaster, ProductUnit, ProductBatch, InventorySettings } from '../types/productMaster';
+import { ProductMaster, InventorySettings } from '../types/productMaster';
 import { productMasterSchema, inventorySettingsSchema } from '../lib/productValidation';
 
 export class ProductService {
@@ -35,26 +35,30 @@ export class ProductService {
    * Validate & Save new product
    */
   static async createProduct(productData: Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-    // Validate core fields with Zod
-    productMasterSchema.parse({
-      name: productData.name,
-      sku: productData.sku,
-      price: productData.price,
-      costPrice: productData.costPrice || 0,
-      quantity: productData.quantity,
-      category: productData.category,
-      reorderLevel: productData.reorderLevel || 5,
-      isTaxable: productData.isTaxable !== false,
-      status: productData.status || 'active'
-    });
+    // 1. Full Zod Schema Validation
+    const validated = productMasterSchema.parse(productData);
 
-    // Ensure total quantity is synchronized
+    // 2. Check for duplicate SKU
+    const existingProducts = ProductRepository.getProducts();
+    const isDuplicate = existingProducts.some(p => p.sku?.trim().toLowerCase() === validated.sku.trim().toLowerCase());
+    if (isDuplicate) {
+      throw new Error('رمز المنتج (SKU) مستخدم بالفعل، يرجى اختيار رمز آخر');
+    }
+
+    // 3. Ensure total quantity is synchronized
     const calculatedQty = this.calculateTotalQuantity(productData);
 
     const fullProduct: Omit<ProductMaster, 'id'> = {
       ...productData,
+      name: validated.name,
+      sku: validated.sku,
+      category: validated.category,
+      price: validated.price,
+      costPrice: validated.costPrice,
       quantity: calculatedQty,
-      costPrice: productData.costPrice || 0,
+      reorderLevel: validated.reorderLevel,
+      isTaxable: validated.isTaxable,
+      status: validated.status as any,
       units: productData.units || [],
       barcodes: productData.barcodes || [],
       warehouseStocks: productData.warehouseStocks || [],
@@ -62,9 +66,6 @@ export class ProductService {
       batches: productData.batches || [],
       images: productData.images || [],
       attachments: productData.attachments || [],
-      reorderLevel: productData.reorderLevel || 5,
-      isTaxable: productData.isTaxable !== false,
-      status: productData.status || 'active',
       openingBalance: productData.openingBalance || 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -77,8 +78,12 @@ export class ProductService {
    * Validate & Update existing product
    */
   static async updateProduct(id: string, updates: Partial<ProductMaster>): Promise<void> {
-    if (updates.name !== undefined || updates.sku !== undefined) {
-      productMasterSchema.partial().parse(updates);
+    if (updates.sku) {
+      const existingProducts = ProductRepository.getProducts();
+      const isDuplicate = existingProducts.some(p => p.id !== id && p.sku?.trim().toLowerCase() === updates.sku?.trim().toLowerCase());
+      if (isDuplicate) {
+        throw new Error('رمز المنتج (SKU) مستخدم بالفعل، يرجى اختيار رمز آخر');
+      }
     }
 
     if (updates.batches || updates.warehouseStocks) {

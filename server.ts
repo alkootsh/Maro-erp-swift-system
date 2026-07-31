@@ -92,12 +92,19 @@ async function startServer() {
       const { messages, context } = req.body;
       
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY environment variable is required" });
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+        return res.status(400).json({ error: "مفتاح API الخاص بـ Gemini غير معرف أو غير صالح. يرجى توفير GEMINI_API_KEY في إعدادات التطبيق." });
       }
 
-      const ai = new GoogleGenAI({ apiKey });
-      const model = "gemini-3-flash-preview";
+      const ai = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+      const model = "gemini-3.6-flash";
 
       const systemInstruction = `أنت مساعد ذكي لنظام MARO ERP (نظام إدارة موارد المؤسسات).
 النظام يعمل بمعمارية PostgreSQL ومحرك المزامن Offline-First MARO Sync Engine.
@@ -120,8 +127,8 @@ ${context}
 
       res.json({ text: response.text });
     } catch (error: any) {
-      console.error("AI Chat Error:", error);
-      res.status(500).json({ error: error.message || "Internal Server Error" });
+      console.warn("AI Chat Request Handled Error:", error?.message || error);
+      res.status(400).json({ error: error?.message || "تعذر الاتصال بـ Gemini API. يرجى التأكد من صحة مفتاح API." });
     }
   });
 

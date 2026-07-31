@@ -221,10 +221,242 @@ export interface JournalEntry {
   createdAt: string;
 }
 
+// --- Extended Sprint 8 Types: Quotations, Orders, Returns, GRNs, Pricing & Barcodes ---
+
+export type QuotationStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED';
+export type SalesOrderStatus = 'DRAFT' | 'CONFIRMED' | 'PARTIALLY_DELIVERED' | 'DELIVERED' | 'CANCELLED';
+export type DeliveryStatus = 'PENDING' | 'SHIPPED' | 'PARTIAL' | 'DELIVERED';
+
+export interface SalesQuotationItem {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  unitName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  taxRate: number;
+  lineTotal: number;
+}
+
+export interface SalesQuotation {
+  id: string;
+  quotationNumber: string; // e.g. QT-2026-00001
+  customerId: string;
+  customerName: string;
+  validUntil: string;
+  items: SalesQuotationItem[];
+  totalUntaxed: number;
+  totalTax: number;
+  grandTotal: number;
+  status: QuotationStatus;
+  notes?: string;
+  convertedInvoiceId?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SalesOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  unitName: string;
+  orderedQty: number;
+  deliveredQty: number;
+  unitPrice: number;
+  taxRate: number;
+  lineTotal: number;
+}
+
+export interface SalesOrder {
+  id: string;
+  orderNumber: string; // e.g. SO-2026-00001
+  quotationId?: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  warehouseId: string;
+  items: SalesOrderItem[];
+  grandTotal: number;
+  orderStatus: SalesOrderStatus;
+  deliveryStatus: DeliveryStatus;
+  paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SalesReturnItem {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  refundAmount: number;
+  reason: string;
+}
+
+export interface SalesReturn {
+  id: string;
+  returnNumber: string; // e.g. SR-2026-00001
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  warehouseId: string;
+  items: SalesReturnItem[];
+  totalRefundAmount: number;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'COMPLETED' | 'REJECTED';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PurchaseRequestItem {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  requestedQty: number;
+  estimatedUnitPrice: number;
+}
+
+export interface PurchaseRequest {
+  id: string;
+  prNumber: string; // e.g. PR-2026-00001
+  department: string;
+  requesterName: string;
+  items: PurchaseRequestItem[];
+  totalEstimatedAmount: number;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  approvedBy?: string;
+  createdAt: string;
+}
+
+export interface RFQSupplierResponse {
+  supplierId: string;
+  supplierName: string;
+  quotedTotal: number;
+  deliveryDays: number;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+}
+
+export interface RFQ {
+  id: string;
+  rfqNumber: string; // e.g. RFQ-2026-00001
+  prId?: string;
+  items: PurchaseRequestItem[];
+  supplierResponses: RFQSupplierResponse[];
+  status: 'OPEN' | 'EVALUATING' | 'AWARDED' | 'CLOSED';
+  createdAt: string;
+}
+
+export interface GoodsReceivedNoteItem {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  orderedQty: number;
+  receivedQty: number;
+  rejectedQty: number;
+  batchNumber?: string;
+  expiryDate?: string;
+}
+
+export interface GoodsReceivedNote {
+  id: string;
+  grnNumber: string; // e.g. GRN-2026-00001
+  poId: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName: string;
+  warehouseId: string;
+  items: GoodsReceivedNoteItem[];
+  receivedBy: string;
+  status: 'DRAFT' | 'VERIFIED' | 'COMPLETED';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SupplierDebitNote {
+  id: string;
+  debitNoteNumber: string; // e.g. DN-2026-00001
+  billId: string;
+  billNumber: string;
+  supplierId: string;
+  supplierName: string;
+  amount: number;
+  reason: string;
+  status: 'APPROVED' | 'SETTLED';
+  createdAt: string;
+}
+
+export interface PriceListTier {
+  minQuantity: number;
+  unitPrice: number;
+}
+
+export interface PriceListItem {
+  productId: string;
+  price: number;
+  tiers?: PriceListTier[];
+}
+
+export interface PriceList {
+  id: string;
+  name: string; // e.g. 'RETAIL' | 'WHOLESALE' | 'VIP' | 'CONTRACT'
+  type: 'RETAIL' | 'WHOLESALE' | 'VIP' | 'CONTRACT';
+  currency: string;
+  isDefault?: boolean;
+  items: PriceListItem[];
+}
+
+export interface PromotionRule {
+  id: string;
+  code: string;
+  name: string;
+  type: 'PERCENTAGE_DISCOUNT' | 'FIXED_AMOUNT' | 'BUY_X_GET_Y' | 'BUNDLE_COMBO';
+  discountValue: number;
+  minPurchaseAmount?: number;
+  applicableProductIds?: string[];
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
+
+export interface BarcodeMapping {
+  barcode: string;
+  productId: string;
+  sku: string;
+  unitName: string;
+  type: 'EAN13' | 'EAN8' | 'UPC' | 'CODE128' | 'GS1' | 'QR' | 'DATAMATRIX' | 'WEIGHT_SCALE';
+}
+
+export interface ScaleBarcodeConfig {
+  prefix: string; // e.g. '21' or '27'
+  itemCodeLength: number; // e.g. 5 digits
+  valueType: 'WEIGHT_KG' | 'PRICE_TOTAL';
+  valueLength: number; // e.g. 5 digits
+  decimalPlaces: number; // e.g. 3 for kg, 2 for price
+}
+
+export interface CreditCheckResult {
+  allowed: boolean;
+  customerId: string;
+  creditLimit: number;
+  currentBalance: number;
+  requestedAmount: number;
+  projectedBalance: number;
+  exceededAmount: number;
+  reason?: string;
+}
+
 // --- Event Bus Event Schema ---
 export interface MaroEvent {
   id: string;
-  type: 'ProductCreated' | 'InvoiceCreated' | 'InvoicePosted' | 'PurchaseApproved' | 'PaymentReceived' | 'StockAdjusted' | 'InventoryMoved' | 'BusinessHealthCalculated' | 'POSSessionClosed' | 'POSFunctionKeysUpdated' | 'LICENSE_UPDATED' | 'FEATURE_FLAGS_UPDATED' | 'AUDIT_LOG_ADDED' | 'SECURITY_ALERT_TRIGGERED' | 'MAINTENANCE_MODE_CHANGED' | 'NAVIGATE_INTENT' | 'CREATE_NEW_INVOICE_INTENT';
+  type: 'ProductCreated' | 'InvoiceCreated' | 'InvoicePosted' | 'PurchaseApproved' | 'PaymentReceived' | 'StockAdjusted' | 'InventoryMoved' | 'ReturnProcessed' | 'BusinessHealthCalculated' | 'POSSessionClosed' | 'POSFunctionKeysUpdated' | 'LICENSE_UPDATED' | 'FEATURE_FLAGS_UPDATED' | 'AUDIT_LOG_ADDED' | 'SECURITY_ALERT_TRIGGERED' | 'MAINTENANCE_MODE_CHANGED' | 'NAVIGATE_INTENT' | 'CREATE_NEW_INVOICE_INTENT';
   timestamp: string;
   payload: Record<string, any>;
 }
+

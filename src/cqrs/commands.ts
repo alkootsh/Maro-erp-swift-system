@@ -8,7 +8,14 @@ import { PurchaseRepository } from '../repositories/purchaseRepository';
 import { POSRepository } from '../repositories/posRepository';
 import { InventoryRepository } from '../repositories/inventoryRepository';
 import { AccountingService } from '../services/accountingService';
-import { Customer, Supplier, SalesInvoice, PurchaseOrder, PurchaseBill, POSSession, SalesInvoiceItem } from '../types/sprint8';
+import { QuotationRepository } from '../repositories/quotationRepository';
+import { SalesOrderRepository } from '../repositories/salesOrderRepository';
+import { SalesReturnRepository } from '../repositories/salesReturnRepository';
+import { ProcurementRepository } from '../repositories/procurementRepository';
+import {
+  Customer, Supplier, SalesInvoice, PurchaseOrder, PurchaseBill, POSSession, SalesInvoiceItem,
+  SalesQuotation, SalesOrder, SalesReturn, PurchaseRequest, RFQ, GoodsReceivedNote, SupplierDebitNote
+} from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export interface ICommand<TResult = any> {
@@ -243,6 +250,71 @@ export class TransferStockCommand implements ICommand<void> {
       this.quantity,
       this.notes
     );
+  }
+}
+
+// --- Sales Order & Quotation & Return Commands ---
+export class CreateQuotationCommand implements ICommand<SalesQuotation> {
+  constructor(private quotationData: Omit<SalesQuotation, 'id' | 'quotationNumber' | 'createdAt'>) {}
+  async execute(): Promise<SalesQuotation> {
+    return await QuotationRepository.createQuotation(this.quotationData);
+  }
+}
+
+export class ConvertQuotationToInvoiceCommand implements ICommand<string> {
+  constructor(private quotationId: string, private warehouseId: string = 'wh_main') {}
+  async execute(): Promise<string> {
+    return await QuotationRepository.convertToInvoice(this.quotationId, this.warehouseId);
+  }
+}
+
+export class CreateSalesOrderCommand implements ICommand<SalesOrder> {
+  constructor(private orderData: Omit<SalesOrder, 'id' | 'orderNumber' | 'createdAt'>) {}
+  async execute(): Promise<SalesOrder> {
+    return await SalesOrderRepository.createSalesOrder(this.orderData);
+  }
+}
+
+export class RecordDeliveryCommand implements ICommand<SalesOrder> {
+  constructor(private orderId: string, private items: { productId: string; quantity: number }[]) {}
+  async execute(): Promise<SalesOrder> {
+    return await SalesOrderRepository.recordDelivery(this.orderId, this.items);
+  }
+}
+
+export class ProcessSalesReturnCommand implements ICommand<SalesReturn> {
+  constructor(private returnData: Omit<SalesReturn, 'id' | 'returnNumber' | 'createdAt'>) {}
+  async execute(): Promise<SalesReturn> {
+    return await SalesReturnRepository.processReturn(this.returnData);
+  }
+}
+
+// --- Procurement Commands ---
+export class CreatePurchaseRequestCommand implements ICommand<PurchaseRequest> {
+  constructor(private prData: Omit<PurchaseRequest, 'id' | 'prNumber' | 'createdAt'>) {}
+  async execute(): Promise<PurchaseRequest> {
+    return await ProcurementRepository.createPurchaseRequest(this.prData);
+  }
+}
+
+export class CreateRFQCommand implements ICommand<RFQ> {
+  constructor(private rfqData: Omit<RFQ, 'id' | 'rfqNumber' | 'createdAt'>) {}
+  async execute(): Promise<RFQ> {
+    return await ProcurementRepository.createRFQ(this.rfqData);
+  }
+}
+
+export class RecordGoodsReceivedCommand implements ICommand<GoodsReceivedNote> {
+  constructor(private grnData: Omit<GoodsReceivedNote, 'id' | 'grnNumber' | 'createdAt'>) {}
+  async execute(): Promise<GoodsReceivedNote> {
+    return await ProcurementRepository.recordGoodsReceived(this.grnData);
+  }
+}
+
+export class IssueSupplierDebitNoteCommand implements ICommand<SupplierDebitNote> {
+  constructor(private noteData: Omit<SupplierDebitNote, 'id' | 'debitNoteNumber' | 'createdAt'>) {}
+  async execute(): Promise<SupplierDebitNote> {
+    return await ProcurementRepository.issueSupplierDebitNote(this.noteData);
   }
 }
 

@@ -173,4 +173,30 @@ export class AccountingService {
       ]
     );
   }
+
+  // --- Automated Sales Return Journal Generator ---
+  static async postSalesReturnGL(
+    returnNumber: string,
+    customerName: string,
+    refundTotal: number,
+    costValue: number
+  ) {
+    const lines = [
+      { accountCode: '41200', debit: refundTotal, credit: 0 }, // Reverse Sales Revenue
+      { accountCode: '11100', debit: 0, credit: refundTotal }, // Cash or AR refund
+    ];
+
+    if (costValue > 0) {
+      lines.push(
+        { accountCode: '11300', debit: costValue, credit: 0 }, // Inventory Asset restored
+        { accountCode: '51100', debit: 0, credit: costValue }  // COGS reduced
+      );
+    }
+
+    return this.postJournalEntry(
+      returnNumber,
+      `مرتجع مبيعات ${returnNumber} - العميل: ${customerName}`,
+      lines
+    );
+  }
 }

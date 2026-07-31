@@ -8,7 +8,15 @@ import { PurchaseRepository } from '../repositories/purchaseRepository';
 import { POSRepository } from '../repositories/posRepository';
 import { InventoryRepository } from '../repositories/inventoryRepository';
 import { AccountingService } from '../services/accountingService';
-import { Customer, CustomerLedger, Supplier, SupplierLedger, SalesInvoice, PurchaseOrder, PurchaseBill, POSSession, InventoryMovement, Account, JournalEntry } from '../types/sprint8';
+import { QuotationRepository } from '../repositories/quotationRepository';
+import { SalesOrderRepository } from '../repositories/salesOrderRepository';
+import { SalesReturnRepository } from '../repositories/salesReturnRepository';
+import { ProcurementRepository } from '../repositories/procurementRepository';
+import { PricingEngine } from '../services/pricingEngine';
+import {
+  Customer, CustomerLedger, Supplier, SupplierLedger, SalesInvoice, PurchaseOrder, PurchaseBill, POSSession, InventoryMovement, Account, JournalEntry,
+  SalesQuotation, SalesOrder, SalesReturn, PurchaseRequest, RFQ, GoodsReceivedNote, SupplierDebitNote, PriceList
+} from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export interface IQuery<TResult = any> {
@@ -150,6 +158,57 @@ export class GetActivePOSSessionQuery implements IQuery<POSSession | null> {
 export class GetInventoryMovementsQuery implements IQuery<InventoryMovement[]> {
   async execute(): Promise<InventoryMovement[]> {
     return InventoryRepository.getMovements();
+  }
+}
+
+// --- Sales Quotation, Sales Order & Return Queries ---
+export class GetSalesQuotationsQuery implements IQuery<SalesQuotation[]> {
+  async execute(): Promise<SalesQuotation[]> {
+    return QuotationRepository.getQuotations();
+  }
+}
+
+export class GetSalesOrdersQuery implements IQuery<SalesOrder[]> {
+  async execute(): Promise<SalesOrder[]> {
+    return SalesOrderRepository.getSalesOrders();
+  }
+}
+
+export class GetSalesReturnsQuery implements IQuery<SalesReturn[]> {
+  async execute(): Promise<SalesReturn[]> {
+    return SalesReturnRepository.getReturns();
+  }
+}
+
+// --- Procurement Queries ---
+export class GetPurchaseRequestsQuery implements IQuery<PurchaseRequest[]> {
+  async execute(): Promise<PurchaseRequest[]> {
+    return ProcurementRepository.getPurchaseRequests();
+  }
+}
+
+export class GetRFQsQuery implements IQuery<RFQ[]> {
+  async execute(): Promise<RFQ[]> {
+    return ProcurementRepository.getRFQs();
+  }
+}
+
+export class GetGRNsQuery implements IQuery<GoodsReceivedNote[]> {
+  async execute(): Promise<GoodsReceivedNote[]> {
+    return ProcurementRepository.getGRNs();
+  }
+}
+
+export class GetSupplierDebitNotesQuery implements IQuery<SupplierDebitNote[]> {
+  async execute(): Promise<SupplierDebitNote[]> {
+    return ProcurementRepository.getDebitNotes();
+  }
+}
+
+// --- Pricing Engine Queries ---
+export class GetPriceListsQuery implements IQuery<PriceList[]> {
+  async execute(): Promise<PriceList[]> {
+    return PricingEngine.getPriceLists();
   }
 }
 

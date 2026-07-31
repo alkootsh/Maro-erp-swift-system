@@ -28,6 +28,26 @@ const RETRY_KEY = 'maro_erp_retry_queue';
 
 const LISTENERS: Map<string, Set<(data: any[]) => void>> = new Map();
 const STATUS_LISTENERS: Set<(status: SyncStatusEvent) => void> = new Set();
+const memoryStore = new Map<string, string>();
+
+function safeStorageGet(key: string): string | null {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(key);
+    }
+  } catch (_) {}
+  return memoryStore.get(key) || null;
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+      return;
+    }
+  } catch (_) {}
+  memoryStore.set(key, value);
+}
 
 const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 2000;
@@ -81,7 +101,7 @@ export class MaroSyncEngine {
   // --- Local DB Key-Value Operations (Offline First) ---
   static getLocalCollection<T = any>(collectionName: string): T[] {
     try {
-      const dataStr = localStorage.getItem(`${STORAGE_PREFIX}${collectionName}`);
+      const dataStr = safeStorageGet(`${STORAGE_PREFIX}${collectionName}`);
       return dataStr ? JSON.parse(dataStr) : [];
     } catch (e) {
       console.error(`[MARO Sync Engine] Error reading local collection ${collectionName}:`, e);
@@ -91,7 +111,7 @@ export class MaroSyncEngine {
 
   static setLocalCollection<T = any>(collectionName: string, items: T[]): void {
     try {
-      localStorage.setItem(`${STORAGE_PREFIX}${collectionName}`, JSON.stringify(items));
+      safeStorageSet(`${STORAGE_PREFIX}${collectionName}`, JSON.stringify(items));
       this.notifyListeners(collectionName, items);
     } catch (e) {
       console.error(`[MARO Sync Engine] Error writing local collection ${collectionName}:`, e);
@@ -184,7 +204,7 @@ export class MaroSyncEngine {
   // --- Sync Queue & Retry Queue Management ---
   public static getQueue(): SyncOperation[] {
     try {
-      const q = localStorage.getItem(QUEUE_KEY);
+      const q = safeStorageGet(QUEUE_KEY);
       return q ? JSON.parse(q) : [];
     } catch {
       return [];
@@ -197,7 +217,7 @@ export class MaroSyncEngine {
 
   private static setQueue(queue: SyncOperation[]): void {
     try {
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      safeStorageSet(QUEUE_KEY, JSON.stringify(queue));
       this.emitStatus();
     } catch (e) {
       console.error('[MARO Sync Engine] Error writing queue:', e);
