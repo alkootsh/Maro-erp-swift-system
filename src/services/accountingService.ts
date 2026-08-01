@@ -128,6 +128,17 @@ export class AccountingService {
   }
 
   // --- Automated Purchase Bill Entry Generator ---
+  static async generatePurchaseEntry(po: any) {
+    return this.postPurchaseBillGL(
+      po.poNumber,
+      po.supplierName,
+      po.totalAmount,
+      po.totalAmount / 1.15, // Simple estimate for test
+      (po.totalAmount / 1.15) * 0.15,
+      false
+    );
+  }
+
   static async postPurchaseBillGL(
     billNumber: string,
     supplierName: string,

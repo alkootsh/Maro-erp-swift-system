@@ -37,6 +37,7 @@ import { useLearningMode } from './learning/LearningModeProvider';
 import { BookOpen } from 'lucide-react';
 
 import { AIAgentOverlay } from './AIAgent/AIAgentOverlay';
+import { UserManual } from './UserManual';
 
 const navSections = [
   {
@@ -89,6 +90,7 @@ const navSections = [
 
 export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isManualOpen, setIsManualOpen] = useState(false);
   const { user, logout } = useAuth();
   const profile = { role: 'admin', displayName: user?.displayName || 'مدير النظام' };
   const navigate = useNavigate();
@@ -105,6 +107,7 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#0b0f1a] overflow-hidden text-slate-200">
+      <UserManual isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
       {/* Main Content (Left) */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-[#0f172a] border-b border-[#1e293b] flex items-center justify-between px-8">
@@ -117,6 +120,7 @@ export const Layout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => setIsManualOpen(true)} className='p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-white' title='مساعدة'><BookOpen size={20} /></button>
             <button onClick={toggleLearningMode} className={cn('p-2 rounded-full transition-colors relative', isLearningModeEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white')} title='وضع التعلم الذكي'><BookOpen size={20} />{isLearningModeEnabled && <span className='absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#0f172a]'></span>}</button>
             <SyncEngineStatusBadge />
             <div className="w-8 h-8 bg-blue-600/10 text-blue-500 rounded-full flex items-center justify-center">

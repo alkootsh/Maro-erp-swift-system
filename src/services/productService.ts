@@ -40,7 +40,7 @@ export class ProductService {
 
     // 2. Check for duplicate SKU
     const existingProducts = ProductRepository.getProducts();
-    const isDuplicate = existingProducts.some(p => p.sku?.trim().toLowerCase() === validated.sku.trim().toLowerCase());
+    const isDuplicate = existingProducts.some(p => (p.sku?.trim() || '').toLowerCase() === validated.sku.trim().toLowerCase());
     if (isDuplicate) {
       throw new Error('رمز المنتج (SKU) مستخدم بالفعل، يرجى اختيار رمز آخر');
     }
@@ -80,7 +80,7 @@ export class ProductService {
   static async updateProduct(id: string, updates: Partial<ProductMaster>): Promise<void> {
     if (updates.sku) {
       const existingProducts = ProductRepository.getProducts();
-      const isDuplicate = existingProducts.some(p => p.id !== id && p.sku?.trim().toLowerCase() === updates.sku?.trim().toLowerCase());
+      const isDuplicate = existingProducts.some(p => p.id !== id && (p.sku?.trim() || '').toLowerCase() === updates.sku!.trim().toLowerCase());
       if (isDuplicate) {
         throw new Error('رمز المنتج (SKU) مستخدم بالفعل، يرجى اختيار رمز آخر');
       }
@@ -99,5 +99,13 @@ export class ProductService {
   static async updateInventorySettings(settings: InventorySettings): Promise<void> {
     inventorySettingsSchema.parse(settings);
     await ProductRepository.saveInventorySettings(settings);
+  }
+
+  /**
+   * Delete product by ID
+   */
+  static async deleteProduct(id: string): Promise<boolean> {
+    await ProductRepository.deleteProduct(id);
+    return true;
   }
 }

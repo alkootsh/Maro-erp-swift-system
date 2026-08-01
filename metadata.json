@@ -1,6 +1,6 @@
 {
-  "name": "سويفت ERP - نظام محاسبي شامل",
-  "description": "نظام محاسبي متكامل لإدارة المبيعات والمشتريات والمخازن والحسابات مع مساعد ذكي ودعم الباركود",
+  "name": "منصة مارو للأعمال - MARO Business Platform",
+  "description": "منصة أعمال وحسابات ومبيعات ومخازن ونقاط بيع متكاملة للمؤسسات والشركات (Enterprise Offline-First ERP)",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

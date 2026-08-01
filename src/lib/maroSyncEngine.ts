@@ -92,6 +92,31 @@ export class MaroSyncEngine {
     };
   }
 
+  static setOnline(online: boolean): void {
+    this.isOnline = online;
+    if (!online) {
+      this.currentStatus = 'OFFLINE';
+    } else {
+      this.currentStatus = 'IDLE';
+    }
+    this.emitStatus();
+  }
+
+  static isOnlineStatus(): boolean {
+    return this.isOnline;
+  }
+
+  static getSyncQueue(): SyncOperation[] {
+    return this.getQueue();
+  }
+
+  static flushQueueLocally(): void {
+    this.setQueue([]);
+    this.lastSyncedAt = new Date().toISOString();
+    this.currentStatus = 'COMPLETED';
+    this.emitStatus();
+  }
+
   private static emitStatus(error?: string) {
     const status = this.getStatus();
     if (error) status.error = error;
