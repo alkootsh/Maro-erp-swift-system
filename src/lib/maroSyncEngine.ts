@@ -344,11 +344,15 @@ export class MaroSyncEngine {
     this.currentStatus = 'SYNCING';
     this.emitStatus();
 
+    // Process pending operations in batches of 50
+    const BATCH_SIZE = 50;
+    const pendingBatch = pending.slice(0, BATCH_SIZE);
+
     try {
       const response = await fetch('/api/erp/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operations: pending })
+        body: JSON.stringify({ operations: pendingBatch })
       });
 
       if (response.ok) {
@@ -360,7 +364,7 @@ export class MaroSyncEngine {
           if (syncedIds.has(op.id)) return false; // remove synced op
 
           // Exponential backoff for failed ops in batch
-          if (pending.some(p => p.id === op.id)) {
+          if (pendingBatch.some(p => p.id === op.id)) {
             op.retryCount = (op.retryCount || 0) + 1;
             if (op.retryCount >= MAX_RETRIES) {
               op.status = 'FAILED';
@@ -374,8 +378,17 @@ export class MaroSyncEngine {
 
         this.setQueue(remainingQueue);
         this.lastSyncedAt = new Date().toISOString();
-        this.currentStatus = 'COMPLETED';
+        this.currentStatus = remainingQueue.some(op => op.status === 'PENDING') ? 'SYNCING' : 'COMPLETED';
         this.emitStatus();
+
+        // If there are still pending operations, trigger next batch processing immediately
+        if (remainingQueue.some(op => op.status === 'PENDING')) {
+          setTimeout(() => {
+            this.syncInProgress = false;
+            this.processSyncQueue();
+          }, 100);
+          return;
+        }
       } else {
         throw new Error(`Sync HTTP server error ${response.status}`);
       }
