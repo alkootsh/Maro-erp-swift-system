@@ -51,6 +51,8 @@ import { OpenPOSSessionCommand, ClosePOSSessionCommand, ProcessPOSTransactionCom
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, cn } from '../lib/utils';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { usbScannerEngine } from '../services/usbScannerEngine';
+import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
 
 const CATEGORIES = ['الكل', 'مواد غذائية', 'مشروبات', 'خضروات وفواكه', 'لحوم ودواجن', 'ألبان وأجبان', 'عناية شخصية', 'مواد تنظيف'];
 
@@ -128,6 +130,7 @@ export const POS: React.FC = () => {
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isXReportModalOpen, setIsXReportModalOpen] = useState(false);
   const [isStockInquiryOpen, setIsStockInquiryOpen] = useState(false);
+  const [isUSBManagerOpen, setIsUSBManagerOpen] = useState(false);
 
   // Form Inputs
   const [openingFloat, setOpeningFloat] = useState<number>(500);
@@ -167,6 +170,20 @@ export const POS: React.FC = () => {
       unsubRegistry();
     };
   }, []);
+
+  // USB/Bluetooth Barcode Scanner Hardware Listener
+  useEffect(() => {
+    const unsubUSB = usbScannerEngine.subscribe((parsedResult, rawCode) => {
+      if (parsedResult.product) {
+        addToCart(parsedResult.product, parsedResult.quantity);
+        setSearchQuery('');
+        showToast(`تم مسح الباركود بنجاح: ${parsedResult.product.name} (${parsedResult.quantity} قطعة/كجم)`);
+      } else {
+        showToast(`باركود غير مسجل بالمنظومة: ${rawCode}`);
+      }
+    });
+    return () => unsubUSB();
+  }, [products]);
 
   // Global Function Key & Hardware Scanner Keyboard Handler
   useEffect(() => {
@@ -535,6 +552,8 @@ export const POS: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <USBScannerBadge onClick={() => setIsUSBManagerOpen(true)} />
+
           {heldInvoices.length > 0 && (
             <button
               onClick={() => setIsResumeModalOpen(true)}
@@ -1021,6 +1040,9 @@ export const POS: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* USB/Bluetooth Scanner Manager Modal */}
+      <USBScannerModal isOpen={isUSBManagerOpen} onClose={() => setIsUSBManagerOpen(false)} />
     </div>
   );
 };

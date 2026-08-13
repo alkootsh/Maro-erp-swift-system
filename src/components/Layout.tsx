@@ -38,6 +38,7 @@ import { BookOpen } from 'lucide-react';
 
 import { AIAgentOverlay } from './AIAgent/AIAgentOverlay';
 import { UserManual } from './UserManual';
+import { GuidedTour } from './GuidedTour';
 
 const navSections = [
   {
@@ -108,6 +109,7 @@ export const Layout: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0b0f1a] overflow-hidden text-slate-200">
       <UserManual isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
+      <GuidedTour />
       {/* Main Content (Left) */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-[#0f172a] border-b border-[#1e293b] flex items-center justify-between px-8">

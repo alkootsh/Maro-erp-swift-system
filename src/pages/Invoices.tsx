@@ -16,11 +16,14 @@ import { ProductRepository } from '../repositories/productRepository';
 import { CreateSalesInvoiceCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { usbScannerEngine } from '../services/usbScannerEngine';
+import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
 
 export const Invoices: React.FC = () => {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUSBManagerOpen, setIsUSBManagerOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoice | null>(null);
 
   useEffect(() => {
@@ -73,13 +76,16 @@ export const Invoices: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
-        >
-          <Plus size={18} />
-          <span>إنشاء فاتورة مبيعات جديدة</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <USBScannerBadge onClick={() => setIsUSBManagerOpen(true)} />
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
+          >
+            <Plus size={18} />
+            <span>إنشاء فاتورة مبيعات جديدة</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-[#151b2b] rounded-2xl border border-[#1e293b] shadow-xl overflow-hidden">
@@ -147,6 +153,9 @@ export const Invoices: React.FC = () => {
       {selectedInvoice && (
         <InvoiceDetailModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
       )}
+
+      {/* USB/Bluetooth Scanner Manager Modal */}
+      <USBScannerModal isOpen={isUSBManagerOpen} onClose={() => setIsUSBManagerOpen(false)} />
     </div>
   );
 };
@@ -163,28 +172,39 @@ const CreateInvoiceModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setProducts(ProductRepository.getProducts());
   }, []);
 
-  const handleAddItem = (prod: ProductMaster) => {
+  useEffect(() => {
+    const unsubUSB = usbScannerEngine.subscribe((parsedResult) => {
+      if (parsedResult.product) {
+        handleAddItem(parsedResult.product, parsedResult.quantity);
+      }
+    });
+    return () => unsubUSB();
+  }, [products, items]);
+
+  const handleAddItem = (prod: ProductMaster, qty: number = 1) => {
     const existingIndex = items.findIndex(i => i.productId === prod.id);
     if (existingIndex >= 0) {
       const updated = [...items];
-      updated[existingIndex].quantity += 1;
+      updated[existingIndex].quantity += qty;
       const untaxed = updated[existingIndex].quantity * updated[existingIndex].unitPrice * (1 - (updated[existingIndex].discountPercent || 0) / 100);
       updated[existingIndex].lineTotal = untaxed * 1.14;
       setItems(updated);
     } else {
       const price = prod.price || 0;
+      const addQty = qty > 0 ? qty : 1;
+      const untaxed = addQty * price;
       setItems([...items, {
         id: `sii_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         productId: prod.id,
         productName: prod.name,
         sku: prod.sku,
         unitName: 'قطعة',
-        quantity: 1,
+        quantity: addQty,
         unitPrice: price,
         costPrice: prod.costPrice || 0,
         discountPercent: 0,
         taxRate: 14,
-        lineTotal: price * 1.14
+        lineTotal: untaxed * 1.14
       }]);
     }
   };
