@@ -47,12 +47,16 @@ import { ProductRepository } from '../repositories/productRepository';
 import { CustomerRepository } from '../repositories/customerRepository';
 import { POSKeyRepository } from '../repositories/posKeyRepository';
 import { PosActionRegistry } from '../lib/posActionRegistry';
+import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { OpenPOSSessionCommand, ClosePOSSessionCommand, ProcessPOSTransactionCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { MaroEventBus } from '../lib/eventBus';
 import { formatCurrency, cn } from '../lib/utils';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { usbScannerEngine } from '../services/usbScannerEngine';
 import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
+import { FunctionKeyBar } from '../components/common/FunctionKeyBar';
+import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
 
 const CATEGORIES = ['الكل', 'مواد غذائية', 'مشروبات', 'خضروات وفواكه', 'لحوم ودواجن', 'ألبان وأجبان', 'عناية شخصية', 'مواد تنظيف'];
 
@@ -162,12 +166,44 @@ export const POS: React.FC = () => {
     const unsubSessions = MaroSyncEngine.subscribe<POSSession>('pos_sessions', () => setActiveSession(POSRepository.getActiveSession('term_01')));
     const unsubKeys = MaroSyncEngine.subscribe('pos_function_keys', () => setKeyMappings(POSKeyRepository.getKeyMappings()));
     const unsubRegistry = PosActionRegistry.subscribe(() => setActions(PosActionRegistry.getActions()));
+    const unsubRxTransfer = MaroEventBus.subscribe('TRANSFER_RX_TO_POS', (payload: any) => {
+      const isPharmActive = IndustryModuleEngine.getActiveModules().some(m => m.id === 'PHARMACY_MEDICAL');
+      if (!isPharmActive) return;
+      if (payload && payload.items) {
+        payload.items.forEach((rxItem: any) => {
+          const foundProd = products.find(p => p.name.includes(rxItem.name) || p.barcode === rxItem.barcode);
+          if (foundProd) {
+            addToCart(foundProd, rxItem.quantity || 1);
+          } else {
+            // Add virtual or custom cart item
+            setCart(prev => [...prev, {
+              product: {
+                id: 'rx_' + Math.random(),
+                name: rxItem.name,
+                sku: 'RX-ITEM',
+                barcode: rxItem.barcode || '622000',
+                salePrice: rxItem.price || 50,
+                costPrice: (rxItem.price || 50) * 0.7,
+                stock: 100,
+                category: 'أدوية روشتات',
+                unit: 'علبة'
+              } as unknown as ProductMaster,
+              quantity: rxItem.quantity || 1,
+              unitPrice: rxItem.price || 50,
+              discount: 0
+            }]);
+          }
+        });
+        showToast('تم استيراد روشتة الوكيل الصيدلاني وإضافتها للسلة بنجاح!');
+      }
+    });
 
     return () => {
       unsubProds();
       unsubSessions();
       unsubKeys();
       unsubRegistry();
+      unsubRxTransfer();
     };
   }, []);
 
@@ -1043,6 +1079,12 @@ export const POS: React.FC = () => {
 
       {/* USB/Bluetooth Scanner Manager Modal */}
       <USBScannerModal isOpen={isUSBManagerOpen} onClose={() => setIsUSBManagerOpen(false)} />
+
+      {/* Global POS Function Keys & Smart Keyboard Toolbar Bar */}
+      <FunctionKeyBar 
+        onExecuteKey={(key, actionId) => executePOSAction(actionId)} 
+        activeInputType="numeric"
+      />
     </div>
   );
 };

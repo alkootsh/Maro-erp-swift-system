@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -7,7 +8,10 @@ import {
   PlusCircle,
   MinusCircle,
   Printer,
-  QrCode
+  QrCode,
+  Send,
+  MessageSquare,
+  Store
 } from 'lucide-react';
 import { SalesInvoice, SalesInvoiceItem, Customer } from '../types/sprint8';
 import { ProductMaster } from '../types/productMaster';
@@ -18,8 +22,11 @@ import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { usbScannerEngine } from '../services/usbScannerEngine';
 import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
+import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
+import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
 
 export const Invoices: React.FC = () => {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,10 +84,17 @@ export const Invoices: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => navigate('/b2b-portal')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl transition-all font-bold shadow-lg shadow-purple-600/20 active:scale-95 text-xs"
+          >
+            <Store size={16} />
+            <span>طلبات المتجر الواردة (B2B)</span>
+          </button>
           <USBScannerBadge onClick={() => setIsUSBManagerOpen(true)} />
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs"
           >
             <Plus size={18} />
             <span>إنشاء فاتورة مبيعات جديدة</span>
@@ -134,6 +148,16 @@ export const Invoices: React.FC = () => {
                         title="عرض تفاصيل ومعاينة Fatoora"
                       >
                         <Eye size={18} />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(inv);
+                          WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                        }}
+                        className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors flex items-center gap-1"
+                        title="إرسال الفاتورة للعميل عبر الواتساب"
+                      >
+                        <Send size={16} />
                       </button>
                     </div>
                   </td>
@@ -374,16 +398,32 @@ const CreateInvoiceModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                           <td className="px-4 py-3 font-bold text-white">{item.productName}</td>
                           <td className="px-4 py-3 font-mono">{formatCurrency(item.unitPrice)}</td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <button type="button" onClick={() => handleUpdateQty(idx, -1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><MinusCircle size={14} /></button>
-                              <span className="font-bold text-white font-mono">{item.quantity}</span>
+                              <input 
+                                type="text"
+                                {...getNumericInputProps(true)}
+                                onKeyDown={(e) => handleSmartKeyDown(e)}
+                                className="w-14 px-1 py-1 bg-[#1e293b] border border-[#334155] rounded text-white text-center font-bold font-mono text-xs focus:border-blue-500"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  const updated = [...items];
+                                  updated[idx].quantity = val;
+                                  const untaxed = val * updated[idx].unitPrice * (1 - (updated[idx].discountPercent || 0) / 100);
+                                  updated[idx].lineTotal = untaxed * 1.14;
+                                  setItems(updated);
+                                }}
+                              />
                               <button type="button" onClick={() => handleUpdateQty(idx, 1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><PlusCircle size={14} /></button>
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <input 
-                              type="number" 
-                              className="w-16 px-2 py-1 bg-[#1e293b] border border-[#334155] rounded text-white text-center font-mono"
+                              type="text" 
+                              {...getNumericInputProps(true)}
+                              onKeyDown={(e) => handleSmartKeyDown(e)}
+                              className="w-16 px-2 py-1 bg-[#1e293b] border border-[#334155] rounded text-white text-center font-mono text-xs focus:border-blue-500"
                               value={item.discountPercent || 0}
                               onChange={(e) => handleUpdateDiscount(idx, parseFloat(e.target.value) || 0)}
                             />
@@ -445,6 +485,16 @@ const InvoiceDetailModal: React.FC<{ invoice: SalesInvoice; onClose: () => void 
         <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
           <h3 className="font-bold text-xl text-white">معاينة الفاتورة الضريبية ZATCA e-Invoice</h3>
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(invoice);
+                WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+              }}
+              className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5"
+            >
+              <Send size={16} />
+              إرسال عبر الواتس
+            </button>
             <button onClick={() => window.print()} className="p-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-bold flex items-center gap-1">
               <Printer size={16} />
               طباعة

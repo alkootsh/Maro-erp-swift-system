@@ -6,16 +6,18 @@ import {
   Edit2, 
   Trash2, 
   Package, 
-  AlertTriangle,
-  Barcode,
-  Download,
-  Upload,
-  Settings2,
-  FolderTree,
-  Award,
-  Layers,
-  Building2,
-  CheckCircle2
+  AlertTriangle, 
+  Barcode, 
+  Download, 
+  Upload, 
+  Settings2, 
+  FolderTree, 
+  Award, 
+  Layers, 
+  Building2, 
+  CheckCircle2,
+  Printer,
+  Scale
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { BarcodeScanner } from '../components/BarcodeScanner';
@@ -27,6 +29,8 @@ import { CategoriesTab } from '../components/products/CategoriesTab';
 import { BrandsTab } from '../components/products/BrandsTab';
 import { InventorySettingsModal } from '../components/products/InventorySettingsModal';
 import { ProductFormModal } from '../components/products/ProductFormModal';
+import { QuickProductBarcodePrintModal } from '../components/hardware/QuickProductBarcodePrintModal';
+import { Link } from 'react-router-dom';
 
 export const Products: React.FC = () => {
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'categories' | 'brands'>('products');
@@ -43,6 +47,7 @@ export const Products: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductMaster | null>(null);
+  const [barcodePrintProduct, setBarcodePrintProduct] = useState<ProductMaster | null>(null);
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
   const [showThresholdInput, setShowThresholdInput] = useState(false);
 
@@ -166,6 +171,13 @@ export const Products: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            to="/hardware-thermal-barcode"
+            className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/40 text-blue-300 hover:text-white rounded-xl hover:border-blue-400 transition-all text-xs font-bold shadow-sm"
+          >
+            <Printer size={16} className="text-cyan-400" />
+            <span>طباعة الباركود واستيكرات الرف والموازين</span>
+          </Link>
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 bg-[#151b2b] border border-[#1e293b] text-slate-300 hover:text-white rounded-xl hover:border-slate-700 transition-all text-xs font-bold"
@@ -370,6 +382,13 @@ export const Products: React.FC = () => {
                         <td className="px-6 py-4 text-left">
                           <div className="flex items-center gap-2 justify-end">
                             <button 
+                              onClick={() => setBarcodePrintProduct(product)}
+                              className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors"
+                              title="طباعة استيكر وباركود للمنتج"
+                            >
+                              <Printer size={16} />
+                            </button>
+                            <button 
                               onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
                               className="p-2 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors"
                               title="تعديل المنتج"
@@ -417,6 +436,12 @@ export const Products: React.FC = () => {
           onClose={() => setIsScannerOpen(false)} 
         />
       )}
+
+      <QuickProductBarcodePrintModal
+        isOpen={!!barcodePrintProduct}
+        onClose={() => setBarcodePrintProduct(null)}
+        product={barcodePrintProduct}
+      />
     </div>
   );
 };

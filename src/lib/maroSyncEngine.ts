@@ -120,7 +120,15 @@ export class MaroSyncEngine {
   private static emitStatus(error?: string) {
     const status = this.getStatus();
     if (error) status.error = error;
-    STATUS_LISTENERS.forEach(cb => cb(status));
+    queueMicrotask(() => {
+      STATUS_LISTENERS.forEach(cb => {
+        try {
+          cb(status);
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    });
   }
 
   // --- Local DB Key-Value Operations (Offline First) ---
@@ -166,7 +174,15 @@ export class MaroSyncEngine {
   private static notifyListeners(collectionName: string, data: any[]) {
     const set = LISTENERS.get(collectionName);
     if (set) {
-      set.forEach(cb => cb(data));
+      queueMicrotask(() => {
+        set.forEach(cb => {
+          try {
+            cb(data);
+          } catch (e) {
+            console.error(e);
+          }
+        });
+      });
     }
   }
 

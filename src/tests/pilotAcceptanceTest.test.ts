@@ -11,6 +11,7 @@ import { SupplierRepository } from '../repositories/supplierRepository';
 import { InventoryRepository } from '../repositories/inventoryRepository';
 import { AccountingService } from '../services/accountingService';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { ProductMaster } from '../types/productMaster';
 
 async function runPilotAcceptanceTest() {
   console.log('==========================================================');
@@ -36,38 +37,63 @@ async function runPilotAcceptanceTest() {
   console.log('--- SECTION 1: HYPERMARKET PRODUCT MASTER ---');
   try {
     // 1. Create Product with Batch & Expiry
-    const prodId = await ProductService.createProduct({
+    const prod1: Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'> = {
       name: 'جبن شيدر مستورد - 500جم',
       sku: 'CHED-001',
+      description: 'جبن عالي الجودة',
       category: 'ألبان',
       price: 50,
       costPrice: 35,
       quantity: 100,
+      reorderLevel: 10,
+      isTaxable: true,
+      taxIncluded: false,
       batchTracking: true,
       expiryTracking: true,
+      serialNumberTracking: false,
+      allowNegativeStock: false,
+      allowFraction: false,
       status: 'active',
       units: [{ id: 'u1', name: 'قطعة', symbol: 'pcs', factor: 1, isBaseUnit: true, barcode: '1234567890123', salePrice: 50, purchasePrice: 35 }],
       barcodes: [{ id: 'b1', code: '1234567890123', type: 'EAN13', unitId: 'u1' }],
       batches: [{ id: 'bt1', batchNumber: 'LOT-2026-AUG', quantity: 100, expiryDate: '2026-12-31', status: 'active' }],
-      openingBalance: 100,
-    });
+      warehouseStocks: [{ warehouseId: 'wh_main', warehouseName: 'المستودع الرئيسي', quantity: 100 }],
+      priceLists: [],
+      images: [],
+      attachments: [],
+      openingBalance: 100
+    };
+    const prodId = await ProductService.createProduct(prod1);
     assert(!!prodId, 'Create Batch/Expiry Product');
 
     // 2. Weighted Product
-    const weightedProdId = await ProductService.createProduct({
-        name: 'تفاح أحمر سكري (وزن)',
-        sku: 'APP-001',
-        category: 'خضار وفواكه',
-        price: 10,
-        costPrice: 5,
-        quantity: 50,
-        batchTracking: false,
-        expiryTracking: false,
-        status: 'active',
-        units: [{ id: 'u2', name: 'كجم', symbol: 'kg', factor: 1, isBaseUnit: true, barcode: '2000000000000', salePrice: 10, purchasePrice: 5 }],
-        barcodes: [{ id: 'b2', code: '2000000000000', type: 'EAN13', unitId: 'u2' }],
-        openingBalance: 50
-    });
+    const prod2: Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'> = {
+      name: 'تفاح أحمر سكري (وزن)',
+      sku: 'APP-001',
+      description: 'تفاح طازج بالوزن',
+      category: 'خضار وفواكه',
+      price: 10,
+      costPrice: 5,
+      quantity: 50,
+      reorderLevel: 5,
+      isTaxable: true,
+      taxIncluded: false,
+      batchTracking: false,
+      expiryTracking: false,
+      serialNumberTracking: false,
+      allowNegativeStock: false,
+      allowFraction: true,
+      status: 'active',
+      units: [{ id: 'u2', name: 'كجم', symbol: 'kg', factor: 1, isBaseUnit: true, barcode: '2000000000000', salePrice: 10, purchasePrice: 5 }],
+      barcodes: [{ id: 'b2', code: '2000000000000', type: 'EAN13', unitId: 'u2' }],
+      batches: [],
+      warehouseStocks: [{ warehouseId: 'wh_main', warehouseName: 'المستودع الرئيسي', quantity: 50 }],
+      priceLists: [],
+      images: [],
+      attachments: [],
+      openingBalance: 50
+    };
+    const weightedProdId = await ProductService.createProduct(prod2);
     assert(!!weightedProdId, 'Create Weighted Product');
 
   } catch (err: any) {
@@ -81,15 +107,21 @@ async function runPilotAcceptanceTest() {
   console.log('\n--- SECTION 2: ACCOUNTING & PURCHASING ---');
   try {
     // 1. Purchasing with Accounting
-    const supId = await SupplierRepository.saveSupplier({ name: 'مورد الألبان', phone: '01000', status: 'active' });
+    const supId = await SupplierRepository.saveSupplier({ 
+      name: 'مورد الألبان', 
+      phone: '01000', 
+      status: 'active',
+      currentBalance: 0,
+      paymentTerms: 'NET30'
+    });
     const po = await PurchaseRepository.createPurchaseOrder({
-        supplierId: supId,
-        supplierName: 'مورد الألبان',
-        warehouseId: 'wh_main',
-        items: [{ id: 'pi1', productId: 'p1', productName: 'جبن', sku: 'CHED-001', unitName: 'pcs', quantity: 10, unitPrice: 35, lineTotal: 350 }],
-        totalAmount: 350,
-        status: 'APPROVED',
-        expectedDeliveryDate: new Date().toISOString()
+      supplierId: supId,
+      supplierName: 'مورد الألبان',
+      warehouseId: 'wh_main',
+      items: [{ id: 'pi1', productId: 'p1', productName: 'جبن', sku: 'CHED-001', unitName: 'pcs', quantity: 10, unitPrice: 35, lineTotal: 350 }],
+      totalAmount: 350,
+      status: 'APPROVED',
+      expectedDeliveryDate: new Date().toISOString()
     });
     
     // Verify Accounting Entry

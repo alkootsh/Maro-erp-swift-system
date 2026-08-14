@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   Sparkles, 
@@ -7,182 +7,22 @@ import {
   X, 
   CheckCircle2, 
   Compass, 
-  HelpCircle,
   RotateCcw,
-  Lightbulb
+  Lightbulb,
+  BookOpen,
+  Volume2,
+  VolumeX,
+  Keyboard,
+  ShieldCheck,
+  Package,
+  Layers,
+  HelpCircle
 } from 'lucide-react';
+import { getTourForRoute, TourStep, ScreenTourData } from '../data/guidedTourContent';
 
-export interface TourStep {
-  title: string;
-  description: string;
-  tip?: string;
-  highlightSelector?: string;
-}
+export type { TourStep };
 
-export const TOUR_DATA: Record<string, { pageTitle: string; steps: TourStep[] }> = {
-  '/': {
-    pageTitle: 'لوحة التحكم الرئيسية',
-    steps: [
-      {
-        title: 'مرحباً بك في لوحة تحكم سويفت ERP',
-        description: 'هذه الشاشة تعكس الرؤية الكاملة لمؤسستك من مبيعات، مشتريات، وسيولة نقدية في الوقت الفعلي.',
-        tip: 'يمكنك تخصيص المؤشرات الظاهرة من إعدادات لوحة التحكم.'
-      },
-      {
-        title: 'المؤشرات المالية الحية (KPIs)',
-        description: 'تابع المبيعات اليومية، أرباح اليوم، والسيولة النقدية المتوفرة بمجرد نظرة سريعة.',
-        tip: 'يتم تحديث البيانات تلقائياً بفضل محرك المزامنة اللحظي.'
-      },
-      {
-        title: 'الوصول السريع والإشعارات',
-        description: 'استخدم الشاشات المختصرة أعلى الصفحة لإصدار فاتورة سريعة أو معاينة التنبيهات والأخطار المخزنية.',
-        tip: 'يمكنك الضغط على زر F1 في أي وقت لفتح الشرح التفصيلي للواجهة.'
-      }
-    ]
-  },
-  '/pos': {
-    pageTitle: 'نقطة البيع الفائقة (POS)',
-    steps: [
-      {
-        title: 'نقطة البيع السريعة',
-        description: 'واجهة بيع مصممة لتحقيق أقصى سرعة معالجة أقل من 50 مللي ثانية مع دعم القراءة الآلية للباركود والميزان.',
-        tip: 'تدعم العمل الأوفلاين 100% بدون انقطاع عند غياب الإنترنت.'
-      },
-      {
-        title: 'البحث الشامل والمتقدم',
-        description: 'ابحث بالباركود، الاسم، الكود، أو الاسم العربي والانجليزي في وقت واحد.',
-        tip: 'اضغط F5 أو اكتب جزءاً من اسم المنتج للوصول الفوري.'
-      },
-      {
-        title: 'مفاتيح الوظائف الفورية (F1 - F24)',
-        description: 'نفذ كافة العمليات بنقرة زر واحدة أو اختصار لوحة المفاتيح: الخصم، تعليق الفاتورة، طرق الدفع، والطباعة.',
-        tip: 'يمكن للمدير تخصيص تخطيط الأزرار لكل كاشير بشكل منفصل.'
-      },
-      {
-        title: 'خيارات الدفع المتعددة والتقسيم',
-        description: 'إمكانية السداد نقداً، شبكة، فيزا، أو تقسيم المبلغ بين أكثر من طريقة دفع بسهولة.',
-        tip: 'يدعم النظام طباعة إيصالات الفواتير الحرارية مع كود QR الفاتورة الضريبية.'
-      }
-    ]
-  },
-  '/products': {
-    pageTitle: 'إدارة المنتجات والمخزون',
-    steps: [
-      {
-        title: 'دليل المنتجات والخدمات',
-        description: 'إدارة شاملة لكافة الأصناف، الفئات، وحدات القياس المركبة، وأسعار البيع والتكلفة.',
-        tip: 'استخدم استيراد/تصدير Excel لإضافة مئات المنتجات دفعة واحدة.'
-      },
-      {
-        title: 'تتبع الدفعات وتاريخ الصلاحية',
-        description: 'دعم كامل لتتبع الأرقام التسلسلية (Serial Number) ورقم التشغيلة (Batch) وتاريخ الانتهاء (Expiry Date).',
-        tip: 'يقوم النظام بتنبيهك تلقائياً قبل انقضاء تاريخ الصلاحية.'
-      }
-    ]
-  },
-  '/warehouses': {
-    pageTitle: 'إدارة المخازن والفروع',
-    steps: [
-      {
-        title: 'تعدد المخازن والمواقع',
-        description: 'إدارة الأرصدة في كل مخزن بشكل منفصل مع متابعة التحويلات المخزنية وإذونات الصرف والإضافة.',
-        tip: 'تأكد من تحديد المخزن الافتراضي لكل فرع.'
-      }
-    ]
-  },
-  '/inventory': {
-    pageTitle: 'حركة وحركات المخزون',
-    steps: [
-      {
-        title: 'سجل حركات المخزون',
-        description: 'عرض كشف حركة كل صنف من شراء، بيع، تسوية، وترديد لمعرفة مصدر أي تغيير في الرصيد.',
-        tip: 'يمكنك فلترة الحركات حسب التاريخ أو نوع الحركة.'
-      }
-    ]
-  },
-  '/invoices': {
-    pageTitle: 'إدارة المبيعات والفواتير',
-    steps: [
-      {
-        title: 'فواتير المبيعات والعروض',
-        description: 'إصدار واستعراض الفواتير الضريبية، عروض الأسعار، وفواتير المبيعات الآجلة والنقدية.',
-        tip: 'تستطيع تصدير الفاتورة لـ PDF أو طباعتها مباشرة.'
-      }
-    ]
-  },
-  '/returns': {
-    pageTitle: 'إدارة المرتجعات',
-    steps: [
-      {
-        title: 'مرتجعات المبيعات والمشتريات',
-        description: 'معالجة مرتجعات الفواتير بسهولة مع إعادة المواد للمخزن آلياً وتعديل حسابات العميل/المورد.',
-        tip: 'يمكنك إرجاع جزئي أو كلي بناءً على رقم الفاتورة الأصلي.'
-      }
-    ]
-  },
-  '/bills': {
-    pageTitle: 'إدارة المشتريات والمصروفات',
-    steps: [
-      {
-        title: 'فواتير التوريد والمصروفات',
-        description: 'تسجيل أوامر الشراء وفواتير المشتريات من الموردين وتسجيل المصروفات العمومية والإدارية.',
-        tip: 'تؤثر فواتير الشراء مباشرة على متوسط تكلفة المخزون وحسابات الموردين.'
-      }
-    ]
-  },
-  '/customers': {
-    pageTitle: 'إدارة العملاء والائتمان',
-    steps: [
-      {
-        title: 'دليل العملاء والحسابات',
-        description: 'إضافة بيانات العملاء، حدود الائتمان، فترات السداد، واستعراض كشف حساب تفصيلي للعميل.',
-        tip: 'ينبهك النظام فور تجاوز العميل لحده الائتماني أثناء البيع.'
-      }
-    ]
-  },
-  '/suppliers': {
-    pageTitle: 'إدارة الموردين',
-    steps: [
-      {
-        title: 'بيانات الموردين والمستحقات',
-        description: 'متابعة حسابات الموردين، الأرصدة الدائنة، وجدولات الدفع المستحقة.',
-        tip: 'استعرض أرصدة الموردين بضغطة زر واحدة.'
-      }
-    ]
-  },
-  '/transactions': {
-    pageTitle: 'المحاسبة والقيود المالية',
-    steps: [
-      {
-        title: 'دفتر اليومية وشجرة الحسابات',
-        description: 'نظام محاسبي متكامل بقيد مزدوج آلي، يضمن الدقة المالية والتطابق التام للحسابات.',
-        tip: 'تُنشأ القيود الآلية مع كل عملية بيع أو شراء أو صرف.'
-      }
-    ]
-  },
-  '/reports': {
-    pageTitle: 'التقارير والتحليلات الشاملة',
-    steps: [
-      {
-        title: 'مركز تقارير القرارات الذكية',
-        description: 'استخرج تقارير الأرباح والخسائر، ميزان المراجعة، حركة المنتجات الأكثر مبيعاً، وتحليلات الذكاء الاصطناعي.',
-        tip: 'يمكنك تصدير كافة التقارير بصيغة Excel أو PDF.'
-      }
-    ]
-  },
-  '/settings': {
-    pageTitle: 'إعدادات النظام العامة',
-    steps: [
-      {
-        title: 'تخصيص النظام والفروع',
-        description: 'ضبط معلومات الشعار، الضريبة، الفواتير، والأجهزة الملحقة كالطابعات والشفار.',
-        tip: 'قم بحفظ الإعدادات لتطبيقها على جميع الأجهزة المرتبطة.'
-      }
-    ]
-  }
-};
-
-const STORAGE_KEY = 'maro_completed_tours_v1';
+const STORAGE_KEY = 'maro_completed_tours_v2';
 
 export const GuidedTour: React.FC = () => {
   const location = useLocation();
@@ -199,19 +39,85 @@ export const GuidedTour: React.FC = () => {
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  const routeTourData = TOUR_DATA[currentPath] || TOUR_DATA['/'];
-  const steps = routeTourData?.steps || [];
+  // Dynamically resolve tour data for CURRENT active screen
+  const currentTourData: ScreenTourData = getTourForRoute(currentPath);
+  const steps: TourStep[] = currentTourData.steps || [];
 
-  // Check on route change whether to auto-open tour for first time visit
+  // Speech synthesis for Arabic tour explanation
+  const speakCurrentStep = useCallback((step: TourStep) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const textToSpeak = `${step.title}. ${step.description}. ${step.tip ? 'نصيحة: ' + step.tip : ''}`;
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = 'ar-SA';
+      utterance.rate = 0.95;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, []);
+
+  // Listen for global custom event to trigger tour for the active screen
   useEffect(() => {
-    if (steps.length > 0 && !completedPages[currentPath]) {
-      // Auto open tour for unvisited page
+    const handleOpenTourEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
       setCurrentStepIndex(0);
       setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
+    };
+
+    window.addEventListener('maro:open-tour', handleOpenTourEvent);
+    // Expose helper on window object for developer and components
+    (window as any).openMaroScreenTour = () => {
+      setCurrentStepIndex(0);
+      setIsOpen(true);
+    };
+
+    return () => {
+      window.removeEventListener('maro:open-tour', handleOpenTourEvent);
+      delete (window as any).openMaroScreenTour;
+    };
+  }, []);
+
+  // Keyboard shortcut F1 or Shift+F1 to open tour for current screen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If F1 is pressed (prevent default help)
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setCurrentStepIndex(0);
+        setIsOpen(prev => !prev);
+      }
+      if (isOpen) {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+          handleNext();
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          handlePrev();
+        } else if (e.key === 'Escape') {
+          handleSkip();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, currentStepIndex, steps.length]);
+
+  // Route change reset or auto-open check
+  useEffect(() => {
+    stopSpeaking();
+    // Do not auto-force open aggressively, but close old modal if path changes
+    setIsOpen(false);
+    setCurrentStepIndex(0);
   }, [currentPath]);
 
   const markPageAsCompleted = (path: string) => {
@@ -225,6 +131,7 @@ export const GuidedTour: React.FC = () => {
   };
 
   const handleNext = () => {
+    stopSpeaking();
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
@@ -233,17 +140,20 @@ export const GuidedTour: React.FC = () => {
   };
 
   const handlePrev = () => {
+    stopSpeaking();
     if (currentStepIndex > 0) {
       setCurrentStepIndex(prev => prev - 1);
     }
   };
 
   const handleFinish = () => {
+    stopSpeaking();
     markPageAsCompleted(currentPath);
     setIsOpen(false);
   };
 
   const handleSkip = () => {
+    stopSpeaking();
     markPageAsCompleted(currentPath);
     setIsOpen(false);
   };
@@ -253,104 +163,200 @@ export const GuidedTour: React.FC = () => {
     setIsOpen(true);
   };
 
-  const currentStep = steps[currentStepIndex];
+  const currentStep = steps[currentStepIndex] || steps[0];
 
   return (
     <>
-      {/* Trigger Button if tour is not open */}
+      {/* Floating Guided Tour Trigger Widget */}
       {!isOpen && (
-        <button
-          onClick={handleManualStart}
-          className="fixed bottom-20 right-6 z-40 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-full shadow-lg hover:shadow-blue-500/25 transition-all hover:scale-105 flex items-center gap-2 text-xs font-bold border border-blue-400/30 group"
-          title="بدء الجولة الإرشادية لهذه الصفحة"
-        >
-          <Compass size={18} className="animate-spin-slow group-hover:rotate-45 transition-transform" />
-          <span className="hidden sm:inline">جولة تفاعلية</span>
-        </button>
+        <div className="fixed bottom-20 left-6 z-40 flex items-center gap-2 group animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <button
+            onClick={handleManualStart}
+            id="btn-floating-screen-tour"
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-4 py-2.5 rounded-full shadow-xl shadow-blue-500/25 transition-all duration-200 hover:scale-105 flex items-center gap-2 text-xs font-bold border border-blue-400/40 backdrop-blur-md cursor-pointer"
+            title={`جولة تعليمية تفصيلية لشاشة (${currentTourData.pageTitle}) - اضغط F1`}
+          >
+            <Compass size={18} className="animate-spin-slow group-hover:rotate-45 transition-transform text-blue-200" />
+            <span className="font-bold">جولة تعليمية للشاشة</span>
+            <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded font-mono hidden sm:inline-block">F1</span>
+          </button>
+        </div>
       )}
 
       {/* Modal / Tour Spotlight Card */}
       {isOpen && currentStep && (
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#0f172a] border border-blue-500/30 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative overflow-hidden text-right" dir="rtl">
+        <div className="fixed inset-0 z-[99999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-[#0f172a] border-2 border-blue-500/40 rounded-3xl w-full max-w-xl p-6 sm:p-7 shadow-2xl relative overflow-hidden text-right text-slate-100 ring-1 ring-blue-400/20">
             {/* Background Glow Accent */}
-            <div className="absolute -top-16 -right-16 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -top-20 -right-20 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md">
-                  <Sparkles size={20} />
+            {/* Top Bar Header */}
+            <div className="flex items-start justify-between border-b border-slate-800/90 pb-4 mb-4 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 shrink-0 border border-blue-400/30">
+                  <Compass size={24} className="animate-pulse" />
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
-                    {routeTourData.pageTitle} • جولة تعليمية
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                      {currentTourData.pageCategory}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      شرح الشاشة الحالية
+                    </span>
                   </div>
-                  <h3 className="text-lg font-bold text-white mt-0.5">
-                    {currentStep.title}
-                  </h3>
+                  <h2 className="text-base sm:text-lg font-black text-white mt-1 leading-tight">
+                    {currentTourData.pageTitle}
+                  </h2>
                 </div>
               </div>
-              <button
-                onClick={handleSkip}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                title="إغلاق وتخطي الجولة"
-              >
-                <X size={18} />
-              </button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Voice Speaker Button */}
+                <button
+                  onClick={() => isSpeaking ? stopSpeaking() : speakCurrentStep(currentStep)}
+                  className={`p-2 rounded-xl border transition-all ${
+                    isSpeaking 
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' 
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700'
+                  }`}
+                  title={isSpeaking ? 'إيقاف النطق الصوتي' : 'استمع للشرح بالصوت العربي'}
+                >
+                  {isSpeaking ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </button>
+
+                <button
+                  onClick={handleSkip}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors"
+                  title="إغلاق الجولة"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Screen Overview Notice (on First Step) */}
+            {currentStepIndex === 0 && currentTourData.overview && (
+              <div className="mb-4 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 flex items-start gap-2.5">
+                <BookOpen size={16} className="text-blue-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong className="text-blue-300 font-bold ml-1">الدور التشغيلي للشاشة:</strong>
+                  {currentTourData.overview}
+                </p>
+              </div>
+            )}
+
+            {/* Step Card Title & Badge */}
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono text-xs font-bold">
+                  {currentStepIndex + 1}
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  {currentStep.title}
+                </h3>
+              </div>
+              {currentStep.badge && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {currentStep.badge}
+                </span>
+              )}
             </div>
 
             {/* Step Content */}
-            <div className="space-y-4 my-4">
-              <p className="text-slate-200 text-sm leading-relaxed">
+            <div className="space-y-3.5 my-3">
+              <p className="text-slate-200 text-sm leading-relaxed bg-slate-900/50 p-3.5 rounded-2xl border border-slate-800">
                 {currentStep.description}
               </p>
 
+              {/* Smart Tip */}
               {currentStep.tip && (
-                <div className="bg-blue-950/40 border border-blue-500/20 rounded-xl p-3.5 flex items-start gap-3">
-                  <Lightbulb size={18} className="text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-200/90 leading-relaxed">
+                <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200">
+                  <Lightbulb size={17} className="text-amber-400 shrink-0 mt-0.5 animate-bounce" />
+                  <p className="leading-relaxed">
                     <strong className="text-amber-300 font-bold ml-1">نصيحة ذكية:</strong>
                     {currentStep.tip}
                   </p>
                 </div>
               )}
+
+              {/* Accounting & Inventory Impact Badges */}
+              {(currentStep.accountingImpact || currentStep.inventoryImpact || currentStep.shortcut) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {currentStep.accountingImpact && (
+                    <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-200">
+                      <ShieldCheck size={15} className="text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-emerald-300 block font-bold">الأثر المحاسبي والمالي:</strong>
+                        <span>{currentStep.accountingImpact}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStep.inventoryImpact && (
+                    <div className="bg-cyan-950/40 border border-cyan-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-cyan-200">
+                      <Package size={15} className="text-cyan-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-cyan-300 block font-bold">الأثر المخزني والتشغيلي:</strong>
+                        <span>{currentStep.inventoryImpact}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStep.shortcut && (
+                    <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-2.5 flex items-center gap-2 text-[11px] text-purple-200 sm:col-span-2">
+                      <Keyboard size={15} className="text-purple-400 shrink-0" />
+                      <div>
+                        <strong className="text-purple-300 ml-1 font-bold">اختصار لوحة المفاتيح:</strong>
+                        <code className="bg-purple-900/60 px-1.5 py-0.5 rounded font-mono text-[10px] text-purple-100 border border-purple-400/30">
+                          {currentStep.shortcut}
+                        </code>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Step Dots & Progress */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 mt-6">
-              <div className="flex items-center gap-1.5">
+            {/* Step Dots & Progress Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800/80 mt-5">
+              <div className="flex items-center gap-1.5 order-2 sm:order-1">
                 {steps.map((_, idx) => (
-                  <div
+                  <button
                     key={idx}
-                    className={`h-2 rounded-full transition-all duration-300 ${
+                    onClick={() => {
+                      stopSpeaking();
+                      setCurrentStepIndex(idx);
+                    }}
+                    className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
                       idx === currentStepIndex
-                        ? 'w-6 bg-blue-500'
+                        ? 'w-7 bg-gradient-to-r from-blue-500 to-indigo-500 ring-2 ring-blue-400/40'
                         : idx < currentStepIndex
-                        ? 'w-2 bg-blue-400/50'
-                        : 'w-2 bg-slate-700'
+                        ? 'w-2.5 bg-blue-400/60 hover:bg-blue-400'
+                        : 'w-2.5 bg-slate-700 hover:bg-slate-600'
                     }`}
+                    title={`انتقال للخطوة ${idx + 1}`}
                   />
                 ))}
-                <span className="text-[11px] font-medium text-slate-400 mr-2">
+                <span className="text-xs font-semibold text-slate-400 mr-2">
                   الخطوة {currentStepIndex + 1} من {steps.length}
                 </span>
               </div>
 
-              {/* Navigation Buttons */}
-              <div className="flex items-center gap-2">
+              {/* Navigation Actions */}
+              <div className="flex items-center gap-2 order-1 sm:order-2 justify-end">
                 <button
                   onClick={handleSkip}
                   className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
                 >
-                  تخطي الجولة
+                  إغلاق
                 </button>
 
                 {currentStepIndex > 0 && (
                   <button
                     onClick={handlePrev}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors border border-slate-700"
                   >
                     <ChevronRight size={16} />
                     السابق
@@ -359,12 +365,12 @@ export const GuidedTour: React.FC = () => {
 
                 <button
                   onClick={handleNext}
-                  className="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-blue-600/20 transition-all hover:scale-[1.02]"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02] border border-blue-400/30"
                 >
                   {currentStepIndex === steps.length - 1 ? (
                     <>
                       <CheckCircle2 size={16} />
-                      إنهاء وقبول
+                      إنهاء الجولة
                     </>
                   ) : (
                     <>

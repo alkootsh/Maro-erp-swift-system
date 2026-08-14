@@ -6,13 +6,16 @@ export interface UserProfile {
   displayName: string;
   role: 'developer' | 'admin' | 'accountant' | 'cashier';
   branchId?: string;
+  branchName?: string;
+  warehouseName?: string;
+  safeName?: string;
   companyId?: string;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  login: (email: string, role?: 'developer' | 'admin' | 'accountant' | 'cashier') => void;
+  login: (email: string, role?: 'developer' | 'admin' | 'accountant' | 'cashier', customProfile?: Partial<UserProfile>) => void;
   logout: () => void;
 }
 
@@ -40,18 +43,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       displayName: 'المدير المطور (Developer)',
       role: 'developer',
       branchId: 'branch_main',
+      branchName: 'الفرع الرئيسي',
+      warehouseName: 'المستودع العام',
+      safeName: 'الخزينة الرئيسية',
       companyId: 'comp_maro_01'
     };
   });
   const [loading, setLoading] = useState(false);
 
-  const login = (email: string, role: 'developer' | 'admin' | 'accountant' | 'cashier' = 'admin') => {
+  const login = (
+    email: string, 
+    role: 'developer' | 'admin' | 'accountant' | 'cashier' = 'admin',
+    customProfile?: Partial<UserProfile>
+  ) => {
     const profile: UserProfile = {
-      uid: `user_${Date.now()}`,
+      uid: customProfile?.uid || `user_${Date.now()}`,
       email,
-      displayName: email === 'alkootsh@gmail.com' ? 'المدير المطور' : 'مستخدم النظام',
+      displayName: customProfile?.displayName || (email === 'alkootsh@gmail.com' ? 'المدير المطور' : 'مستخدم النظام'),
       role,
       branchId: 'branch_main',
+      branchName: customProfile?.branchName || 'الفرع الرئيسي',
+      warehouseName: customProfile?.warehouseName || 'المستودع العام',
+      safeName: customProfile?.safeName || 'الخزينة الرئيسية',
       companyId: 'comp_maro_01'
     };
     setUser(profile);

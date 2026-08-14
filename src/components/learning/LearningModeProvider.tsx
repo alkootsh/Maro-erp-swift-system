@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { BookOpen, X } from 'lucide-react';
+import { BookOpen, X, Compass } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 interface LearningModeContextType {
@@ -55,18 +55,25 @@ export const LearningModeProvider: React.FC<{ children: React.ReactNode }> = ({ 
               <p className="text-emerald-100/70 text-xs leading-relaxed">
                 مرر الماوس فوق أي عنصر أو زر في الشاشة لعرض شرح تفصيلي له، أفضل الممارسات، والأخطاء الشائعة، مع إمكانية مشاهدة فيديوهات توضيحية.
               </p>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('maro:open-tour'))}
+                  className="bg-blue-600/80 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                >
+                  <Compass size={14} />
+                  <span>بدء جولة الشاشة</span>
+                </button>
                 <button 
                   onClick={() => setShowLearningWidget(false)}
-                  className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                  className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
                 >
-                  إخفاء هذه الرسالة
+                  إخفاء
                 </button>
                 <button 
                   onClick={toggleLearningMode}
-                  className="bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                  className="bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
                 >
-                  إيقاف وضع التعلم
+                  إيقاف
                 </button>
               </div>
             </div>

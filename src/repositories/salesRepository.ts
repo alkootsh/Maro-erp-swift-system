@@ -7,6 +7,9 @@ import { InventoryRepository } from './inventoryRepository';
 import { AccountingService } from '../services/accountingService';
 import { MaroEventBus } from '../lib/eventBus';
 
+import { InvoiceNumberingEngine } from '../lib/invoiceNumberingEngine';
+import { SecurityEngine } from '../lib/securityEngine';
+
 const INVOICE_COLLECTION = 'invoices';
 
 export class SalesRepository {
@@ -55,7 +58,7 @@ export class SalesRepository {
 
   static async createInvoice(invoiceData: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'createdAt'>): Promise<SalesInvoice> {
     const invoices = this.getInvoices();
-    const invoiceNumber = `INV-2026-${String(invoices.length + 1).padStart(5, '0')}`;
+    const invoiceNumber = InvoiceNumberingEngine.generateDailySequentialInvoiceNumber('INV');
     const id = `inv_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
     const createdAt = new Date().toISOString();
 
@@ -162,6 +165,24 @@ export class SalesRepository {
 
     // 5. Audit Logging & Event Bus
     await ProductRepository.logAudit('CREATE', INVOICE_COLLECTION, id, invoiceNumber);
+    SecurityEngine.logSecurityAction({
+      userId: invoiceData.cashierId || 'cashier_active',
+      userEmail: invoiceData.cashierId ? `${invoiceData.cashierId}@maro-erp.local` : 'cashier@maro-erp.local',
+      userRole: 'SALES_OFFICER',
+      companyId: 'MARO_MAIN_CO',
+      deviceInfo: 'POS Terminal',
+      computerName: 'POS-01',
+      operatingSystem: 'Linux/WebContainer',
+      browser: 'Browser',
+      ipAddress: '127.0.0.1',
+      action: `CREATE_INVOICE_${invoiceNumber}`,
+      module: 'SALES',
+      screen: 'Invoices Screen',
+      documentNo: invoiceNumber,
+      newValue: `EGP ${grandTotal.toFixed(2)} (${items.length} items)`,
+      executionDurationMs: 45,
+      success: true
+    });
     await MaroEventBus.publish('InvoiceCreated', { id, invoiceNumber, grandTotal });
 
     return fullInvoice;

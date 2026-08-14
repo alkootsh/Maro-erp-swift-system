@@ -1,6 +1,6 @@
 {
   "name": "منصة مارو للأعمال - MARO Business Platform",
-  "description": "منصة أعمال وحسابات ومبيعات ومخازن ونقاط بيع متكاملة للمؤسسات والشركات (Enterprise Offline-First ERP)",
+  "description": "منصة أعمال وتخطيط موارد المؤسسات (ERP) تعمل بنظام الكور المحاسبي الموحد ومديولات الأنشطة التجارية المتخصصة القابلة للتنشيط من لوحة المطور (Food, Fashion, Electronics, Pharmacy, Auto, F&B) مع دعم Offline-First",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

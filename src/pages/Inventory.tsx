@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { InventoryIntelligenceDashboard } from '../components/Inventory/InventoryIntelligenceDashboard';
 import { InventoryAlertsList } from '../components/Inventory/InventoryAlertsList';
+import { LowStockReplenishmentModal } from '../components/Inventory/LowStockReplenishmentModal';
 import { InventoryAlert } from '../types/inventoryIntelligence';
 import { 
   Search, 
   RefreshCw, 
-  X
+  X,
+  ShoppingCart,
+  Sparkles
 } from 'lucide-react';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -21,6 +24,10 @@ export const Inventory: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductMaster | null>(null);
+  
+  // Replenishment Modal State
+  const [isReplenishModalOpen, setIsReplenishModalOpen] = useState(false);
+  const [replenishProductId, setReplenishProductId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     // Initial Load
@@ -44,18 +51,22 @@ export const Inventory: React.FC = () => {
   const alerts: InventoryAlert[] = useMemo(() => {
     return products.reduce((acc, p) => {
       if ((p.quantity || 0) <= 0) {
-        acc.push({ id: `out-${p.id}`, productId: p.id, productName: p.name, type: 'out_of_stock', severity: 'critical', message: 'المنتج نفد بالكامل', createdAt: new Date().toISOString(), resolved: false });
+        acc.push({ id: `out-${p.id}`, productId: p.id, productName: p.name, type: 'out_of_stock', severity: 'critical', message: 'المنتج نفد بالكامل (0 وحدة متبقية)', createdAt: new Date().toISOString(), resolved: false });
       } else if ((p.quantity || 0) <= (p.reorderLevel || 5)) {
-        acc.push({ id: `reorder-${p.id}`, productId: p.id, productName: p.name, type: 'reorder_level', severity: 'high', message: `الكمية منخفضة: ${p.quantity} متبقي`, createdAt: new Date().toISOString(), resolved: false });
+        acc.push({ id: `reorder-${p.id}`, productId: p.id, productName: p.name, type: 'reorder_level', severity: 'high', message: `الكمية منخفضة تحت حد الأمان: ${p.quantity} متبقي (حد الطلب: ${p.reorderLevel || 5})`, createdAt: new Date().toISOString(), resolved: false });
       }
       return acc;
     }, [] as InventoryAlert[]);
   }, [products]);
 
   const handleResolveAlert = (id: string) => {
-    // In a real enterprise app, this would call a repository to update the alert status in DB.
     console.log('[AUDIT] AlertResolved:', { alertId: id });
     alert('تم تعيين التنبيه كـ "مُعالج"');
+  };
+
+  const handleOpenReplenishment = (productId?: string) => {
+    setReplenishProductId(productId);
+    setIsReplenishModalOpen(true);
   };
 
   const filteredProducts = products.filter(p => 
@@ -68,7 +79,11 @@ export const Inventory: React.FC = () => {
     <div className="space-y-6">
       <InventoryIntelligenceDashboard products={products} />
       
-      <InventoryAlertsList alerts={alerts} onResolve={handleResolveAlert} />
+      <InventoryAlertsList 
+        alerts={alerts} 
+        onResolve={handleResolveAlert}
+        onOpenReplenishmentModal={handleOpenReplenishment}
+      />
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
@@ -81,13 +96,22 @@ export const Inventory: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          onClick={() => { setSelectedProduct(null); setIsAdjustModalOpen(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-sm"
-        >
-          <RefreshCw size={16} />
-          <span>إجراء تسوية مخزنية / جرد</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => handleOpenReplenishment()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl transition-all font-bold shadow-lg shadow-amber-600/20 active:scale-95 text-sm"
+          >
+            <ShoppingCart size={16} />
+            <span>تحويل النواقص لأوامر وفواتير شراء</span>
+          </button>
+          <button 
+            onClick={() => { setSelectedProduct(null); setIsAdjustModalOpen(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-sm"
+          >
+            <RefreshCw size={16} />
+            <span>إجراء تسوية مخزنية / جرد</span>
+          </button>
+        </div>
       </div>
 
       {/* Stock Table */}
@@ -105,7 +129,7 @@ export const Inventory: React.FC = () => {
                 <th className="px-6 py-4">سعر البيع</th>
                 <th className="px-6 py-4">تكلفة الوحدة</th>
                 <th className="px-6 py-4">الكمية المتاحة</th>
-                <th className="px-6 py-4 text-center">التسوية والتعديل</th>
+                <th className="px-6 py-4 text-center">الإجراءات والطلب</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e293b]">
@@ -131,12 +155,24 @@ export const Inventory: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button 
-                        onClick={() => { setSelectedProduct(p); setIsAdjustModalOpen(true); }}
-                        className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-xs font-bold transition-all"
-                      >
-                        تعديل / جرد
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        {isLow && (
+                          <button
+                            onClick={() => handleOpenReplenishment(p.id)}
+                            className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                            title="طلب شراء أو فاتورة فورية للمورد"
+                          >
+                            <ShoppingCart size={13} />
+                            <span>طلب شراء</span>
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => { setSelectedProduct(p); setIsAdjustModalOpen(true); }}
+                          className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-xs font-bold transition-all"
+                        >
+                          تعديل / جرد
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -190,6 +226,19 @@ export const Inventory: React.FC = () => {
           product={selectedProduct} 
           products={products} 
           onClose={() => setIsAdjustModalOpen(false)} 
+        />
+      )}
+
+      {/* Low Stock Replenishment Modal */}
+      {isReplenishModalOpen && (
+        <LowStockReplenishmentModal
+          isOpen={isReplenishModalOpen}
+          onClose={() => setIsReplenishModalOpen(false)}
+          preselectedProductId={replenishProductId}
+          onSuccess={() => {
+            setProducts(ProductRepository.getProducts());
+            setMovements(InventoryRepository.getMovements());
+          }}
         />
       )}
     </div>

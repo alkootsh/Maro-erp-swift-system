@@ -158,14 +158,26 @@ If you just want to talk, output regular text. Do not wrap regular text in JSON.
       case 'SEARCH_PRODUCT':
         const products = await ProductRepository.getProducts();
         const results = products.filter(p => 
-          p.name.includes(actionObj.payload.query) || 
-          p.barcode?.includes(actionObj.payload.query)
+          p.name.includes(actionObj.payload?.query || '') || 
+          p.barcode?.includes(actionObj.payload?.query || '')
         );
         return { success: true, results };
+
+      case 'CREATE_WORK_ORDER':
+        MaroEventBus.publish('NAVIGATE_INTENT', { path: '/manufacturing' });
+        return { success: true, message: 'تم فتح شاشة إدارة التصنيع والإنتاج لإصدار أمر تشغيل جديد' };
+
+      case 'RUN_FINANCIAL_HEALTH_CHECK':
+        MaroEventBus.publish('NAVIGATE_INTENT', { path: '/reports' });
+        return { success: true, message: 'تم فتح التحليلات المالية ومؤشرات الأداء المالي' };
+
+      case 'STOCK_ANOMALY_CHECK':
+        MaroEventBus.publish('NAVIGATE_INTENT', { path: '/inventory' });
+        return { success: true, message: 'تم الانتقال لمركز حركة المخزون وتتبع الأرصدة' };
         
       case 'NAVIGATE':
         // Window location or react router (needs handling via event bus)
-        MaroEventBus.publish('NAVIGATE_INTENT', actionObj.payload.path);
+        MaroEventBus.publish('NAVIGATE_INTENT', { path: actionObj.payload?.path || actionObj.payload });
         return { success: true };
 
       default:
@@ -175,14 +187,58 @@ If you just want to talk, output regular text. Do not wrap regular text in JSON.
 
   private static processLocalCommand(message: string, context: AIContext): AIMessage {
     const msgLower = message.toLowerCase();
-    let response = "أنا أعمل في وضع الأوفلاين حالياً. يمكنني تنفيذ أوامر بسيطة مثل: 'فاتورة جديدة'، 'بحث عن منتج'.";
+    let response = "أنا وكيل الذكاء الاصطناعي المؤسسي لـ MARO ERP. يمكنني توجيهك سريرياً في الصيدلية، تحليل الأداء المالي، أو فتح أي شاشة.";
     
-    if (msgLower.includes('فاتورة') || msgLower.includes('بيع')) {
+    // Clinical Pharmacy Triage Case
+    if (msgLower.includes('برد') || msgLower.includes('كحة') || msgLower.includes('ضغط') || msgLower.includes('صيدل') || msgLower.includes('مريض') || msgLower.includes('علاج') || msgLower.includes('دواء')) {
+      if (msgLower.includes('ضغط') || msgLower.includes('هايبرتنشن')) {
+        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):
+
+**حالة المريض:** نزلة برد / احتقان لمريض يعاني من **ارتفاع ضغط الدم (Hypertension)**.
+
+#### ⚠️ محاذير أمان حاسمة (Contraindications):
+- **ممنوع تماماً:** أدوية البرد المركبة (مثل Congestal, Cold-Free, 123, Flumox, Comtrex) لاحتوائها على **Pseudoephedrine / Phenylephrine**، حيث تسبب انقباض الأوعية الدموية وارتفاعاً حاداً ومفاجئاً في ضغط الدم.
+
+#### 💊 البروتوكول العلاجي الآمن من مخزون الصيدلية:
+1. **بانادول أزرق 500 مجم (Panadol Blue)**: قرص كل 8 ساعات بعد الأكل (باراسيتامول نقي آمن للضغط).
+2. **تلفاست 120 مجم (Telfast 120mg)**: قرص واحد يومياً مساءً لإزالة الرشح والعطس.
+3. **بخاخ ماء بحر طبيعي فزيومير (Physiomer)**: بخة في كل فتحة أنف 3 مرات يومياً لإزالة الاحتقان طبيعياً.
+4. **أقراص استحلاب ستربسلز (Strepsils)**: قرص كل 4 ساعات لتلطيف الحلق.
+
+👉 يمكنك فتح موديول **وكيل الذكاء الاصطناعي الصيدلاني** لتحويل الأدوية مباشرة لسلة الكاشير (POS).`;
+      } else if (msgLower.includes('بلغم') || msgLower.includes('كحة')) {
+        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):
+
+**الأسئلة السريرية الواجب توجيهها للمريض للوصول للوصف الدقيق:**
+1. هل الكحة جافة (Dry) أم رطبة مصحوبة ببلغم ومخاط (Productive)؟
+2. هل المريض يعاني من ربو، سكري، أو قرحة معدة؟
+3. هل توجد حرارة مرتفعة (> 38.5) أو ضيق في التنفس؟
+
+#### 💊 التوصية الدوائية الفورية:
+- **في حال كحة ببلغم:** كيس فوار **أسيتيل سيستايين 600 مجم (Acetylcysteine)** مرتين يومياً + شراب ميكوسولفان (Mucosolvan).
+- **في حال كحة جافة مهيجة:** شراب **نوتوسيل (Notussil)** أو إكسير برونشيكم أعشاب طبيعية (Bronchicum).`;
+      } else {
+        response = `### 🩺 بروتوكول التوجيه الصيدلاني السريري:
+عند استقبال مريض يشتكي من أعراض مرضية، يبدأ الوكيل بتوجيهك بأسئلة الفحص الأولي:
+1. **الفئة والعمر:** طفل / بالغ / سيدة حامل أو مرضع / مسن.
+2. **الأمراض المزمنة:** هل يعاني من ضغط دم، سكري، ربو، أو قرحة معدة؟
+3. **نوع الأعراض ومدتها:** استبعاد موانع الاستعمال وتحديد العلاج الآمن OTC مع الجرعات.`;
+      }
+    } else if (msgLower.includes('فاتورة') || msgLower.includes('بيع') || msgLower.includes('كاشير')) {
       this.executeAction({ action: 'NAVIGATE', payload: { path: '/pos' } }, context);
-      response = "تم فتح شاشة نقطة البيع.";
-    } else if (msgLower.includes('منتجات') || msgLower.includes('مخزن')) {
+      response = "تم فتح شاشة نقطة البيع السريعة (POS).";
+    } else if (msgLower.includes('تصنيع') || msgLower.includes('تشغيل') || msgLower.includes('إنتاج') || msgLower.includes('bom')) {
+      this.executeAction({ action: 'NAVIGATE', payload: { path: '/manufacturing' } }, context);
+      response = "تم فتح وحدة إدارة التصنيع وأوامر التشغيل (MRP & Production).";
+    } else if (msgLower.includes('تقرير') || msgLower.includes('أرباح') || msgLower.includes('مالية') || msgLower.includes('مبيعات')) {
+      this.executeAction({ action: 'NAVIGATE', payload: { path: '/reports' } }, context);
+      response = "تم فتح مركز التقارير والتحليلات المالية الشاملة.";
+    } else if (msgLower.includes('مصمم') || msgLower.includes('تصميم تقرير')) {
+      this.executeAction({ action: 'NAVIGATE', payload: { path: '/reports/designer' } }, context);
+      response = "تم فتح مصمم التقارير المتقدم بالسحب والإفلات.";
+    } else if (msgLower.includes('منتجات') || msgLower.includes('مخزن') || msgLower.includes('أصناف')) {
       this.executeAction({ action: 'NAVIGATE', payload: { path: '/products' } }, context);
-      response = "تم فتح شاشة المنتجات.";
+      response = "تم فتح شاشة إدارة المنتجات وقائمة الأصناف.";
     }
 
     const assistantMsg: AIMessage = {

@@ -152,9 +152,9 @@ export const POSFunctionKeysManager: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-xl font-black text-white">تخصيص أزرار وظائف POS (F1 - F12)</h3>
+              <h3 className="text-xl font-black text-white">تخصيص أزرار وظائف POS (F1 - F24)</h3>
               <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded-full border border-blue-500/30">
-                Sprint 8.1 Customizer
+                F1 → F24 Enterprise Customizer
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-1">

@@ -4,8 +4,11 @@ import {
   Search, 
   Eye, 
   X, 
-  PlusCircle,
-  MinusCircle
+  PlusCircle, 
+  MinusCircle,
+  Send,
+  ShoppingCart,
+  Sparkles
 } from 'lucide-react';
 import { PurchaseBill, PurchaseBillItem, Supplier } from '../types/sprint8';
 import { ProductMaster } from '../types/productMaster';
@@ -14,18 +17,27 @@ import { ProductRepository } from '../repositories/productRepository';
 import { CreatePurchaseBillCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
+import { LowStockReplenishmentModal } from '../components/Inventory/LowStockReplenishmentModal';
+import { LowStockReplenishmentService } from '../services/lowStockReplenishmentService';
 
 export const Bills: React.FC = () => {
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PurchaseBill | null>(null);
+  const [isReplenishOpen, setIsReplenishOpen] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   useEffect(() => {
     // Reactive subscription to purchase_bills in local store
     const unsubscribe = MaroSyncEngine.subscribe<PurchaseBill>('purchase_bills', (data) => {
       setBills(data || []);
     });
+
+    const recs = LowStockReplenishmentService.getReplenishmentRecommendations();
+    setLowStockCount(recs.length);
+
     return () => unsubscribe();
   }, []);
 
@@ -71,13 +83,27 @@ export const Bills: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
-        >
-          <Plus size={18} />
-          <span>تسجيل فاتورة شراء جديدة</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsReplenishOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl transition-all font-bold shadow-lg shadow-amber-600/20 active:scale-95"
+          >
+            <ShoppingCart size={18} />
+            <span>توليد فواتير من نواقص المخزون</span>
+            {lowStockCount > 0 && (
+              <span className="bg-amber-900/80 text-amber-200 text-xs px-2 py-0.5 rounded-full font-black">
+                {lowStockCount}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
+          >
+            <Plus size={18} />
+            <span>تسجيل فاتورة شراء جديدة</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-[#151b2b] rounded-2xl border border-[#1e293b] shadow-xl overflow-hidden">
@@ -127,6 +153,16 @@ export const Bills: React.FC = () => {
                       >
                         <Eye size={18} />
                       </button>
+                      <button 
+                        onClick={() => {
+                          const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(b);
+                          WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                        }}
+                        className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors flex items-center gap-1"
+                        title="إرسال أمر الشراء للمورد عبر الواتساب"
+                      >
+                        <Send size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -144,6 +180,22 @@ export const Bills: React.FC = () => {
       {/* Bill Detail View Modal */}
       {selectedBill && (
         <BillDetailModal bill={selectedBill} onClose={() => setSelectedBill(null)} />
+      )}
+
+      {/* Low Stock Replenishment Modal */}
+      {isReplenishOpen && (
+        <LowStockReplenishmentModal
+          isOpen={isReplenishOpen}
+          onClose={() => {
+            setIsReplenishOpen(false);
+            const recs = LowStockReplenishmentService.getReplenishmentRecommendations();
+            setLowStockCount(recs.length);
+          }}
+          onSuccess={() => {
+            const recs = LowStockReplenishmentService.getReplenishmentRecommendations();
+            setLowStockCount(recs.length);
+          }}
+        />
       )}
     </div>
   );
@@ -412,9 +464,21 @@ const BillDetailModal: React.FC<{ bill: PurchaseBill; onClose: () => void }> = (
       <div className="bg-[#151b2b] w-full max-w-xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
           <h3 className="font-bold text-xl text-white">تفاصيل فاتورة المشتريات {bill.billNumber}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(bill);
+                WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+              }}
+              className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5"
+            >
+              <Send size={16} />
+              إرسال للمورد بالواتس
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">

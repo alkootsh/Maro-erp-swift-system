@@ -11,8 +11,7 @@ import {
   PieChart 
 } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
-import { AccountingService } from '../services/accountingService';
-import { Account, JournalEntry } from '../types/sprint8';
+import { AccountingService, Account, JournalEntry } from '../services/finance/accountingService';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export const Transactions: React.FC = () => {

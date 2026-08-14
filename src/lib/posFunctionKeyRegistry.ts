@@ -105,7 +105,7 @@ const CORE_POS_ACTIONS: POSActionDefinition[] = [
   { id: 'Z_REPORT', name: 'تقرير Z النهائي', nameEn: 'Z-Report', category: 'reports', categoryName: 'التقارير والورديات', description: 'عرض تقرير Z-Report للوردية السابقة', defaultColor: 'bg-rose-700' },
 ];
 
-// Default Key Mapping (F1 - F12)
+// Default Key Mapping (F1 - F24)
 const DEFAULT_KEY_MAPPINGS: POSKeyMapping[] = [
   { key: 'F1', actionId: 'NEW_INVOICE', customLabel: 'فتح جلسة / فاتورة جديدة', color: 'bg-emerald-600' },
   { key: 'F2', actionId: 'CUSTOMER_SEARCH', customLabel: 'اختيار عميل', color: 'bg-blue-600' },
@@ -119,6 +119,20 @@ const DEFAULT_KEY_MAPPINGS: POSKeyMapping[] = [
   { key: 'F10', actionId: 'CLOSE_SHIFT', customLabel: 'إغلاق الوردية Z-Report', color: 'bg-red-600' },
   { key: 'F11', actionId: 'CALCULATOR', customLabel: 'الحاسبة', color: 'bg-slate-600' },
   { key: 'F12', actionId: 'DELETE_INVOICE', customLabel: 'إفراغ السلة', color: 'bg-slate-700' },
+
+  // F13 to F24 Enterprise Extended Keys
+  { key: 'F13', actionId: 'PRICE_CHECK', customLabel: 'فحص السعر', color: 'bg-teal-600' },
+  { key: 'F14', actionId: 'STOCK_INQUIRY', customLabel: 'استعلام المخزون', color: 'bg-cyan-700' },
+  { key: 'F15', actionId: 'OPEN_CASH_DRAWER', customLabel: 'فتح درج النقدية', color: 'bg-green-600' },
+  { key: 'F16', actionId: 'RETURN_INVOICE', customLabel: 'مرتجع مبيعات', color: 'bg-red-600' },
+  { key: 'F17', actionId: 'EXCHANGE', customLabel: 'تبديل صنف', color: 'bg-violet-600' },
+  { key: 'F18', actionId: 'X_REPORT', customLabel: 'تقرير X المالي', color: 'bg-orange-700' },
+  { key: 'F19', actionId: 'GIFT_CARD', customLabel: 'كارت هدايا', color: 'bg-pink-500' },
+  { key: 'F20', actionId: 'CHANGE_PRICE_LIST', customLabel: 'تغيير قائمة الأسعار', color: 'bg-emerald-700' },
+  { key: 'F21', actionId: 'CHANGE_WAREHOUSE', customLabel: 'تغيير المستودع', color: 'bg-sky-600' },
+  { key: 'F22', actionId: 'ADD_NOTES', customLabel: 'إضافة ملاحظات', color: 'bg-teal-600' },
+  { key: 'F23', actionId: 'WEIGHT_ENTRY', customLabel: 'وزن ميزان', color: 'bg-amber-700' },
+  { key: 'F24', actionId: 'SERIAL_NUMBER', customLabel: 'رقم السيريال', color: 'bg-slate-600' },
 ];
 
 const STORAGE_KEY = 'maro_erp_pos_fkeys';
