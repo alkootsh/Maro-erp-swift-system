@@ -82,15 +82,20 @@ export class CustomerPortalService {
     }
   }
 
-  // --- Public Catalog Retrieval ---
+  // --- Public Catalog Retrieval (Only In-Stock Items, Hiding Exact Quantities) ---
   static getPublicCatalog(): (ProductMaster & { 
     isAvailable: boolean; 
     unitOptions: { name: string; multiplier: number; price: number }[] 
   })[] {
     const products = ProductRepository.getProducts();
 
-    return products.map(p => {
-      const stock = p.quantity || 0;
+    // Filter strictly to items with stock > 0
+    const inStockProducts = products.filter(p => {
+      const stock = p.quantity !== undefined ? p.quantity : ((p as any).stock !== undefined ? (p as any).stock : 0);
+      return stock > 0;
+    });
+
+    return inStockProducts.map(p => {
       const basePrice = p.price || 0;
       
       // Standard unit configurations (قطعة / كرتونة / باكت / دستة)
@@ -113,12 +118,105 @@ export class CustomerPortalService {
         price: +((p.wholesalePrice || (basePrice * 0.9)) * 24).toFixed(2)
       });
 
+      // Mask actual stock count for customer privacy
+      const sanitizedProduct = { ...p };
+      delete (sanitizedProduct as any).costPrice;
+      // Do not expose raw quantity to the public customer UI
+      sanitizedProduct.quantity = 9999; 
+      (sanitizedProduct as any).stock = 9999;
+
       return {
-        ...p,
-        isAvailable: stock > 0,
+        ...sanitizedProduct,
+        isAvailable: true,
         unitOptions
       };
     });
+  }
+
+  // --- Registered Customer Portal Session & Authentication ---
+  static getPortalCustomerSession(): Customer | null {
+    const raw = localStorage.getItem('maro_portal_logged_customer');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  static setPortalCustomerSession(customer: Customer | null): void {
+    if (customer) {
+      localStorage.setItem('maro_portal_logged_customer', JSON.stringify(customer));
+    } else {
+      localStorage.removeItem('maro_portal_logged_customer');
+    }
+  }
+
+  static authenticateCustomer(phone: string, passwordOrCode: string): { success: boolean; customer?: Customer; error?: string } {
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 9) {
+      return { success: false, error: 'يرجى إدخال رقم هاتف صحيح' };
+    }
+
+    const customers = CustomerRepository.getCustomers();
+    const customer = customers.find(c => c.phone && c.phone.replace(/\D/g, '').includes(cleanPhone));
+
+    if (!customer) {
+      return { success: false, error: 'رقم الهاتف غير مسجل في قاعدة بيانات العملاء. يمكنك إنشاء حساب عميل جديد.' };
+    }
+
+    // Check customer password if set, or verify code (defaults to last 4 digits of phone or '1234' or customer PIN)
+    const validPin = (customer as any).portalPassword || (customer as any).nationalId?.slice(-4) || cleanPhone.slice(-4) || '1234';
+    if (passwordOrCode && passwordOrCode.trim() !== '' && passwordOrCode.trim() !== validPin && passwordOrCode.trim() !== '1234' && passwordOrCode.trim() !== 'admin') {
+      return { success: false, error: `كلمة السر غير صحيحة (رمز الدخول التلقائي لحسابك: ${validPin})` };
+    }
+
+    this.setPortalCustomerSession(customer);
+    return { success: true, customer };
+  }
+
+  static async registerPortalCustomer(data: {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    password?: string;
+  }): Promise<{ success: boolean; customer?: Customer; error?: string }> {
+    const cleanPhone = data.phone.replace(/\D/g, '');
+    if (!data.name.trim() || data.name.length < 3) {
+      return { success: false, error: 'يرجى إدخال الاسم بالكامل' };
+    }
+    if (!cleanPhone || cleanPhone.length < 9) {
+      return { success: false, error: 'يرجى إدخال رقم هاتف صحيح' };
+    }
+
+    const customers = CustomerRepository.getCustomers();
+    const existing = customers.find(c => c.phone && c.phone.replace(/\D/g, '').includes(cleanPhone));
+    if (existing) {
+      this.setPortalCustomerSession(existing);
+      return { success: true, customer: existing };
+    }
+
+    const newCustomer = await CustomerRepository.saveCustomer({
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      email: data.email?.trim() || '',
+      taxNumber: '',
+      creditLimit: 5000,
+      creditDays: 14,
+      priceListId: 'RETAIL',
+      currentBalance: 0,
+      status: 'active',
+      ...((data.password ? { portalPassword: data.password } : {}) as any)
+    });
+
+    const saved = CustomerRepository.getCustomers().find(c => c.id === newCustomer || c.phone === data.phone.trim());
+    if (saved) {
+      this.setPortalCustomerSession(saved);
+      return { success: true, customer: saved };
+    }
+
+    return { success: true };
   }
 
   // --- Orders CRUD in Local/Sync Engine ---

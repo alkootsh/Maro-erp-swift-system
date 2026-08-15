@@ -26,7 +26,11 @@ import {
   Compass,
   UtensilsCrossed,
   Zap,
-  Barcode
+  Barcode,
+  UserCheck,
+  LogIn,
+  LogOut,
+  KeyRound
 } from 'lucide-react';
 import { CustomerPortalService } from '../../services/customerPortalService';
 import { 
@@ -35,6 +39,7 @@ import {
   PortalStoreSettings 
 } from '../../types/customerPortal';
 import { ProductMaster } from '../../types/productMaster';
+import { Customer } from '../../types/sprint8';
 import { formatCurrency, cn } from '../../lib/utils';
 
 interface CartItem {
@@ -61,10 +66,20 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<CustomerPortalOrder | null>(null);
 
+  // Customer Login & Session
+  const [loggedCustomer, setLoggedCustomer] = useState<Customer | null>(CustomerPortalService.getPortalCustomerSession());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [authPhone, setAuthPhone] = useState('');
+  const [authPin, setAuthPin] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authAddress, setAuthAddress] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // Form Fields
-  const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [customerName, setCustomerName] = useState(loggedCustomer?.name || '');
+  const [phone, setPhone] = useState(loggedCustomer?.phone || '');
+  const [deliveryAddress, setDeliveryAddress] = useState((loggedCustomer as any)?.address || '');
   const [city, setCity] = useState('المركز الرئيسي');
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [deliveryTime, setDeliveryTime] = useState('صباحاً (9:00 ص - 2:00 م)');
@@ -94,6 +109,54 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
       } catch (e) {}
     }
   }, []);
+
+  // Update form fields when logged customer changes
+  useEffect(() => {
+    if (loggedCustomer) {
+      setCustomerName(loggedCustomer.name);
+      setPhone(loggedCustomer.phone || '');
+      if ((loggedCustomer as any).address) {
+        setDeliveryAddress((loggedCustomer as any).address);
+      }
+    }
+  }, [loggedCustomer]);
+
+  const handleCustomerLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const res = CustomerPortalService.authenticateCustomer(authPhone, authPin);
+    if (res.success && res.customer) {
+      setLoggedCustomer(res.customer);
+      setIsAuthModalOpen(false);
+    } else {
+      setAuthError(res.error || 'تعذر تسجيل الدخول');
+    }
+  };
+
+  const handleCustomerRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const res = await CustomerPortalService.registerPortalCustomer({
+      name: authName,
+      phone: authPhone,
+      address: authAddress,
+      password: authPin
+    });
+    if (res.success && res.customer) {
+      setLoggedCustomer(res.customer);
+      setIsAuthModalOpen(false);
+    } else {
+      setAuthError(res.error || 'تعذر إنشاء الحساب');
+    }
+  };
+
+  const handleLogoutCustomer = () => {
+    CustomerPortalService.setPortalCustomerSession(null);
+    setLoggedCustomer(null);
+    setCustomerName('');
+    setPhone('');
+    setDeliveryAddress('');
+  };
 
   // Sync cart to backup storage
   useEffect(() => {
@@ -312,6 +375,31 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {loggedCustomer ? (
+              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
+                <UserCheck size={16} className="text-emerald-400" />
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-bold text-white leading-none">{loggedCustomer.name}</p>
+                  <p className="text-[10px] text-emerald-400 font-mono mt-0.5">عميل مسجل</p>
+                </div>
+                <button
+                  onClick={handleLogoutCustomer}
+                  className="text-slate-400 hover:text-red-400 p-1 transition-colors"
+                  title="تسجيل خروج"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setAuthMode('LOGIN'); setIsAuthModalOpen(true); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold transition-all"
+              >
+                <LogIn size={14} />
+                <span>دخول العميل المسجل</span>
+              </button>
+            )}
+
             <a 
               href={`tel:${settings.hotlinePhone}`}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition-all"
@@ -646,15 +734,10 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 font-mono">
                           {p.sku}
                         </span>
-                        {isOutOfStock ? (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 border border-red-500/30">
-                            حجز مسبق (نفد)
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            متاح للتسليم ({stock})
-                          </span>
-                        )}
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 size={11} />
+                          <span>متوفر للطلب الفوري</span>
+                        </span>
                       </div>
 
                       {/* Product Name & Category */}
@@ -1084,6 +1167,161 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Login & Registration Modal */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-[#1e293b] flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400">
+                  <UserCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-sm">
+                    {authMode === 'LOGIN' ? 'تسجيل دخول العميل المسجل' : 'إنشاء حساب عميل جديد'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {authMode === 'LOGIN' ? 'ادخل رقم هاتفك وكلمة السر للربط بحسابك وطلباتك' : 'سجل بياناتك للتوريد المستمر والأسعار التفضيلية'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setIsAuthModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Tab Switcher */}
+              <div className="grid grid-cols-2 gap-2 bg-[#0e131f] p-1 rounded-xl border border-[#1e293b]">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('LOGIN'); setAuthError(null); }}
+                  className={cn(
+                    "py-2 rounded-lg text-xs font-bold transition-all",
+                    authMode === 'LOGIN' ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  تسجيل دخول
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('REGISTER'); setAuthError(null); }}
+                  className={cn(
+                    "py-2 rounded-lg text-xs font-bold transition-all",
+                    authMode === 'REGISTER' ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  عميل جديد
+                </button>
+              </div>
+
+              {authError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle size={15} />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {authMode === 'LOGIN' ? (
+                <form onSubmit={handleCustomerLogin} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">رقم الهاتف المسجل</label>
+                    <div className="relative">
+                      <Phone size={14} className="absolute right-3 top-3 text-slate-500" />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="010XXXXXXXX"
+                        value={authPhone}
+                        onChange={(e) => setAuthPhone(e.target.value)}
+                        className="w-full pr-9 pl-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">كلمة السر / كود الدخول (PIN)</label>
+                    <div className="relative">
+                      <KeyRound size={14} className="absolute right-3 top-3 text-slate-500" />
+                      <input
+                        type="password"
+                        placeholder="ادخل كلمة السر أو رمز PIN"
+                        value={authPin}
+                        onChange={(e) => setAuthPin(e.target.value)}
+                        className="w-full pr-9 pl-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500">كود الدخول المبدئي هو آخر 4 أرقام من هاتفك أو 1234</p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs shadow-lg shadow-blue-600/30 transition-all active:scale-95 mt-2"
+                  >
+                    دخول وتأكيد الحساب
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleCustomerRegister} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">الاسم / اسم المتجر</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="مثال: سوبرماركت الأمل أو أحمد خالد"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">رقم الهاتف / الواتساب</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="010XXXXXXXX"
+                      value={authPhone}
+                      onChange={(e) => setAuthPhone(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">العنوان وموقع الاستلام</label>
+                    <input
+                      type="text"
+                      placeholder="المدينة، الشارع، تفاصيل المخزن"
+                      value={authAddress}
+                      onChange={(e) => setAuthAddress(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">كلمة السر (اختياري)</label>
+                    <input
+                      type="password"
+                      placeholder="اختر كلمة سر لحسابك"
+                      value={authPin}
+                      onChange={(e) => setAuthPin(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/30 transition-all active:scale-95 mt-2"
+                  >
+                    تسجيل الحساب وتفعيل العضوية
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
