@@ -76,7 +76,7 @@ import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { CustomerPortalOrder } from '../types/customerPortal';
 import { SystemTickerBanner } from './SystemTickerBanner';
 import { AIPaperScannerModal } from './AIPaperScannerModal';
-import { CreditCard, Megaphone, Key } from 'lucide-react';
+import { CreditCard, Megaphone, Key, Flame } from 'lucide-react';
 
 export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -120,12 +120,35 @@ export const Layout: React.FC = () => {
       case 'Ship': return Ship;
       case 'MessageSquare': return MessageSquare;
       case 'ScanLine': return ScanLine;
+      case 'Flame': return Flame;
       default: return Boxes;
     }
   };
 
-  // Dynamic industry modules active from Developer Console
-  const activeIndustryModules = IndustryModuleEngine.getActiveModules();
+  const activeIndustryKey = localStorage.getItem('maro_business_industry') || 'all';
+
+  // Dynamic industry modules active from Developer Console, filtered to ONLY show the active activity
+  const activeIndustryModules = IndustryModuleEngine.getActiveModules().filter(m => {
+    if (activeIndustryKey === 'all') return true;
+    if (activeIndustryKey === 'ceramics' && m.id === 'CERAMICS_SANITARY') return true;
+    if (activeIndustryKey === 'food' && m.id === 'FOOD_SUPERMARKET') return true;
+    if (activeIndustryKey === 'electronics' && m.id === 'ELECTRONICS_MAINTENANCE') return true;
+    if (activeIndustryKey === 'gas_station' && m.id === 'FUEL_STATION') return true;
+    return false;
+  });
+
+  const activeActivityNameAr = (() => {
+    switch (activeIndustryKey) {
+      case 'ceramics': return 'سيراميك وأدوات صحية 🏺';
+      case 'food': return 'المواد الغذائية والسوبرماركت 🛒';
+      case 'electronics': return 'الأجهزة والإلكترونيات والصيانة 💻';
+      case 'gas_station': return 'محطة الوقود والتموين ⛽️';
+      default: return 'المنظومة الشاملة 🌐';
+    }
+  })();
+
+  const companyName = 'شركة مارو للأعمال';
+  const branchName = 'الفرع الرئيسي (القاهرة)';
 
   const navSections = [
     {
@@ -143,6 +166,7 @@ export const Layout: React.FC = () => {
         { name: 'فواتير بيع الجملة والموزعين (Wholesale)', path: '/wholesale-invoices', icon: Layers },
         { name: 'كشك فحص الأسعار وهاند تيرمينال (PDA)', path: '/industries/price-checker', icon: ScanLine },
         { name: 'نظام Smart Cashier المصغر', path: '/smart-cashier', icon: ShoppingCart },
+        { name: 'إدارة الورديات وتغطية الكاميرات (CCTV)', path: '/cashier-sessions', icon: ShieldAlert },
         { name: 'إدارة المبيعات المتقدمة والعروض', path: '/advanced-sales', icon: Percent },
         { name: 'فواتير المبيعات وعروض الأسعار', path: '/invoices', icon: FileText },
         { name: 'مرتجعات المبيعات والمشتريات', path: '/returns', icon: RotateCcw },
@@ -205,19 +229,6 @@ export const Layout: React.FC = () => {
       ]
     },
     {
-      title: 'الأنشطة التجارية المتخصصة',
-      items: [
-        { name: 'بوابة الأنشطة التجارية (Hub)', path: '/industries/hub', icon: Boxes },
-        ...activeIndustryModules
-          .filter(m => m.routePath)
-          .map(m => ({
-            name: m.nameAr,
-            path: m.routePath!,
-            icon: getModuleIcon(m.iconName)
-          }))
-      ]
-    },
-    {
       title: 'الأتمتة والذكاء الاصطناعي',
       items: [
         { name: 'وكلاء الذكاء الاصطناعي (AI Agents)', path: '/ai-agents', icon: Bot },
@@ -275,45 +286,59 @@ export const Layout: React.FC = () => {
         {/* Top System Ticker Banner */}
         <SystemTickerBanner position="top" />
 
-        <header className="h-16 bg-[#0f172a] border-b border-[#1e293b] flex items-center justify-between px-8">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-white">
+        <header className="h-16 bg-[#0f172a] border-b border-[#1e293b] flex items-center justify-between px-4 md:px-8">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <h1 className="text-sm md:text-base lg:text-lg font-black text-white truncate shrink-0">
               {currentPageName}
             </h1>
-            <div className="text-sm text-slate-500 font-medium">
+            
+            {/* Enterprise context displays (Elegant on large screens, automatically hidden on mobile/small tablets) */}
+            <div className="hidden lg:flex items-center gap-2 border-r border-slate-800 pr-3 mr-1 shrink-0">
+              <span className="px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-lg text-xs font-black select-none">
+                🏢 {companyName}
+              </span>
+              <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg text-xs font-black select-none">
+                ⚙️ النشاط: {activeActivityNameAr}
+              </span>
+              <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg text-xs font-black select-none">
+                📍 {branchName}
+              </span>
+            </div>
+
+            <div className="text-[10px] md:text-xs text-slate-500 font-bold hidden xl:inline-block shrink-0">
               {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'full' }).format(new Date())}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
             {(() => {
               const isPharmActive = activeIndustryModules.some(m => m.id === 'PHARMACY_MEDICAL');
               return (
                 <button
                   onClick={() => setIsAIScannerOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/20 flex items-center gap-1.5 transition-all"
+                  className="px-2 sm:px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
                   title={isPharmActive ? "القارئ البصري الذكي للروشتات والفواتير الورقية" : "القارئ البصري الذكي لفواتير المشتريات الورقية"}
                 >
-                  <Sparkles size={16} />
-                  <span>{isPharmActive ? 'قراءة روشتة/فاتورة بالـ AI' : 'قراءة فاتورة ورقية بالـ AI'}</span>
+                  <Sparkles size={14} />
+                  <span className="hidden sm:inline">{isPharmActive ? 'قراءة بالـ AI' : 'قراءة فاتورة بالـ AI'}</span>
                 </button>
               );
             })()}
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('maro:open-tour'))}
               id="btn-header-screen-tour"
-              className="px-3 py-1.5 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 text-blue-300 hover:text-white border border-blue-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
+              className="px-2 sm:px-3 py-1.5 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 text-blue-300 hover:text-white border border-blue-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
               title="الجولة التعليمية وشرح هذه الشاشة (F1)"
             >
-              <Compass size={16} className="text-blue-400 animate-spin-slow" />
-              <span className="hidden md:inline">جولة تعليمية للشاشة</span>
+              <Compass size={14} className="text-blue-400 animate-spin-slow" />
+              <span className="hidden md:inline">جولة تعليمية</span>
               <span className="bg-blue-500/30 text-blue-200 text-[10px] px-1.5 py-0.5 rounded font-mono hidden lg:inline-block">F1</span>
             </button>
-            <button onClick={() => setIsManualOpen(true)} className='p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-white' title='دليل المستخدم الشامل'><BookOpen size={20} /></button>
-            <button onClick={toggleLearningMode} className={cn('p-2 rounded-full transition-colors relative', isLearningModeEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white')} title='وضع التعلم الذكي والمساعدة'><BookOpen size={20} />{isLearningModeEnabled && <span className='absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#0f172a]'></span>}</button>
+            <button onClick={() => setIsManualOpen(true)} className='p-1.5 sm:p-2 rounded-full text-slate-400 hover:bg-slate-800 hover:text-white' title='دليل المستخدم الشامل'><BookOpen size={18} /></button>
+            <button onClick={toggleLearningMode} className={cn('p-1.5 sm:p-2 rounded-full transition-colors relative', isLearningModeEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white')} title='وضع التعلم الذكي والمساعدة'><BookOpen size={18} />{isLearningModeEnabled && <span className='absolute top-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border-2 border-[#0f172a]'></span>}</button>
             <SyncEngineStatusBadge />
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <Outlet />
         </div>
         
@@ -353,7 +378,40 @@ export const Layout: React.FC = () => {
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
           {navSections.map((section) => {
-            const filteredItems = section.items.filter(item => !(item as any).adminOnly || profile?.role === 'admin');
+            const bizSize = localStorage.getItem('maro_business_size') || 'enterprise';
+            
+            // Hide specific modules/sections for small shops to maintain a compact, user-friendly cashier flow
+            if (bizSize === 'small') {
+              if (['التصنيع والإنتاج', 'الأتمتة والذكاء الاصطناعي'].includes(section.title)) {
+                return null;
+              }
+            }
+
+            let filteredItems = section.items.filter(item => !(item as any).adminOnly || profile?.role === 'admin');
+
+            if (bizSize === 'small') {
+              // Exclude heavy multi-branch/enterprise routes
+              const hiddenPathsForSmall = [
+                '/wholesale-invoices', 
+                '/assets-fleet', 
+                '/manufacturing', 
+                '/production-mrp', 
+                '/advanced-sales',
+                '/zatca',
+                '/advanced-reporting',
+                '/ecommerce',
+                '/procurement',
+                '/b2b-portal',
+                '/hr-payroll',
+                '/branches',
+                '/adaptive-erp'
+              ];
+              filteredItems = filteredItems.filter(item => !hiddenPathsForSmall.includes(item.path));
+            } else {
+              // For Large Enterprise, hide the tiny shop's Smart Cashier to prevent clutter
+              filteredItems = filteredItems.filter(item => item.path !== '/smart-cashier');
+            }
+
             if (filteredItems.length === 0) return null;
             return (
               <div key={section.title} className="space-y-1">

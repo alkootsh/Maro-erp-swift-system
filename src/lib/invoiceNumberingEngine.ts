@@ -1,4 +1,6 @@
 // MARO ERP - Non-Repeating Daily Sequential Invoice Numbering Engine
+// Master Enterprise Protocol v4.0 - Node.js Safe, Idempotency-Protected, Multi-Tenant
+
 import { MaroSyncEngine } from './maroSyncEngine';
 
 export interface InvoiceSequenceConfig {
@@ -18,6 +20,36 @@ const DEFAULT_CONFIG: Record<string, InvoiceSequenceConfig> = {
   RET: { prefix: 'RET', includeBranch: false, branchCode: 'BR01', dateFormat: 'YYYYMMDD', digitLength: 4, resetDaily: true, separator: '-' }
 };
 
+// Deterministic In-Memory Adapter for Node.js / SSR / Test execution environments
+const inMemorySequenceStore = new Map<string, number>();
+const idempotencyKeyStore = new Map<string, string>();
+
+function safeStorageGet(key: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      return localStorage.getItem(key);
+    }
+  } catch (_) {
+    // ignore access error
+  }
+  const memVal = inMemorySequenceStore.get(key);
+  return memVal !== undefined ? String(memVal) : null;
+}
+
+function safeStorageSet(key: string, value: string): void {
+  const num = parseInt(value, 10);
+  if (!isNaN(num)) {
+    inMemorySequenceStore.set(key, num);
+  }
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+    }
+  } catch (_) {
+    // ignore access error
+  }
+}
+
 export class InvoiceNumberingEngine {
   private static getTodayDateString(format: 'YYYYMMDD' | 'YYYYMM' | 'YYMMDD' = 'YYYYMMDD'): string {
     const now = new Date();
@@ -34,11 +66,18 @@ export class InvoiceNumberingEngine {
   /**
    * Generates a non-repeating daily sequential invoice number
    * Format: PREFIX-BRANCH-YYYYMMDD-SEQUENCE (e.g. POS-BR01-20260813-0001)
+   * With Idempotency Protection: If idempotencyKey is supplied and was previously used, returns existing number.
    */
   public static generateDailySequentialInvoiceNumber(
     docType: 'POS' | 'INV' | 'PUR' | 'RET',
-    customBranch?: string
+    customBranch?: string,
+    idempotencyKey?: string
   ): string {
+    // 1. Idempotency Check
+    if (idempotencyKey && idempotencyKeyStore.has(idempotencyKey)) {
+      return idempotencyKeyStore.get(idempotencyKey)!;
+    }
+
     const config = DEFAULT_CONFIG[docType] || DEFAULT_CONFIG.POS;
     const branch = customBranch || config.branchCode;
     const dateStr = this.getTodayDateString(config.dateFormat);
@@ -46,22 +85,26 @@ export class InvoiceNumberingEngine {
     // Storage key for today's sequence counter
     const counterKey = `maro_seq_${docType}_${branch}_${dateStr}`;
     
-    // Read current counter from localStorage or sync engine
-    const rawCounter = localStorage.getItem(counterKey);
+    // Read current counter from safe storage (supports browser + Node.js)
+    const rawCounter = safeStorageGet(counterKey);
     let nextSeq = rawCounter ? parseInt(rawCounter, 10) + 1 : 1;
 
-    // Save updated sequence counter
-    localStorage.setItem(counterKey, String(nextSeq));
+    // Save updated sequence counter to both memory store and localStorage
+    safeStorageSet(counterKey, String(nextSeq));
 
     // Also persist counter record in MaroSyncEngine for cross-terminal sync
-    MaroSyncEngine.saveDocument('invoice_sequences', {
-      id: counterKey,
-      docType,
-      branch,
-      dateStr,
-      lastSequence: nextSeq,
-      updatedAt: new Date().toISOString()
-    }, false);
+    try {
+      MaroSyncEngine.saveDocument('invoice_sequences', {
+        id: counterKey,
+        docType,
+        branch,
+        dateStr,
+        lastSequence: nextSeq,
+        updatedAt: new Date().toISOString()
+      }, false);
+    } catch (_) {
+      // safe fallback if sync engine is mock
+    }
 
     // Pad sequence number to desired digit length (e.g., 0001)
     const seqPadded = String(nextSeq).padStart(config.digitLength, '0');
@@ -74,7 +117,14 @@ export class InvoiceNumberingEngine {
     parts.push(dateStr);
     parts.push(seqPadded);
 
-    return parts.join(config.separator);
+    const generatedNumber = parts.join(config.separator);
+
+    // Record in idempotency key store if supplied
+    if (idempotencyKey) {
+      idempotencyKeyStore.set(idempotencyKey, generatedNumber);
+    }
+
+    return generatedNumber;
   }
 
   /**
@@ -86,7 +136,7 @@ export class InvoiceNumberingEngine {
     const dateStr = this.getTodayDateString(config.dateFormat);
 
     const counterKey = `maro_seq_${docType}_${branch}_${dateStr}`;
-    const rawCounter = localStorage.getItem(counterKey);
+    const rawCounter = safeStorageGet(counterKey);
     const nextSeq = rawCounter ? parseInt(rawCounter, 10) + 1 : 1;
     const seqPadded = String(nextSeq).padStart(config.digitLength, '0');
 
@@ -99,4 +149,17 @@ export class InvoiceNumberingEngine {
 
     return parts.join(config.separator);
   }
+
+  /**
+   * For unit tests & test suites: reset counters in memory
+   */
+  public static resetMemorySequence(counterKey?: string): void {
+    if (counterKey) {
+      inMemorySequenceStore.delete(counterKey);
+    } else {
+      inMemorySequenceStore.clear();
+      idempotencyKeyStore.clear();
+    }
+  }
 }
+

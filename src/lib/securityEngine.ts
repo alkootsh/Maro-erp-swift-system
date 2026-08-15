@@ -127,6 +127,41 @@ export const DEFAULT_RESTRICTED_FIELD_PERMISSIONS: FieldPermissionFlags = {
   viewFinancialReports: false
 };
 
+// Safe storage adapter supporting both browser localStorage and Node.js in-memory store
+const memoryStore: Record<string, string> = {};
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+    } catch {
+      // ignore
+    }
+    return memoryStore[key] || null;
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {
+      // ignore
+    }
+    memoryStore[key] = value;
+  },
+  removeItem: (key: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch {
+      // ignore
+    }
+    delete memoryStore[key];
+  }
+};
+
 export class SecurityEngine {
   private static isDevAuthenticated = false;
 
@@ -152,7 +187,7 @@ export class SecurityEngine {
         userEmail: DEVELOPER_EMAIL,
         userRole: 'DEVELOPER_SYSTEM_OWNER',
         companyId: 'DEVELOPER_COMPANY',
-        deviceInfo: navigator.userAgent,
+        deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent : 'NodeJS Server',
         computerName: 'Developer Terminal',
         operatingSystem: 'System Kernel',
         browser: 'Developer Console',
@@ -181,16 +216,16 @@ export class SecurityEngine {
 
   // 2. LICENSE & FEATURE FLAG MANAGEMENT
   public static getSystemLicense(): SystemLicense {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY_LICENSE);
+    const cached = safeStorage.getItem(LOCAL_STORAGE_KEY_LICENSE);
     if (cached) {
       try { return JSON.parse(cached); } catch { /* default */ }
     }
-    localStorage.setItem(LOCAL_STORAGE_KEY_LICENSE, JSON.stringify(DEFAULT_LICENSE));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_LICENSE, JSON.stringify(DEFAULT_LICENSE));
     return DEFAULT_LICENSE;
   }
 
   public static saveSystemLicense(license: SystemLicense): void {
-    localStorage.setItem(LOCAL_STORAGE_KEY_LICENSE, JSON.stringify(license));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_LICENSE, JSON.stringify(license));
     MaroSyncEngine.saveDocument('system_licenses', { id: license.licenseKey, ...license }, false);
     MaroEventBus.publish('LICENSE_UPDATED', license);
     this.logSecurityAction({
@@ -213,11 +248,11 @@ export class SecurityEngine {
   }
 
   public static getFeatureFlags(): FeatureFlag[] {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY_FLAGS);
+    const cached = safeStorage.getItem(LOCAL_STORAGE_KEY_FLAGS);
     if (cached) {
       try { return JSON.parse(cached); } catch { /* default */ }
     }
-    localStorage.setItem(LOCAL_STORAGE_KEY_FLAGS, JSON.stringify(DEFAULT_FEATURE_FLAGS));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_FLAGS, JSON.stringify(DEFAULT_FEATURE_FLAGS));
     return DEFAULT_FEATURE_FLAGS;
   }
 
@@ -227,7 +262,7 @@ export class SecurityEngine {
     if (target) {
       target.status = status;
       target.updatedAt = new Date().toISOString();
-      localStorage.setItem(LOCAL_STORAGE_KEY_FLAGS, JSON.stringify(flags));
+      safeStorage.setItem(LOCAL_STORAGE_KEY_FLAGS, JSON.stringify(flags));
       MaroSyncEngine.saveDocument('feature_flags', target, false);
       MaroEventBus.publish('FEATURE_FLAGS_UPDATED', flags);
     }
@@ -298,7 +333,7 @@ export class SecurityEngine {
       timestamp: new Date().toISOString()
     };
 
-    const existingStr = localStorage.getItem(LOCAL_STORAGE_KEY_AUDIT);
+    const existingStr = safeStorage.getItem(LOCAL_STORAGE_KEY_AUDIT);
     let existing: DetailedAuditRecord[] = [];
     if (existingStr) {
       try { existing = JSON.parse(existingStr); } catch { /* ignore */ }
@@ -306,14 +341,14 @@ export class SecurityEngine {
 
     existing.unshift(record);
     if (existing.length > 500) existing = existing.slice(0, 500); // cap buffer
-    localStorage.setItem(LOCAL_STORAGE_KEY_AUDIT, JSON.stringify(existing));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_AUDIT, JSON.stringify(existing));
 
     MaroSyncEngine.saveDocument('security_audit_logs', record, true);
     MaroEventBus.publish('AUDIT_LOG_ADDED', record);
   }
 
   public static getAuditRecords(): DetailedAuditRecord[] {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY_AUDIT);
+    const cached = safeStorage.getItem(LOCAL_STORAGE_KEY_AUDIT);
     if (cached) {
       try { 
         const items = JSON.parse(cached);
@@ -332,20 +367,20 @@ export class SecurityEngine {
       read: false
     };
 
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY_ALERTS);
+    const cached = safeStorage.getItem(LOCAL_STORAGE_KEY_ALERTS);
     let alerts: SecurityAlert[] = [];
     if (cached) {
       try { alerts = JSON.parse(cached); } catch { /* ignore */ }
     }
     alerts.unshift(alert);
-    localStorage.setItem(LOCAL_STORAGE_KEY_ALERTS, JSON.stringify(alerts));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_ALERTS, JSON.stringify(alerts));
 
     MaroSyncEngine.saveDocument('security_alerts', alert, true);
     MaroEventBus.publish('SECURITY_ALERT_TRIGGERED', alert);
   }
 
   public static getSecurityAlerts(): SecurityAlert[] {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY_ALERTS);
+    const cached = safeStorage.getItem(LOCAL_STORAGE_KEY_ALERTS);
     if (cached) {
       try { return JSON.parse(cached); } catch { /* ignore */ }
     }
@@ -354,7 +389,7 @@ export class SecurityEngine {
 
   public static markAlertsRead(): void {
     const alerts = this.getSecurityAlerts().map(a => ({ ...a, read: true }));
-    localStorage.setItem(LOCAL_STORAGE_KEY_ALERTS, JSON.stringify(alerts));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_ALERTS, JSON.stringify(alerts));
   }
 
   // 6. DEVELOPER MASTER CONTROL MAINTENANCE OPERATIONS
@@ -378,7 +413,7 @@ export class SecurityEngine {
   }
 
   public static toggleMaintenanceMode(enabled: boolean): void {
-    localStorage.setItem(LOCAL_STORAGE_KEY_MAINTENANCE, String(enabled));
+    safeStorage.setItem(LOCAL_STORAGE_KEY_MAINTENANCE, String(enabled));
     MaroEventBus.publish('MAINTENANCE_MODE_CHANGED', { enabled });
     this.logSecurityAction({
       userId: DEVELOPER_ACCOUNT_ID,
@@ -399,6 +434,6 @@ export class SecurityEngine {
   }
 
   public static isMaintenanceMode(): boolean {
-    return localStorage.getItem(LOCAL_STORAGE_KEY_MAINTENANCE) === 'true';
+    return safeStorage.getItem(LOCAL_STORAGE_KEY_MAINTENANCE) === 'true';
   }
 }

@@ -43,6 +43,7 @@ import { AdvancedSalesManagement } from './pages/AdvancedSalesManagement';
 import { DexefPythonHub } from './pages/DexefPythonHub';
 import { NextGenEnterpriseSuite } from './pages/NextGenEnterpriseSuite';
 import { SmartCashier } from './pages/SmartCashier';
+import CashierSessionView from './pages/CashierSessionView';
 import { AdaptiveERPHub } from './pages/AdaptiveERPHub';
 import { WorkflowEngine } from './pages/WorkflowEngine';
 import { DynamicFormsBuilder } from './pages/DynamicFormsBuilder';
@@ -64,6 +65,7 @@ import { SupportCenter } from './pages/SupportCenter';
 import { TeamWorkflowHub } from './pages/TeamWorkflowHub';
 import { SmartTransportShippingPage } from './pages/industries/SmartTransportShippingPage';
 import { CeramicsSanitaryPage } from './pages/industries/CeramicsSanitaryPage';
+import { FuelStationPage } from './pages/industries/FuelStationPage';
 
 // Vertical Commercial Industry Modules
 import { IndustryModulesHub } from './pages/IndustryModulesHub';
@@ -143,6 +145,7 @@ export default function App() {
                 <Route path="/industries/price-checker" element={<PriceCheckerHandheldPage />} />
                 <Route path="/industries/transport-shipping" element={<SmartTransportShippingPage />} />
                 <Route path="/industries/ceramics-sanitary" element={<CeramicsSanitaryPage />} />
+                <Route path="/industries/fuel-station" element={<FuelStationPage />} />
                 <Route path="/price-checker" element={<PriceCheckerHandheldPage />} />
                 <Route path="/handheld-pda" element={<PriceCheckerHandheldPage />} />
                 <Route path="/hardware-thermal-barcode" element={<HardwareThermalBarcodeHub />} />
@@ -169,6 +172,8 @@ export default function App() {
                 <Route path="/dexef-python-hub" element={<DexefPythonHub />} />
                 <Route path="/next-gen-suite" element={<NextGenEnterpriseSuite />} />
                 <Route path="/smart-cashier" element={<SmartCashier />} />
+                <Route path="/cashier-sessions" element={<CashierSessionView />} />
+                <Route path="/sessions" element={<CashierSessionView />} />
                 <Route path="/adaptive-erp" element={<AdaptiveERPHub />} />
                 <Route path="/workflow-engine" element={<WorkflowEngine />} />
                 <Route path="/dynamic-forms" element={<DynamicFormsBuilder />} />

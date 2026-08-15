@@ -185,28 +185,35 @@ export const GuidedTour: React.FC = () => {
 
       {/* Modal / Tour Spotlight Card */}
       {isOpen && currentStep && (
-        <div className="fixed inset-0 z-[99999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200" dir="rtl">
-          <div className="bg-[#0f172a] border-2 border-blue-500/40 rounded-3xl w-full max-w-xl p-6 sm:p-7 shadow-2xl relative overflow-hidden text-right text-slate-100 ring-1 ring-blue-400/20">
+        <div 
+          onClick={handleSkip}
+          className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200" 
+          dir="rtl"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#0f172a] border-2 border-blue-500/40 rounded-3xl w-full max-w-xl p-5 sm:p-7 shadow-2xl relative flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden text-right text-slate-100 ring-1 ring-blue-400/20"
+          >
             {/* Background Glow Accent */}
             <div className="absolute -top-20 -right-20 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
             {/* Top Bar Header */}
-            <div className="flex items-start justify-between border-b border-slate-800/90 pb-4 mb-4 gap-3">
+            <div className="flex items-start justify-between border-b border-slate-800/90 pb-3 mb-3 gap-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 shrink-0 border border-blue-400/30">
-                  <Compass size={24} className="animate-pulse" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 shrink-0 border border-blue-400/30">
+                  <Compass size={20} className="animate-pulse" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
                       {currentTourData.pageCategory}
                     </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
+                    <span className="text-[10px] text-slate-400 font-medium">
                       شرح الشاشة الحالية
                     </span>
                   </div>
-                  <h2 className="text-base sm:text-lg font-black text-white mt-1 leading-tight">
+                  <h2 className="text-sm sm:text-lg font-black text-white mt-1 leading-tight">
                     {currentTourData.pageTitle}
                   </h2>
                 </div>
@@ -216,111 +223,114 @@ export const GuidedTour: React.FC = () => {
                 {/* Voice Speaker Button */}
                 <button
                   onClick={() => isSpeaking ? stopSpeaking() : speakCurrentStep(currentStep)}
-                  className={`p-2 rounded-xl border transition-all ${
+                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
                     isSpeaking 
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' 
                       : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700'
                   }`}
                   title={isSpeaking ? 'إيقاف النطق الصوتي' : 'استمع للشرح بالصوت العربي'}
                 >
-                  {isSpeaking ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                  {isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 </button>
 
                 <button
                   onClick={handleSkip}
-                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors"
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors cursor-pointer"
                   title="إغلاق الجولة"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Screen Overview Notice (on First Step) */}
-            {currentStepIndex === 0 && currentTourData.overview && (
-              <div className="mb-4 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 flex items-start gap-2.5">
-                <BookOpen size={16} className="text-blue-400 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  <strong className="text-blue-300 font-bold ml-1">الدور التشغيلي للشاشة:</strong>
-                  {currentTourData.overview}
-                </p>
-              </div>
-            )}
-
-            {/* Step Card Title & Badge */}
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono text-xs font-bold">
-                  {currentStepIndex + 1}
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-white">
-                  {currentStep.title}
-                </h3>
-              </div>
-              {currentStep.badge && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {currentStep.badge}
-                </span>
-              )}
-            </div>
-
-            {/* Step Content */}
-            <div className="space-y-3.5 my-3">
-              <p className="text-slate-200 text-sm leading-relaxed bg-slate-900/50 p-3.5 rounded-2xl border border-slate-800">
-                {currentStep.description}
-              </p>
-
-              {/* Smart Tip */}
-              {currentStep.tip && (
-                <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200">
-                  <Lightbulb size={17} className="text-amber-400 shrink-0 mt-0.5 animate-bounce" />
+            {/* Scrollable middle body content to prevent cutting off controls on mobile */}
+            <div className="flex-1 overflow-y-auto my-2 space-y-3 pr-1 pl-1 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+              {/* Screen Overview Notice (on First Step) */}
+              {currentStepIndex === 0 && currentTourData.overview && (
+                <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-3 text-[11px] sm:text-xs text-slate-300 flex items-start gap-2.5">
+                  <BookOpen size={15} className="text-blue-400 shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    <strong className="text-amber-300 font-bold ml-1">نصيحة ذكية:</strong>
-                    {currentStep.tip}
+                    <strong className="text-blue-300 font-bold ml-1">الدور التشغيلي للشاشة:</strong>
+                    {currentTourData.overview}
                   </p>
                 </div>
               )}
 
-              {/* Accounting & Inventory Impact Badges */}
-              {(currentStep.accountingImpact || currentStep.inventoryImpact || currentStep.shortcut) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {currentStep.accountingImpact && (
-                    <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-200">
-                      <ShieldCheck size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-emerald-300 block font-bold">الأثر المحاسبي والمالي:</strong>
-                        <span>{currentStep.accountingImpact}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {currentStep.inventoryImpact && (
-                    <div className="bg-cyan-950/40 border border-cyan-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-cyan-200">
-                      <Package size={15} className="text-cyan-400 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-cyan-300 block font-bold">الأثر المخزني والتشغيلي:</strong>
-                        <span>{currentStep.inventoryImpact}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {currentStep.shortcut && (
-                    <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-2.5 flex items-center gap-2 text-[11px] text-purple-200 sm:col-span-2">
-                      <Keyboard size={15} className="text-purple-400 shrink-0" />
-                      <div>
-                        <strong className="text-purple-300 ml-1 font-bold">اختصار لوحة المفاتيح:</strong>
-                        <code className="bg-purple-900/60 px-1.5 py-0.5 rounded font-mono text-[10px] text-purple-100 border border-purple-400/30">
-                          {currentStep.shortcut}
-                        </code>
-                      </div>
-                    </div>
-                  )}
+              {/* Step Card Title & Badge */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono text-[11px] font-bold">
+                    {currentStepIndex + 1}
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">
+                    {currentStep.title}
+                  </h3>
                 </div>
-              )}
+                {currentStep.badge && (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {currentStep.badge}
+                  </span>
+                )}
+              </div>
+
+              {/* Step Content */}
+              <div className="space-y-3">
+                <p className="text-slate-200 text-xs sm:text-sm leading-relaxed bg-slate-900/50 p-3 sm:p-3.5 rounded-2xl border border-slate-800">
+                  {currentStep.description}
+                </p>
+
+                {/* Smart Tip */}
+                {currentStep.tip && (
+                  <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-200">
+                    <Lightbulb size={15} className="text-amber-400 shrink-0 mt-0.5 animate-bounce" />
+                    <p className="leading-relaxed">
+                      <strong className="text-amber-300 font-bold ml-1">نصيحة ذكية:</strong>
+                      {currentStep.tip}
+                    </p>
+                  </div>
+                )}
+
+                {/* Accounting & Inventory Impact Badges */}
+                {(currentStep.accountingImpact || currentStep.inventoryImpact || currentStep.shortcut) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {currentStep.accountingImpact && (
+                      <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[10px] sm:text-[11px] text-emerald-200">
+                        <ShieldCheck size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-emerald-300 block font-bold">الأثر المحاسبي والمالي:</strong>
+                          <span>{currentStep.accountingImpact}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {currentStep.inventoryImpact && (
+                      <div className="bg-cyan-950/40 border border-cyan-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[10px] sm:text-[11px] text-cyan-200">
+                        <Package size={14} className="text-cyan-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-cyan-300 block font-bold">الأثر المخزني والتشغيلي:</strong>
+                          <span>{currentStep.inventoryImpact}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {currentStep.shortcut && (
+                      <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-2.5 flex items-center gap-2 text-[10px] sm:text-[11px] text-purple-200 sm:col-span-2">
+                        <Keyboard size={14} className="text-purple-400 shrink-0" />
+                        <div>
+                          <strong className="text-purple-300 ml-1 font-bold">اختصار لوحة المفاتيح:</strong>
+                          <code className="bg-purple-900/60 px-1.5 py-0.5 rounded font-mono text-[9px] text-purple-100 border border-purple-400/30">
+                            {currentStep.shortcut}
+                          </code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Step Dots & Progress Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800/80 mt-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800/80 mt-2 shrink-0">
               <div className="flex items-center gap-1.5 order-2 sm:order-1">
                 {steps.map((_, idx) => (
                   <button

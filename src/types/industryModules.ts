@@ -949,3 +949,133 @@ export interface MobileLineBustingCart {
   createdAt: string;
 }
 
+// -------------------------------------------------------------
+// Module: Contracting & Project Management (المقاولات والمشاريع)
+// -------------------------------------------------------------
+export interface ContractingProjectItem {
+  id: string;
+  projectCode: string; // PRJ-2026-01
+  projectName: string;
+  clientName: string;
+  clientPhone?: string;
+  location: string;
+  projectManager: string;
+  contractValue: number;
+  downPayment: number;
+  retentionPercent: number; // نسبة ضمان الأعمال (مثال 5%)
+  status: 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'DELIVERED';
+  startDate: string;
+  expectedEndDate: string;
+  completionRatePercent: number;
+  totalInvoiced: number;
+  totalCollected: number;
+  totalExpenses: number;
+  boqItems: ContractingBoQItem[];
+  milestones: ContractingMilestone[];
+  progressInvoices: ContractingProgressInvoice[];
+}
+
+export interface ContractingBoQItem {
+  id: string;
+  itemNumber: string; // 1.1, 1.2
+  descriptionAr: string;
+  unit: string; // م³, م², طن, نقطة, مقطوعية
+  estimatedQuantity: number;
+  executedQuantity: number;
+  unitRate: number;
+  totalCost: number;
+  notes?: string;
+}
+
+export interface ContractingMilestone {
+  id: string;
+  titleAr: string;
+  weightPercent: number;
+  isCompleted: boolean;
+  dueDate: string;
+  completedDate?: string;
+}
+
+export interface ContractingProgressInvoice {
+  id: string;
+  certificateNumber: string; // مستخلص جاري رقم 3
+  certificateDate: string;
+  currentWorkValue: number;
+  previousWorkValue: number;
+  totalWorkValue: number;
+  retentionDeduction: number;
+  advanceDeduction: number;
+  netPayable: number;
+  status: 'DRAFT' | 'APPROVED' | 'PAID';
+}
+
+// -------------------------------------------------------------
+// Module: Landscaping, Gardens & Nursery (تنسيق الحدائق والمشاتل)
+// -------------------------------------------------------------
+export interface LandscapingPlantItem {
+  id: string;
+  plantCode: string;
+  commonNameAr: string; // شجرة بونسيانا، نخل ملوكي، جهنمية
+  botanicalName?: string;
+  category: 'TREES' | 'PALMS' | 'SHRUBS' | 'FLOWERS' | 'GRASS' | 'INDOOR' | 'IRRIGATION';
+  potSizeCm?: number; // مقاس القصيص (مثال 25 سم)
+  heightMeter?: number; // الارتفاع بالمتر
+  sunRequirement: 'FULL_SUN' | 'PARTIAL_SHADE' | 'INDOOR_LIGHT';
+  waterNeed: 'HIGH' | 'MODERATE' | 'LOW_DROUGHT';
+  stockQuantity: number;
+  unitPrice: number;
+  costPrice: number;
+  isPerennial: boolean; // نبات معمر
+  barcode: string;
+}
+
+export interface LandscapingContractItem {
+  id: string;
+  contractNumber: string;
+  clientName: string;
+  clientAddress: string;
+  serviceType: 'DESIGN_EXECUTION' | 'MONTHLY_MAINTENANCE' | 'IRRIGATION_NETWORK' | 'TURF_INSTALL';
+  gardenAreaM2: number;
+  contractTotal: number;
+  monthlyFee?: number;
+  visitFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  nextVisitDate: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'PENDING';
+}
+
+// -------------------------------------------------------------
+// Module: Paints, Coatings & Color Mixing (الدهانات والبويات ومكائن التلوين)
+// -------------------------------------------------------------
+export interface PaintProductItem {
+  id: string;
+  productCode: string;
+  nameAr: string; // دهان بلاستيك مط فاخر، لاكيه زيتي لامع
+  brandName: string; // جوتن، سايبس، GLC، الجزيرة
+  paintType: 'EMULSION_PLASTIC' | 'ENAMEL_OIL' | 'EPOXY_FLOOR' | 'WOOD_COAT' | 'PRIMER_SEALER' | 'PUTTY';
+  baseType: 'BASE_A' | 'BASE_B' | 'BASE_C' | 'READY_MIX';
+  finishLevel: 'MATT' | 'EGGSHELL' | 'SEMI_GLOSS' | 'GLOSS';
+  packageSize: 'GALLON_3L' | 'PAIL_9L' | 'DRUM_18L' | 'QUARTER_1L' | 'TUBE';
+  coverageM2PerLiter: number;
+  stockQty: number;
+  unitPrice: number;
+  costPrice: number;
+  barcode: string;
+}
+
+export interface ColorMixingRecipeItem {
+  id: string;
+  colorCode: string; // NCS S 1010-Y50R, RAL 9010, Jotun 1024
+  colorNameAr: string; // بيج صحراوي، أوف وايت لؤلؤي
+  colorFamily: string;
+  baseRequired: 'BASE_A' | 'BASE_B' | 'BASE_C';
+  targetSize: 'GALLON_3L' | 'PAIL_9L' | 'DRUM_18L';
+  tinterIngredients: {
+    tinterCode: string; // YOX (أكسيد أصفر), BLK (أسود), RED (أحمر)
+    volumeMl: number;
+  }[];
+  tintingFee: number;
+  totalEstimatedPrice: number;
+  dispenserMachineModel: string; // Corob / Fast & Fluid
+}
+
+

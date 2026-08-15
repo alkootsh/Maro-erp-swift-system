@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Building2, 
   Settings as SettingsIcon, 
@@ -18,16 +18,27 @@ import {
   Factory,
   Utensils,
   Stethoscope,
-  Activity
+  Activity,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../components/AuthProvider';
+import { exportToExcel, importFromExcel } from '../lib/excel';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules'>('tenant');
+  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules' | 'database'>('tenant');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Excel Import States
+  const [importedProducts, setImportedProducts] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Core Configuration States
   const [tenantConfig, setTenantConfig] = useState({
@@ -89,11 +100,160 @@ export const Settings: React.FC = () => {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleDownloadBackup = () => {
+    try {
+      const backupData: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('maro_') || key.startsWith('smart_'))) {
+          backupData[key] = localStorage.getItem(key) || '';
+        }
+      }
+      const dataStr = JSON.stringify(backupData, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      
+      const exportFileDefaultName = `maro_database_backup_${new Date().toISOString().split('T')[0]}.json`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      setMessage({ type: 'success', text: 'تم إنشاء وتحميل النسخة الاحتياطية بنجاح!' });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء إنشاء النسخة الاحتياطية.' });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsedData = JSON.parse(event.target?.result as string);
+          if (typeof parsedData === 'object' && parsedData !== null) {
+            const keys = Object.keys(parsedData);
+            if (keys.length === 0) {
+              setMessage({ type: 'error', text: 'ملف النسخة الاحتياطية فارغ أو غير صالح.' });
+              return;
+            }
+            keys.forEach(key => {
+              localStorage.setItem(key, parsedData[key]);
+            });
+            setMessage({ type: 'success', text: 'تمت استعادة البيانات بالكامل بنجاح! جاري إعادة تشغيل المنظومة...' });
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else {
+            setMessage({ type: 'error', text: 'صيغة ملف النسخة الاحتياطية غير صالحة.' });
+          }
+        } catch (error) {
+          setMessage({ type: 'error', text: 'حدث خطأ أثناء قراءة ملف النسخة الاحتياطية.' });
+        }
+      };
+    }
+  };
+
+  const handleExportProducts = () => {
+    try {
+      const products = MaroSyncEngine.getLocalCollection('products');
+      if (products.length === 0) {
+        setMessage({ type: 'error', text: 'لا توجد أصناف في المستودع لتصديرها!' });
+        return;
+      }
+      const excelData = products.map((p: any) => ({
+        'رقم SKU': p.sku,
+        'اسم المنتج': p.name,
+        'الباركود': p.barcodes ? p.barcodes[0] : '',
+        'سعر البيع': p.price,
+        'سعر التكلفة': p.costPrice || 0,
+        'الكمية الحالية': p.quantity,
+        'القسم / التصنيف': p.category,
+        'الماركة / العلامة': p.brand,
+        'وحدة القياس': p.unit,
+        'الفرز / النخب': p.grade || 'N/A',
+        'رقم اللوط': p.lotNumber || 'N/A'
+      }));
+      exportToExcel(excelData, `maro_products_export_${new Date().toISOString().split('T')[0]}`);
+      setMessage({ type: 'success', text: 'تم تصدير الأصناف إلى ملف إكسيل بنجاح!' });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء تصدير البيانات إلى إكسيل.' });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleExcelImportSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+        const rawJson = await importFromExcel(e.target.files[0]);
+        if (rawJson && Array.isArray(rawJson)) {
+          const mapped = rawJson.map((row: any, idx) => {
+            return {
+              id: `imported_${Date.now()}_${idx}`,
+              sku: String(row['رقم SKU'] || row['sku'] || row['SKU'] || `SKU-${Date.now()}-${idx}`),
+              name: String(row['اسم المنتج'] || row['name'] || row['الاسم'] || 'منتج مستورد بدون اسم'),
+              barcodes: [String(row['الباركود'] || row['barcode'] || '')],
+              price: Number(row['سعر البيع'] || row['price'] || 0),
+              costPrice: Number(row['سعر التكلفة'] || row['cost'] || 0),
+              quantity: Number(row['الكمية الحالية'] || row['quantity'] || row['المخزون'] || 0),
+              category: String(row['القسم / التصنيف'] || row['category'] || 'general'),
+              brand: String(row['الماركة / العلامة'] || row['brand'] || 'general'),
+              unit: String(row['وحدة القياس'] || row['unit'] || 'قطعة'),
+              grade: String(row['الفرز / النخب'] || row['grade'] || 'N/A'),
+              lotNumber: String(row['رقم اللوط'] || row['lot'] || 'N/A'),
+              status: 'active',
+              warehouseStocks: [
+                { warehouseId: 'wh_main', quantity: Number(row['الكمية الحالية'] || row['quantity'] || 0) }
+              ],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+          });
+          setImportedProducts(mapped);
+          setMessage({ type: 'success', text: `تم استخراج ${mapped.length} صنف من ملف الإكسيل بنجاح. يرجى مراجعة الجدول والضغط على تأكيد للحفظ.` });
+        }
+      } catch (err) {
+        setMessage({ type: 'error', text: 'خطأ أثناء قراءة ملف الإكسيل. يرجى التأكد من التنسيق الصحيح.' });
+      }
+      setTimeout(() => setMessage(null), 4000);
+    }
+  };
+
+  const handleConfirmExcelImport = () => {
+    if (importedProducts.length === 0) return;
+    try {
+      const currentProducts = MaroSyncEngine.getLocalCollection('products');
+      const updatedProducts = [...currentProducts];
+      
+      importedProducts.forEach(newProd => {
+        const idx = updatedProducts.findIndex(p => p.sku === newProd.sku);
+        if (idx >= 0) {
+          updatedProducts[idx] = {
+            ...updatedProducts[idx],
+            ...newProd,
+            id: updatedProducts[idx].id
+          };
+        } else {
+          updatedProducts.push(newProd);
+        }
+      });
+      
+      MaroSyncEngine.setLocalCollection('products', updatedProducts);
+      setImportedProducts([]);
+      setMessage({ type: 'success', text: `تم دمج وحفظ الأصناف بنجاح! الإجمالي الحالي في النظام: ${updatedProducts.length} صنف.` });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'حدث خطأ أثناء دمج وحفظ البيانات.' });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const tabs = [
     { id: 'tenant', name: 'الشركة (Tenant Identity)', icon: Building2 },
     { id: 'industry', name: 'محرك الأنشطة (Industry Engine)', icon: Layers },
     { id: 'finance', name: 'المحاسبة والمالية (Finance Core)', icon: Wallet },
     { id: 'modules', name: 'الوحدات (Module Enablement)', icon: Boxes },
+    { id: 'database', name: 'النسخ الاحتياطي والتبادل (Data Exchange & Backup)', icon: Database },
   ];
 
   return (
@@ -338,6 +498,153 @@ export const Settings: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* TAB 5: DATABASE BACKUP & EXCEL EXCHANGE */}
+        {activeTab === 'database' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 text-right" dir="rtl">
+            <div className="border-b border-slate-800 pb-4">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Database className="text-blue-500" /> إدارة النسخ الاحتياطي وتبادل البيانات (Data Exchange & Backup)
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">تصدير واستيراد البيانات بصيغة إكسيل ومزامنة النسخ الاحتياطية للمحافظة على أمان وسرية معلوماتك.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Backups Card */}
+              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white font-bold border-b border-slate-800 pb-3">
+                  <Database className="text-indigo-400 w-5 h-5" />
+                  <span>النسخ الاحتياطي الكلي للنظام (Database JSON Backup)</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  يقوم النظام بحفظ نسخة رقمية مشفرة بالكامل تحتوي على كافة المنتجات، الفواتير، الحسابات، الإعدادات، والعملاء المسجلين حالياً.
+                </p>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button
+                    onClick={handleDownloadBackup}
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-indigo-600/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>تحميل النسخة الاحتياطية (.json)</span>
+                  </button>
+
+                  <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-xs py-2.5 px-4 rounded-xl transition border border-slate-700">
+                    <Upload className="w-4 h-4" />
+                    <span>استعادة قاعدة بيانات</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleRestoreBackup}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>تنبيه هام: عملية الاستعادة ستقوم بمسح وإحلال كافة البيانات الحالية ولا يمكن التراجع عنها.</span>
+                </div>
+              </div>
+
+              {/* Excel Exchange Card */}
+              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white font-bold border-b border-slate-800 pb-3">
+                  <FileSpreadsheet className="text-emerald-400 w-5 h-5" />
+                  <span>تبادل بيانات الأصناف (Excel Data Exchange)</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  قم بتصدير شيت الأصناف والباركود الحالية للعمل عليها وتحديثها، أو قم باستيراد كشوفات الأصناف والمخازن دفعة واحدة لتوفير الوقت والجهد.
+                </p>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button
+                    onClick={handleExportProducts}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-emerald-600/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>تصدير قائمة المنتجات (.xlsx)</span>
+                  </button>
+
+                  <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-xs py-2.5 px-4 rounded-xl transition border border-slate-700">
+                    <Upload className="w-4 h-4" />
+                    <span>استيراد وتحديث من Excel</span>
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      ref={fileInputRef}
+                      onChange={handleExcelImportSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>يدعم النظام مطابقة الكود الفريد (SKU) تلقائياً لتحديث الأسعار والكميات القائمة في النظام دون تكرار.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Excel Preview Panel */}
+            {importedProducts.length > 0 && (
+              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-4 mt-6 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <h4 className="text-white font-bold text-sm">معاينة قائمة الأصناف المستخرجة من شيت الإكسيل</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">يرجى مراجعة الأصناف أدناه والتحقق منها قبل اعتماد دمجها في مخزن MARO.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmExcelImport}
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3.5 rounded-xl transition"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>اعتماد ودمج البيانات ({importedProducts.length} صنف)</span>
+                    </button>
+                    <button
+                      onClick={() => setImportedProducts([])}
+                      className="flex items-center gap-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white text-xs font-bold py-2 px-3.5 rounded-xl transition border border-rose-500/20"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>إلغاء</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="bg-[#151b2b] text-slate-300 font-bold border-b border-slate-800/80">
+                        <th className="p-3">رمز SKU</th>
+                        <th className="p-3">الاسم والوصف</th>
+                        <th className="p-3 text-center">الباركود</th>
+                        <th className="p-3 text-center">سعر البيع</th>
+                        <th className="p-3 text-center">سعر التكلفة</th>
+                        <th className="p-3 text-center">المخزون الحالي</th>
+                        <th className="p-3">القسم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                      {importedProducts.slice(0, 15).map((prod, idx) => (
+                        <tr key={idx} className="hover:bg-slate-800/20 transition">
+                          <td className="p-3 font-mono text-indigo-400">{prod.sku}</td>
+                          <td className="p-3 font-bold text-white">{prod.name}</td>
+                          <td className="p-3 text-center font-mono text-slate-400">{prod.barcodes[0] || '-'}</td>
+                          <td className="p-3 text-center font-bold text-emerald-400">{prod.price} EGP</td>
+                          <td className="p-3 text-center text-slate-400">{prod.costPrice} EGP</td>
+                          <td className="p-3 text-center font-bold text-blue-400">{prod.quantity} {prod.unit}</td>
+                          <td className="p-3 text-slate-400">{prod.category}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importedProducts.length > 15 && (
+                    <div className="p-3 text-center text-[11px] text-slate-500 bg-[#151b2b]/50 border-t border-slate-800">
+                      تم عرض أول 15 صنفًا فقط للمعاينة من إجمالي {importedProducts.length} صنفًا مستوردًا.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

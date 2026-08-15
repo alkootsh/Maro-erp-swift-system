@@ -10,6 +10,8 @@ export interface UserProfile {
   warehouseName?: string;
   safeName?: string;
   companyId?: string;
+  tenantId?: string;
+  token?: string;
 }
 
 interface AuthContextType {
@@ -31,49 +33,59 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem('maro_erp_session');
-      if (saved) return JSON.parse(saved);
+      if (typeof window !== 'undefined') {
+        const saved = sessionStorage.getItem('maro_erp_session') || localStorage.getItem('maro_erp_session');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.uid && parsed.email) {
+            return parsed;
+          }
+        }
+      }
     } catch (e) {
       // ignore
     }
-    // Default logged in as Developer/Admin for smooth enterprise experience
-    return {
-      uid: 'dev_user_001',
-      email: 'alkootsh@gmail.com',
-      displayName: 'المدير المطور (Developer)',
-      role: 'developer',
-      branchId: 'branch_main',
-      branchName: 'الفرع الرئيسي',
-      warehouseName: 'المستودع العام',
-      safeName: 'الخزينة الرئيسية',
-      companyId: 'comp_maro_01'
-    };
+    // No automatic default developer/admin auto-login bypass. When no session exists, user must be null to require authentication.
+    return null;
   });
   const [loading, setLoading] = useState(false);
 
+  // Sync state changes across memory/storage
   const login = (
     email: string, 
     role: 'developer' | 'admin' | 'accountant' | 'cashier' = 'admin',
     customProfile?: Partial<UserProfile>
   ) => {
     const profile: UserProfile = {
-      uid: customProfile?.uid || `user_${Date.now()}`,
+      uid: customProfile?.uid || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       email,
-      displayName: customProfile?.displayName || (email === 'alkootsh@gmail.com' ? 'المدير المطور' : 'مستخدم النظام'),
+      displayName: customProfile?.displayName || (role === 'developer' ? 'المدير المطور' : 'مستخدم النظام'),
       role,
-      branchId: 'branch_main',
+      branchId: customProfile?.branchId || 'branch_main',
       branchName: customProfile?.branchName || 'الفرع الرئيسي',
       warehouseName: customProfile?.warehouseName || 'المستودع العام',
       safeName: customProfile?.safeName || 'الخزينة الرئيسية',
-      companyId: 'comp_maro_01'
+      companyId: customProfile?.companyId || 'comp_maro_01',
+      tenantId: customProfile?.tenantId || 'tenant_main_01',
+      token: customProfile?.token || `maro_sec_jwt_${Date.now()}`
     };
     setUser(profile);
-    localStorage.setItem('maro_erp_session', JSON.stringify(profile));
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('maro_erp_session', JSON.stringify(profile));
+        localStorage.setItem('maro_erp_session', JSON.stringify(profile));
+      }
+    } catch (_) {}
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('maro_erp_session');
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('maro_erp_session');
+        localStorage.removeItem('maro_erp_session');
+      }
+    } catch (_) {}
   };
 
   return (
@@ -82,3 +94,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+

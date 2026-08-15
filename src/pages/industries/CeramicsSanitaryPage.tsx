@@ -13,7 +13,10 @@ import {
   Sliders, 
   AlertTriangle,
   BookmarkCheck,
-  Building
+  Building,
+  Plus,
+  X,
+  Hammer
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -27,7 +30,8 @@ interface CeramicItem {
   grade: 'فرز أول ممتاز' | 'فرز ثاني' | 'فرز ثالث';
   m2PerBox?: number;
   pcsPerBox?: number;
-  lotNumber: string; // Tone
+  lotNumber: string; // Tone / Batch Number
+  series?: string; // Sanitary Ware Series
   stockBoxes: number;
   pricePerM2OrUnit: number;
   shelfLocation: string;
@@ -84,6 +88,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
       category: 'SANITARY',
       grade: 'فرز أول ممتاز',
       lotNumber: 'N/A',
+      series: 'Eurosmart Series',
       stockBoxes: 45,
       pricePerM2OrUnit: 1450,
       shelfLocation: 'قسم الأدوات الصحية - رف 2'
@@ -95,6 +100,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
       category: 'SANITARY',
       grade: 'فرز أول ممتاز',
       lotNumber: 'N/A',
+      series: 'Focus Logis Series',
       stockBoxes: 25,
       pricePerM2OrUnit: 4800,
       shelfLocation: 'قسم الأدوات الصحية - رف 1'
@@ -106,6 +112,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
       category: 'SANITARY',
       grade: 'فرز أول ممتاز',
       lotNumber: 'N/A',
+      series: 'Sevedo Series',
       stockBoxes: 30,
       pricePerM2OrUnit: 1950,
       shelfLocation: 'ساحة الأدوات الصحية الكبيرة - حارة 2'
@@ -123,6 +130,21 @@ export const CeramicsSanitaryPage: React.FC = () => {
   // Tone Matcher state
   const [toneToMatch, setToneToMatch] = useState<string>('TONE-A450');
 
+  // Form State for Adding Item
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
+  const [category, setCategory] = useState<'CERAMICS' | 'PORCELAIN' | 'SANITARY'>('CERAMICS');
+  const [tileSize, setTileSize] = useState('');
+  const [grade, setGrade] = useState<'فرز أول ممتاز' | 'فرز ثاني' | 'فرز ثالث'>('فرز أول ممتاز');
+  const [m2PerBox, setM2PerBox] = useState('');
+  const [pcsPerBox, setPcsPerBox] = useState('');
+  const [lotNumber, setLotNumber] = useState('');
+  const [sanitarySeries, setSanitarySeries] = useState('');
+  const [stockBoxes, setStockBoxes] = useState('');
+  const [price, setPrice] = useState('');
+  const [location, setLocation] = useState('');
+
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.includes(searchQuery) || item.sku.toLowerCase().includes(searchQuery.toLowerCase()) || item.lotNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCat = categoryFilter === 'ALL' || item.category === categoryFilter;
@@ -130,16 +152,55 @@ export const CeramicsSanitaryPage: React.FC = () => {
   });
 
   // Calculate required items
-  const m2PerBox = selectedCalcItem.m2PerBox || 1;
+  const activeM2PerBox = selectedCalcItem.m2PerBox || 1;
   const pricePerM2OrUnit = selectedCalcItem.pricePerM2OrUnit;
   const wasteMultiplier = 1 + (wastePercent / 100);
   const calculatedTotalM2 = +(targetM2 * wasteMultiplier).toFixed(2);
-  const calculatedBoxesNeeded = Math.ceil(calculatedTotalM2 / m2PerBox);
-  const calculatedActualM2 = +(calculatedBoxesNeeded * m2PerBox).toFixed(2);
-  const calculatedCost = +(calculatedBoxesNeeded * m2PerBox * pricePerM2OrUnit).toFixed(2);
+  const calculatedBoxesNeeded = Math.ceil(calculatedTotalM2 / activeM2PerBox);
+  const calculatedActualM2 = +(calculatedBoxesNeeded * activeM2PerBox).toFixed(2);
+  const calculatedCost = +(calculatedBoxesNeeded * activeM2PerBox * pricePerM2OrUnit).toFixed(2);
+
+  const handleAddItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !sku) {
+      alert('يرجى ملء الحقول الإلزامية (الاسم والـ SKU)');
+      return;
+    }
+
+    const newItem: CeramicItem = {
+      id: `c_user_${Date.now()}`,
+      name,
+      sku,
+      category,
+      tileSize: category !== 'SANITARY' ? tileSize || '60×60' : undefined,
+      grade,
+      m2PerBox: category !== 'SANITARY' ? +(m2PerBox || 1.44) : undefined,
+      pcsPerBox: category !== 'SANITARY' ? +(pcsPerBox || 4) : undefined,
+      lotNumber: category !== 'SANITARY' ? lotNumber || 'TONE-NEW' : 'N/A',
+      series: category === 'SANITARY' ? sanitarySeries || 'N/A' : undefined,
+      stockBoxes: +(stockBoxes || 10),
+      pricePerM2OrUnit: +(price || 100),
+      shelfLocation: location || 'المستودع الرئيسي'
+    };
+
+    setItems([newItem, ...items]);
+    setShowAddForm(false);
+    
+    // Reset Form Fields
+    setName('');
+    setSku('');
+    setTileSize('');
+    setM2PerBox('');
+    setPcsPerBox('');
+    setLotNumber('');
+    setSanitarySeries('');
+    setStockBoxes('');
+    setPrice('');
+    setLocation('');
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       {/* Header */}
       <div className="bg-[#151b2b] border border-blue-500/30 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-600"></div>
@@ -149,15 +210,204 @@ export const CeramicsSanitaryPage: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-white tracking-tight">موديول السيراميك، البورسلين والأدوات الصحية</h1>
+              <h1 className="text-xl font-black text-white tracking-tight">إدارة السيراميك، البورسلين والأدوات الصحية المتقدمة</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
                 Ceramics & Sanitary Ware
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">حساب المساحات والكراتين الذكية، مطابقة درجات طباخات الألوان (Tones)، وحجز طلبيات المستودع المؤجلة</p>
+            <p className="text-xs text-slate-400 mt-1">حساب مساحات البلاط، مطابقة درجات طباخات الألوان (Tones)، وتتبع سلاسل المنتجات الصحية الفاخرة</p>
           </div>
         </div>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black rounded-xl flex items-center gap-1.5 self-start md:self-auto transition-all shadow-md active:scale-95"
+        >
+          <Plus size={16} />
+          <span>إضافة صنف تخصصي جديد</span>
+        </button>
       </div>
+
+      {/* Add New Specialized Item Modal Form */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#111625] border border-blue-500/30 rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+              <h2 className="text-sm font-black text-white flex items-center gap-2">
+                <Plus size={18} className="text-blue-400" />
+                إدراج صنف سيراميك / أدوات صحية جديد في المنظومة
+              </h2>
+              <button 
+                onClick={() => setShowAddForm(false)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddItem} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">اسم الصنف المعرب بالتفصيل *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="مثال: سيراميك كليوباترا جدران..."
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">كود SKU المرجعي *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="مثال: CER-6060-ROY"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">قسم الصنف</label>
+                  <select 
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as any)}
+                  >
+                    <option value="CERAMICS">سيراميك</option>
+                    <option value="PORCELAIN">بورسلين</option>
+                    <option value="SANITARY">أدوات صحية</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">درجة الفرز</label>
+                  <select 
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value as any)}
+                  >
+                    <option value="فرز أول ممتاز">فرز أول ممتاز</option>
+                    <option value="فرز ثاني">فرز ثاني</option>
+                    <option value="فرز ثالث">فرز ثالث</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">الرصيد الافتتاحي</label>
+                  <input 
+                    type="number" 
+                    placeholder="مثال: 50"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={stockBoxes}
+                    onChange={(e) => setStockBoxes(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {category !== 'SANITARY' ? (
+                <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-900/40 border border-slate-800 rounded-2xl">
+                  <div>
+                    <label className="text-[10px] text-blue-400 font-bold block mb-1">أبعاد البلاطة (سم)</label>
+                    <input 
+                      type="text" 
+                      placeholder="60×60"
+                      className="w-full px-2.5 py-1.5 bg-[#151b2b] border border-[#1e293b] rounded-lg text-xs text-white outline-none focus:border-blue-500 text-center"
+                      value={tileSize}
+                      onChange={(e) => setTileSize(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-blue-400 font-bold block mb-1">متر كرتونة (م²)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="1.44"
+                      className="w-full px-2.5 py-1.5 bg-[#151b2b] border border-[#1e293b] rounded-lg text-xs text-white outline-none focus:border-blue-500 text-center"
+                      value={m2PerBox}
+                      onChange={(e) => setM2PerBox(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-blue-400 font-bold block mb-1">القطع بالكرتونة</label>
+                    <input 
+                      type="number" 
+                      placeholder="4"
+                      className="w-full px-2.5 py-1.5 bg-[#151b2b] border border-[#1e293b] rounded-lg text-xs text-white outline-none focus:border-blue-500 text-center"
+                      value={pcsPerBox}
+                      onChange={(e) => setPcsPerBox(e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-[#151b2b]/60 border border-slate-800 rounded-2xl">
+                  <label className="text-[10px] text-emerald-400 font-bold block mb-1">سلسلة الأدوات الصحية الفاخرة (Series Collection)</label>
+                  <input 
+                    type="text" 
+                    placeholder="مثال: Duravit Sevedo, Eurosmart..."
+                    className="w-full px-3 py-1.5 bg-[#151b2b] border border-[#1e293b] rounded-lg text-xs text-white outline-none focus:border-blue-500"
+                    value={sanitarySeries}
+                    onChange={(e) => setSanitarySeries(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">رقم طبخة الألوان (Tone)</label>
+                  <input 
+                    type="text" 
+                    placeholder="TONE-A450"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500 font-mono"
+                    value={lotNumber}
+                    disabled={category === 'SANITARY'}
+                    onChange={(e) => setLotNumber(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">سعر المتر / القطعة</label>
+                  <input 
+                    type="number" 
+                    placeholder="185"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">مكان الرف بالمخزن</label>
+                  <input 
+                    type="text" 
+                    placeholder="ممر 3 - رف 1"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-4 border-t border-slate-800">
+                <button 
+                  type="submit"
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  حفظ وتسجيل الصنف
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Core Controls & Stock List */}
@@ -217,7 +467,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 text-right">
                   <div className="flex items-center justify-between">
                     <span className={cn(
                       "px-2 py-0.5 rounded text-[10px] font-bold",
@@ -239,32 +489,47 @@ export const CeramicsSanitaryPage: React.FC = () => {
                     </div>
                     {item.tileSize && (
                       <div>
-                        <span>المقاس: </span>
-                        <strong className="text-slate-200">{item.tileSize} سم</strong>
+                        <span>الأبعاد: </span>
+                        <strong className="text-slate-200 font-mono">{item.tileSize} سم</strong>
                       </div>
                     )}
                     {item.m2PerBox && (
                       <div>
-                        <span>الكرتونة: </span>
-                        <strong className="text-slate-200">{item.m2PerBox} م² ({item.pcsPerBox} ق)</strong>
+                        <span>كرتونة م²: </span>
+                        <strong className="text-slate-200">{item.m2PerBox} م² ({item.pcsPerBox} قطعة)</strong>
                       </div>
                     )}
-                    <div>
-                      <span>الطبخة / اللوت: </span>
-                      <strong className="text-amber-400 font-mono">{item.lotNumber}</strong>
-                    </div>
+                    {item.category === 'SANITARY' && item.series && (
+                      <div>
+                        <span>السلسلة: </span>
+                        <strong className="text-emerald-400">{item.series}</strong>
+                      </div>
+                    )}
+                    {item.category !== 'SANITARY' && (
+                      <div>
+                        <span>الطبخة / اللوت: </span>
+                        <strong className="text-amber-400 font-mono">{item.lotNumber}</strong>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-[#1e293b]/60 flex items-center justify-between">
                   <div>
-                    <span className="text-[9px] text-slate-500 font-bold block">السعر</span>
-                    <span className="text-sm font-black text-white">
+                    <span className="text-[9px] text-slate-500 font-bold block">السعر المقدر</span>
+                    <span className="text-xs font-black text-white">
                       {item.pricePerM2OrUnit} ج.م {item.category === 'SANITARY' ? '/قطعة' : '/م²'}
                     </span>
                   </div>
                   <div className="text-left">
-                    <span className="text-[9px] text-slate-500 font-bold block">الرصيد المتاح</span>
+                    <span className="text-[9px] text-slate-500 font-bold block">موقع الرف</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                      <MapPin size={10} className="text-blue-400" />
+                      {item.shelfLocation}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[9px] text-slate-500 font-bold block">المخزون بالمستودع</span>
                     <span className="text-xs font-black text-emerald-400">
                       {item.stockBoxes} {item.category === 'SANITARY' ? 'قطعة' : 'كرتونة'}
                     </span>
@@ -288,7 +553,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
             </p>
 
             <div className="space-y-3 pt-2">
-              <div className="p-3 bg-[#151b2b] rounded-xl border border-[#1e293b] text-xs">
+              <div className="p-3 bg-[#151b2b] rounded-xl border border-[#1e293b] text-xs text-right">
                 <span className="text-slate-400 block text-[10px]">الصنف النشط بالحاسبة:</span>
                 <span className="font-bold text-white block truncate mt-1">{selectedCalcItem.name}</span>
                 <span className="text-blue-400 font-mono block mt-0.5">معدل التغطية: {selectedCalcItem.m2PerBox} م² / كرتونة</span>
@@ -299,7 +564,7 @@ export const CeramicsSanitaryPage: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500 text-left"
                     value={targetM2}
                     onChange={(e) => setTargetM2(Math.max(0, +e.target.value))}
                   />
@@ -349,12 +614,12 @@ export const CeramicsSanitaryPage: React.FC = () => {
               <h3 className="text-xs font-black text-white">مطابقة درجات طباخات الألوان (Tone Shading Matcher)</h3>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              لتجنب اختلاف اللون في صالة البناء الواحدة للعميل، يفحص هذا النظام مدى توافق رقم اللوت والطبخة في أمر التسليم الحالي.
+              لتجنب اختلاف اللون في صالة البناء الواحدة للعميل، يفحص هذا النظام مدى توافق رقم اللوت والطبخة في أمر التسليم الحالي لضمان خروج بضاعة متجانسة بامتياز.
             </p>
 
             <div className="space-y-3 pt-1">
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">حدد كود لوت الطبخة الأول (Tone):</label>
+                <label className="text-[11px] text-slate-400 block mb-1">حدد كود لوت الطبخة الحالي (Tone):</label>
                 <select 
                   className="w-full px-3 py-2 bg-[#151b2b] border border-[#1e293b] rounded-xl text-xs text-white outline-none focus:border-blue-500 font-mono"
                   value={toneToMatch}
@@ -367,11 +632,11 @@ export const CeramicsSanitaryPage: React.FC = () => {
               </div>
 
               {/* Matching Status Alert */}
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex gap-2.5 items-start">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex gap-2.5 items-start text-right">
                 <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
                 <div className="text-[11px] text-slate-300">
-                  <span className="font-bold text-emerald-400 block mb-0.5">مطابقة آمنة بنسبة 100%</span>
-                  جميع كراتين الطلبية سيتم سحبها من نفس خط الإنتاج والطبخة لتفادي أي فروقات بصرية بالأرضيات.
+                  <span className="font-bold text-emerald-400 block mb-0.5 font-sans">مطابقة آمنة بنسبة 100%</span>
+                  جميع الكراتين سيتم سحبها من خط الإنتاج {toneToMatch} لتفادي الفروقات الطفيفة في اللمعان واللون.
                 </div>
               </div>
             </div>
@@ -385,11 +650,11 @@ export const CeramicsSanitaryPage: React.FC = () => {
                 <h3 className="text-xs font-black text-white">حجز طلبيات السيراميك بالمستودع</h3>
               </div>
               <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-1.5 py-0.5 rounded font-black">
-                نشط
+                نشط وآمن
               </span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              تمكين العميل من شراء بضائعه وحجزها في عنابر المستودع المعزولة مع تأجيل الاستلام لحين بدء التشطيب والتركيب لتفادي نفاذ طبخة الألوان الخاصة به.
+              تمكين العميل من شراء كمياته وحجزها في عنابر المستودع المعزولة مع تأجيل الاستلام الفعلي لحين التجهيز الموقعي، لتفادي نفاذ طبخة الألوان الخاصة به.
             </p>
           </div>
         </div>

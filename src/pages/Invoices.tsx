@@ -11,7 +11,8 @@ import {
   QrCode,
   Send,
   MessageSquare,
-  Store
+  Store,
+  Download
 } from 'lucide-react';
 import { SalesInvoice, SalesInvoiceItem, Customer } from '../types/sprint8';
 import { ProductMaster } from '../types/productMaster';
@@ -24,6 +25,7 @@ import { usbScannerEngine } from '../services/usbScannerEngine';
 import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
+import { exportToExcel } from '../lib/excel';
 
 export const Invoices: React.FC = () => {
   const navigate = useNavigate();
@@ -92,6 +94,28 @@ export const Invoices: React.FC = () => {
             <span>طلبات المتجر الواردة (B2B)</span>
           </button>
           <USBScannerBadge onClick={() => setIsUSBManagerOpen(true)} />
+          <button 
+            onClick={() => {
+              if (filteredInvoices.length === 0) return;
+              const formatted = filteredInvoices.map(inv => ({
+                'رقم الفاتورة': inv.invoiceNumber,
+                'اسم العميل': inv.customerName || 'عميل نقدي',
+                'الصافي (بدون ضريبة)': inv.totalUntaxed,
+                'الضريبة (VAT 14%)': inv.totalTax,
+                'الإجمالي الشامل': inv.grandTotal,
+                'المبلغ المدفوع': inv.paidAmount || 0,
+                'المتبقي المستحق': (inv.grandTotal || 0) - (inv.paidAmount || 0),
+                'تاريخ الفاتورة': formatDate(new Date(inv.createdAt)),
+                'الحالة': inv.status === 'PAID' ? 'مدفوعة' : 'مسودة / معلقة'
+              }));
+              exportToExcel(formatted, `maro_sales_invoices_${new Date().toISOString().split('T')[0]}`);
+            }}
+            disabled={filteredInvoices.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl transition-all font-bold shadow-lg shadow-emerald-600/20 active:scale-95 text-xs"
+          >
+            <Download size={16} />
+            <span>تصدير الفواتير Excel</span>
+          </button>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs"

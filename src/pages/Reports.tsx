@@ -37,6 +37,7 @@ import { BarChart,
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { exportToExcel } from '../lib/excel';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -461,7 +462,22 @@ const ReportGenerator: React.FC<{ report: any, onClose: () => void }> = ({ repor
           </div>
           <button className="px-6 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 transition-all">تحديث التقرير</button>
           <div className="flex-1"></div>
-          <button className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-500 transition-all">
+          <button 
+            onClick={() => {
+              if (data.length === 0) return;
+              const formatted = data.map((item: any) => ({
+                'تاريخ العملية': item.date ? formatDate(new Date(item.date)) : 'N/A',
+                'الوصف والبيان': item.description || item.customerName || item.supplierName || 'عملية مالية',
+                'رقم المرجع': item.id ? item.id.slice(0, 8) : 'N/A',
+                'المبلغ الإجمالي': item.totalAmount || item.amount || 0,
+                'طريقة الدفع': item.paymentMethod || 'نقدي',
+                'الفرع أو الشركة': item.branchId || 'الفرع الرئيسي'
+              }));
+              exportToExcel(formatted, `${report.name}_export_${new Date().toISOString().split('T')[0]}`);
+            }}
+            disabled={data.length === 0}
+            className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all"
+          >
             <Download size={16} />
             <span>تصدير Excel</span>
           </button>

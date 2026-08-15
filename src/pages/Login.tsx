@@ -16,18 +16,24 @@ import {
   UserCheck, 
   Delete,
   Fingerprint,
-  Vault
+  Vault,
+  MessageSquare,
+  Smartphone,
+  RefreshCw,
+  PhoneCall
 } from 'lucide-react';
 import { SecurityEngine } from '../lib/securityEngine';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
 import { toast } from 'react-hot-toast';
+import { DeveloperPhoneAuthService } from '../services/developerPhoneAuthService';
 
 interface EmployeeProfile {
   id: string;
   displayName: string;
   email: string;
   role: 'admin' | 'accountant' | 'cashier';
+  pinCode?: string;
   idCardCode?: string;
   branchName?: string;
   warehouseName?: string;
@@ -40,6 +46,13 @@ export const Login: React.FC = () => {
 
   // Auth Mode
   const [authTab, setAuthTab] = useState<'standard' | 'pin' | 'card'>('standard');
+
+  // Developer 2FA Mobile OTP protection states
+  const [isOtpMode, setIsOtpMode] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [developerPhone, setDeveloperPhone] = useState(() => DeveloperPhoneAuthService.getConfig().registeredPhoneNumber);
+  const [otpChannel, setOtpChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Registered Users list
   const [registeredUsers, setRegisteredUsers] = useState<EmployeeProfile[]>([]);
@@ -81,6 +94,14 @@ export const Login: React.FC = () => {
     const employees = MaroSyncEngine.getLocalCollection<EmployeeProfile>('users');
     setRegisteredUsers(employees);
   }, [user, navigate]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   // Dynamically update assigned Branch/Warehouse/Safe when email or selected user changes
   useEffect(() => {
@@ -125,6 +146,19 @@ export const Login: React.FC = () => {
     });
   };
 
+  const dispatchDeveloperOtp = (channel: 'whatsapp' | 'sms') => {
+    setOtpChannel(channel);
+    const result = DeveloperPhoneAuthService.generateAndSendOtp(
+      channel,
+      'تسجيل الدخول وتوثيق صلاحيات مهندس النظام الكاملة',
+      developerPhone
+    );
+
+    setIsOtpMode(true);
+    setResendCooldown(60);
+    toast.success(result.message);
+  };
+
   const handleStandardLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) {
@@ -132,6 +166,16 @@ export const Login: React.FC = () => {
       return;
     }
 
+    // Intercept Developer login for maximum hardware-backed security (SMS or WhatsApp 2FA)
+    if (role === 'developer' || email.toLowerCase() === 'alkootsh@gmail.com') {
+      dispatchDeveloperOtp(otpChannel);
+      return;
+    }
+
+    executeLogin();
+  };
+
+  const executeLogin = () => {
     recordAuditLogin('standard', true, email);
     login(email || 'admin@maro-erp.local', role, {
       displayName: activeProfile.displayName,
@@ -143,58 +187,97 @@ export const Login: React.FC = () => {
     navigate('/', { replace: true });
   };
 
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = DeveloperPhoneAuthService.verifyOtp(otpInput);
+
+    if (result.success) {
+      toast.success(result.message);
+      executeLogin();
+    } else {
+      toast.error(result.message);
+    }
+  };
+
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) {
+      toast.error('تم قفل نظام الدخول مؤقتاً لتكرار المحاولات الخاطئة. يرجى الانتظار');
+      return;
+    }
+
     if (pinCode.length < 4) {
       toast.error('يرجى كتابة كود PIN المكون من 4 إلى 6 أرقام');
       return;
     }
 
-    // Fast cashier PIN verification
-    if (pinCode === '1234' || pinCode === '0000' || pinCode === '9999' || pinCode.length >= 4) {
-      recordAuditLogin('pin', true, `cashier_pin_${pinCode}`);
-      login('cashier@maro-erp.local', 'cashier', {
+    // Verify against authorized employee PIN codes (e.g. registered cashier PINs)
+    const validCashierPins = ['1234', '5678', '8899', '2026'];
+    const matchedUser = registeredUsers.find(u => u.pinCode === pinCode) || (validCashierPins.includes(pinCode) ? registeredUsers.find(u => u.role === 'cashier') : null);
+
+    if (matchedUser || validCashierPins.includes(pinCode)) {
+      setFailedAttempts(0);
+      recordAuditLogin('pin', true, matchedUser?.email || 'cashier@maro-erp.local');
+      const targetUser = matchedUser || {
         displayName: 'كاشير الوردية النشطة',
+        email: 'cashier@maro-erp.local',
+        role: 'cashier' as const,
         branchName: activeProfile.branchName,
         warehouseName: activeProfile.warehouseName,
         safeName: activeProfile.safeName
+      };
+
+      login(targetUser.email, targetUser.role, {
+        displayName: targetUser.displayName,
+        branchName: targetUser.branchName || activeProfile.branchName,
+        warehouseName: targetUser.warehouseName || activeProfile.warehouseName,
+        safeName: targetUser.safeName || activeProfile.safeName
       });
-      toast.success(`تمت المصادقة السريعة بكود PIN للكاشير - الفرع: [${activeProfile.branchName}]!`);
+      toast.success(`تمت المصادقة الآمنة بكود PIN - المستخدم: [${targetUser.displayName}]`);
       navigate('/', { replace: true });
     } else {
       const newCount = failedAttempts + 1;
       setFailedAttempts(newCount);
-      recordAuditLogin('pin', false, `pin_fail_${pinCode}`);
+      recordAuditLogin('pin', false, `pin_fail_attempt_${newCount}`);
       if (newCount >= 5) {
         setIsLocked(true);
-        toast.error('تم قفل الدخول مؤقتاً لخمس محاولات خاطئة');
+        toast.error('تم قفل الدخول مؤقتاً لخمس محاولات خاطئة متتالية لحماية النظام');
       } else {
-        toast.error(`كود PIN غير صحيح (${5 - newCount} محاولات متبقية)`);
+        toast.error(`كود PIN غير صحيح (${5 - newCount} محاولات متبقية قبل القفل)`);
       }
     }
   };
 
   const handleCardSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idCardInput.trim()) return;
+    if (!idCardInput.trim()) {
+      toast.error('يرجى تمرير كارت الموظف على القارئ أو إدخال الكود');
+      return;
+    }
 
     const cardUser = registeredUsers.find(u => u.idCardCode?.toUpperCase() === idCardInput.trim().toUpperCase());
-    const matchedBranch = cardUser?.branchName || activeProfile.branchName;
-    const matchedWarehouse = cardUser?.warehouseName || activeProfile.warehouseName;
-    const matchedSafe = cardUser?.safeName || activeProfile.safeName;
-    const matchedName = cardUser?.displayName || `موظف كارت ${idCardInput.toUpperCase()}`;
+    if (!cardUser) {
+      recordAuditLogin('card', false, `card_unknown_${idCardInput.slice(0, 4)}***`);
+      toast.error('بطاقة الموظف غير مسجلة في قاعدة بيانات النظام أو غير مفعلة');
+      return;
+    }
 
-    recordAuditLogin('card', true, idCardInput);
-    toast.success(`تم التعرف على الموظف [${matchedName}] عبر كارت ID بنجاح!`);
+    const matchedBranch = cardUser.branchName || activeProfile.branchName;
+    const matchedWarehouse = cardUser.warehouseName || activeProfile.warehouseName;
+    const matchedSafe = cardUser.safeName || activeProfile.safeName;
+    const matchedName = cardUser.displayName;
+
+    recordAuditLogin('card', true, cardUser.email);
+    toast.success(`تم التحقق من هوية الموظف [${matchedName}] عبر كارت ID بنجاح!`);
     setTimeout(() => {
-      login(cardUser?.email || 'cashier@maro-erp.local', cardUser?.role || 'cashier', {
+      login(cardUser.email, cardUser.role, {
         displayName: matchedName,
         branchName: matchedBranch,
         warehouseName: matchedWarehouse,
         safeName: matchedSafe
       });
       navigate('/', { replace: true });
-    }, 600);
+    }, 400);
   };
 
   const handleKeyPress = (num: string) => {
@@ -282,53 +365,179 @@ export const Login: React.FC = () => {
 
         {/* Tab 1: Standard Username/Password */}
         {authTab === 'standard' && (
-          <form onSubmit={handleStandardLogin} className="space-y-4 text-right">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">البريد / اسم المستخدم *</label>
-              <input 
-                type="text" 
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
-                placeholder="admin@maro-erp.local"
-              />
-            </div>
+          isOtpMode ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-4 text-right">
+              <div className="p-4 bg-gradient-to-b from-blue-500/15 to-indigo-500/5 border border-blue-500/30 rounded-2xl text-center space-y-2 relative overflow-hidden">
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center mx-auto">
+                  <ShieldCheck size={28} className="animate-pulse" />
+                </div>
+                <p className="text-xs font-black text-blue-300">نظام التحقق الأمني لهاتف المطور (2FA Root Protection)</p>
+                <p className="text-[11px] text-slate-300">
+                  {otpChannel === 'whatsapp' ? 'تم إرسال كود الأمان عبر الواتساب إلى رقم الهاتف المعتمد:' : 'تم إرسال كود الأمان عبر الرسائل النصية القصيرة (SMS) إلى الرقم:'}
+                </p>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#0b0f1a] rounded-xl border border-[#1e293b]">
+                  <Smartphone size={14} className="text-blue-400" />
+                  <span className="text-xs font-bold text-emerald-400 font-mono tracking-wider">{developerPhone}</span>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">كلمة السر المرخصة *</label>
-              <input 
-                type="password" 
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
-                placeholder="••••••••"
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">كود التحقق الأمني المكون من 6 أرقام (OTP) *</label>
+                <input 
+                  type="text" 
+                  required
+                  autoFocus
+                  maxLength={6}
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value)}
+                  className="w-full bg-[#0b0f1a] border-2 border-blue-500/50 rounded-2xl px-4 py-3 text-white text-center font-mono text-2xl font-black outline-none focus:border-blue-400 tracking-widest shadow-inner shadow-black/50"
+                  placeholder="••••••"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">الصلاحية الوظيفية (Role)</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
+              {/* Channel switcher and Resend inside OTP form */}
+              <div className="flex items-center justify-between gap-2 p-2 bg-[#0b0f1a] border border-[#1e293b] rounded-xl text-[11px]">
+                <button
+                  type="button"
+                  disabled={resendCooldown > 0}
+                  onClick={() => dispatchDeveloperOtp(otpChannel === 'whatsapp' ? 'sms' : 'whatsapp')}
+                  className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-bold disabled:text-slate-600 transition-colors"
+                >
+                  <RefreshCw size={13} className={resendCooldown > 0 ? '' : 'animate-spin-slow'} />
+                  <span>
+                    {resendCooldown > 0 ? `إعادة الإرسال بعد (${resendCooldown}ث)` : `إعادة الإرسال عبر ${otpChannel === 'whatsapp' ? 'الرسائل النصية SMS' : 'الواتساب WhatsApp'}`}
+                  </span>
+                </button>
+
+                <span className="text-slate-500 font-mono text-[10px]">صالح لـ 5 دقائق</span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOtpMode(false)}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all"
+                >
+                  إلغاء وتعديل
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck size={16} />
+                  <span>تأكيد صلاحيات المطور</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleStandardLogin} className="space-y-4 text-right">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">البريد / اسم المستخدم *</label>
+                <input 
+                  type="text" 
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
+                  placeholder="admin@maro-erp.local"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">كلمة السر المرخصة *</label>
+                <input 
+                  type="password" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">الصلاحية الوظيفية (Role)</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as any)}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
+                >
+                  <option value="developer">المطور الرئيسي (Developer Console)</option>
+                  <option value="admin">مدير النظام والشركة (Owner & Admin)</option>
+                  <option value="accountant">المحاسب العام (General Accountant)</option>
+                  <option value="cashier">كاشير ونقطة البيع (POS Cashier)</option>
+                </select>
+              </div>
+
+              {(role === 'developer' || email.toLowerCase() === 'alkootsh@gmail.com') && (
+                <div className="p-3.5 bg-blue-500/10 rounded-2xl border border-blue-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-blue-300">هاتف المطور المسجل بالنظام (2FA)</label>
+                    <span className="text-[10px] text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-md font-mono">System Root</span>
+                  </div>
+
+                  <div className="relative">
+                    <Smartphone className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      required
+                      value={developerPhone}
+                      onChange={(e) => setDeveloperPhone(e.target.value)}
+                      className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl pr-9 pl-3 py-2.5 text-white text-xs font-mono font-bold outline-none focus:border-blue-400 text-left"
+                      placeholder="01000000000"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  {/* Channel Preference Buttons */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 block">طريقة استلام كود الأمان وتأكيد الصلاحيات:</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOtpChannel('whatsapp')}
+                        className={cn(
+                          "py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all",
+                          otpChannel === 'whatsapp'
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-500/10"
+                            : "bg-[#0b0f1a] text-slate-400 border-[#1e293b] hover:bg-slate-800"
+                        )}
+                      >
+                        <MessageSquare size={14} className={otpChannel === 'whatsapp' ? 'text-emerald-400' : ''} />
+                        <span>واتساب (WhatsApp)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOtpChannel('sms')}
+                        className={cn(
+                          "py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all",
+                          otpChannel === 'sms'
+                            ? "bg-blue-500/20 text-blue-300 border-blue-500/50 shadow-md shadow-blue-500/10"
+                            : "bg-[#0b0f1a] text-slate-400 border-[#1e293b] hover:bg-slate-800"
+                        )}
+                      >
+                        <PhoneCall size={14} className={otpChannel === 'sms' ? 'text-blue-400' : ''} />
+                        <span>رسالة نصية (SMS)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <span className="text-[9.5px] text-slate-400 block leading-relaxed">
+                    لحماية النظام، يتم إرسال رمز أمان مشفر إلى الهاتف المعتمد لتأكيد هوية المطور وتفعيل الصلاحيات الكاملة.
+                  </span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full mt-4 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
               >
-                <option value="developer">المطور الرئيسي (Developer Console)</option>
-                <option value="admin">مدير النظام والشركة (Owner & Admin)</option>
-                <option value="accountant">المحاسب العام (General Accountant)</option>
-                <option value="cashier">كاشير ونقطة البيع (POS Cashier)</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full mt-4 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all"
-            >
-              <LogIn size={18} />
-              <span>تسجيل الدخول والتوثيق الآمن</span>
-            </button>
-          </form>
+                <LogIn size={18} />
+                <span>{role === 'developer' ? 'إرسال كود التحقق وتأكيد الصلاحيات' : 'تسجيل الدخول والتوثيق الآمن'}</span>
+              </button>
+            </form>
+          )
         )}
 
         {/* Tab 2: Fast PIN Code Keypad */}

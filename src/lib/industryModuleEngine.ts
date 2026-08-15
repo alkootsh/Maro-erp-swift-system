@@ -1079,6 +1079,147 @@ export const DEFAULT_INDUSTRY_MODULES: IndustryModule[] = [
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'FUEL_STATION',
+    code: 'MOD-FUEL-STATION',
+    nameAr: 'محطات الوقود والتموين (Fuel Stations)',
+    nameEn: 'Fuel Station Module',
+    category: 'SERVICES',
+    descriptionAr: 'موديول مخصص لإدارة محطات الوقود والخدمات البترولية، يدعم قراءة عدادات الطلمبات اليومية، تتبع منسوب خزانات البترول وحساب مستوى رطوبة قعر التانك، تسوية وإقفال الوردية والتحليل الرياضي لعجز التبخر الحراري الطبيعي آلياً.',
+    iconName: 'Flame',
+    badgeColor: 'amber',
+    isActive: true,
+    isCoreBackbone: false,
+    version: '4.0.0',
+    routePath: '/industries/fuel-station',
+    customProductFields: [
+      { id: 'fuelType', name: 'Fuel Type', nameAr: 'نوع الوقود والأوكتان', type: 'select', options: ['بنزين 95', 'بنزين 92', 'بنزين 80', 'سولار / ديزل'], required: true },
+      { id: 'tankCapacity', name: 'Tank Capacity', nameAr: 'سعة الخزان المرتبط (لتر)', type: 'number', required: true, defaultValue: 45000 },
+      { id: 'evaporationLimit', name: 'Evaporation Limit %', nameAr: 'حد التبخر المسموح به %', type: 'number', required: true, defaultValue: 0.15 }
+    ],
+    specializedFeatures: [
+      { id: 'f_nozzle_tracking', nameAr: 'محرك تتبع قراءات المضخات والمسدسات', descriptionAr: 'تسجيل القراءة الافتتاحية والختامية وحساب السحب الإجمالي آلياً بمعدل استجابة < 20ms', enabled: true },
+      { id: 'f_tank_atg', nameAr: 'نظام المعايرة التلقائي ومستوى تانكات الوقود', descriptionAr: 'ربط سحب المضخات بالخزان وتنبيهات الخلط أو منسوب المياه الكيميائي الزائد', enabled: true },
+      { id: 'f_thermal_loss', nameAr: 'حاسبة التبخر الحراري الطبيعي ونسبة الفاقد', descriptionAr: 'تقدير الفارق الطبيعي للوقود حسب درجات الحرارة لضمان التدقيق المالي المتكامل', enabled: true }
+    ],
+    specializedReports: [
+      { id: 'r_fuel_sales', nameAr: 'تقرير مبيعات الوقود ومطابقة قراءات الطلمبات', descriptionAr: 'مقارنة قراءة العداد الفعلي مع إيرادات الخزينة لليوم' },
+      { id: 'r_evaporation', nameAr: 'تقرير عجز التبخر وتغيير الكثافة الحرارية الخزانات', descriptionAr: 'تحليل نسب هدر وتطاير الوقود الطبيعي في الحر الشديد' }
+    ],
+    accountingMapping: {
+      salesRevenueAccount: '41200',
+      cogsAccount: '51100',
+      inventoryAssetAccount: '11300'
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'CONTRACTING_PROJECTS',
+    code: 'MOD-CONTRACTING',
+    nameAr: 'شركات المقاولات، إدارة المشاريع والمستخلصات (Contracting & Project Management)',
+    nameEn: 'Contracting & Construction Projects',
+    category: 'SERVICES',
+    descriptionAr: 'موديول مخصص لشركات المقاولات والتشييد، يدعم إدارة جداول الكميات (BoQ)، المستخلصات الجارية والختامية، نسب ضمان الأعمال (Retention)، الدفعات المقدمة، ومتابعة تكلفة المعدات والعمالة والمقاولين الباطن.',
+    iconName: 'Building2',
+    badgeColor: 'amber',
+    isActive: true,
+    isCoreBackbone: false,
+    version: '4.0.0',
+    routePath: '/industries/contracting',
+    customProductFields: [
+      { id: 'projectCode', name: 'Project Reference Code', nameAr: 'كود المشروع', type: 'text', required: true, placeholderAr: 'مثال: PRJ-2026-01' },
+      { id: 'boqUnit', name: 'BoQ Unit of Measure', nameAr: 'وحدة بند المقايسة', type: 'select', options: ['متر مكعب (م³)', 'متر مربع (م²)', 'متر طولي (م.ط)', 'طن حديد/أسمنت', 'نقطة كهرباء/صحي', 'مقطوعية إجمالية', 'يومية معدة/عمالة'] },
+      { id: 'retentionRate', name: 'Retention / Guarantee %', nameAr: 'نسبة ضمان الأعمال المحتجزة %', type: 'number', defaultValue: 5 }
+    ],
+    specializedFeatures: [
+      { id: 'f_boq_mgmt', nameAr: 'إدارة مقايسات الأعمال وجداول الكميات (BoQ)', descriptionAr: 'تتبع الكميات التقديرية والمنفذة وتكلفة الوحدة وهوامش الأرباح للمشروع', enabled: true },
+      { id: 'f_progress_certs', nameAr: 'إصدار المستخلصات الجارية والختامية وحسم الضمانات', descriptionAr: 'حساب نسبة الإنجاز وخصم الدفعة المقدمة وضمان الأعمال آلياً مع الترحيل المحاسبي للقيود', enabled: true },
+      { id: 'f_subcontractor', nameAr: 'حسابات مقاولي الباطن وتكلفة المعدات والتشغيل', descriptionAr: 'تسجيل أوامر إسناد مقاولي الباطن والوقود واليوميات وربطها بمركز تكلفة المشروع', enabled: true }
+    ],
+    specializedReports: [
+      { id: 'r_prj_cost', nameAr: 'تقرير الأرباح والمصروفات الفعلية لكل مشروع', descriptionAr: 'مقارنة الميزانية التقديرية بالتكلفة الفعلية والمستخلصات المحصلة' },
+      { id: 'r_prj_retention', nameAr: 'تقرير مستحقات ضمان الأعمال والدفعات المعلقة', descriptionAr: 'متابعة مبالغ التأمين المحتجزة لدى العملاء وتاريخ استحقاق الإفراج عنها' }
+    ],
+    accountingMapping: {
+      salesRevenueAccount: '41300',
+      cogsAccount: '51200',
+      inventoryAssetAccount: '11300'
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'LANDSCAPING_GARDENS',
+    code: 'MOD-LANDSCAPING',
+    nameAr: 'تنسيق الحدائق، اللاندسكيب والمشاتل وشبكات الري (Landscaping & Nursery)',
+    nameEn: 'Landscaping, Gardens & Nursery',
+    category: 'SERVICES',
+    descriptionAr: 'موديول مخصص لشركات ومؤسسات اللاندسكيب وتنسيق الحدائق والمشاتل، يدعم إدارة أصناف الأشجار والشتلات والنجيلة، شبكات الري الآلي، عقود الصيانة الدورية للحدائق، وزيارات الرعاية الدورية.',
+    iconName: 'Trees',
+    badgeColor: 'emerald',
+    isActive: true,
+    isCoreBackbone: false,
+    version: '4.0.0',
+    routePath: '/industries/landscaping',
+    customProductFields: [
+      { id: 'plantCategory', name: 'Plant Category', nameAr: 'تصنيف النبات', type: 'select', options: ['أشجار ظل ونخيل', 'نباتات زينة وشجيرات', 'أزهار موسمية ومغطيات', 'نجيلة طبيعية وصناعية', 'مستلزمات شبكات ري وطلمبات', 'أسمدة ومبيدات حدائق'] },
+      { id: 'sunlightExposure', name: 'Sunlight Exposure', nameAr: 'احتياج الشمس والإضاءة', type: 'select', options: ['شمس مباشرة كاملة (Full Sun)', 'نصف ظل (Partial Shade)', 'نبات ظل داخلي (Indoor)'] },
+      { id: 'irrigationType', name: 'Irrigation Spec', nameAr: 'نظام الري الموصى به', type: 'select', options: ['ري بالتنقيط (Drip)', 'رشاشات مائية (Sprinklers)', 'غمر يدوي', 'بابلر أشجار (Bubbler)'] }
+    ],
+    specializedFeatures: [
+      { id: 'f_nursery_stock', nameAr: 'إدارة مخزون المشاتل وحجم الأصص والارتفاعات', descriptionAr: 'تتبع كميات الشتلات ومقاس القصيص وأعمار الأشجار ومعدل النمو', enabled: true },
+      { id: 'f_landscape_contracts', nameAr: 'عقود الصيانة الدورية للحدائق والمسطحات الخضراء', descriptionAr: 'جدولة زيارات قص النجيل، التسميد، مكافحة الآفات وفحص شبكات الري تلقائياً', enabled: true },
+      { id: 'f_irrigation_calc', nameAr: 'حاسبة شبكات الري وضغوط المحابس والمحابس الكهربية', descriptionAr: 'حساب احتياجات الأمتار من مواسير الري والرشاشات بناءً على مساحة الحديقة', enabled: true }
+    ],
+    specializedReports: [
+      { id: 'r_garden_contracts', nameAr: 'تقرير عقود صيانة الحدائق والزيارات المجدولة', descriptionAr: 'بيان بالحدائق والمجمعات والمواعيد الأسبوعية لفرق العناية' },
+      { id: 'r_plant_sales', nameAr: 'تقرير مبيعات المشاتل والأشجار الأكثر طلباً', descriptionAr: 'حركة بيع الشتلات ومستلزمات الحدائق ونسب الهالك الزراعي' }
+    ],
+    accountingMapping: {
+      salesRevenueAccount: '41300',
+      cogsAccount: '51100',
+      inventoryAssetAccount: '11300'
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'PAINTS_COATINGS',
+    code: 'MOD-PAINTS',
+    nameAr: 'الدهانات، البويات ومكائن التلوين بالكمبيوتر (Paints, Coatings & Tinting)',
+    nameEn: 'Paints, Coatings & Tinting Machine',
+    category: 'RETAIL',
+    descriptionAr: 'موديول متكامل لمعارض ومصانع البويات والدهانات، يدعم قواعد الدهان الأساسية (Base A, B, C)، كروت الألوان العالمية (NCS, RAL, Jotun)، حساب نسب وحقن أحبار التلوين بالمليلتر، والتحويل بين الجالون والبستلة والبرميل.',
+    iconName: 'Paintbrush',
+    badgeColor: 'purple',
+    isActive: true,
+    isCoreBackbone: false,
+    version: '4.0.0',
+    routePath: '/industries/paints',
+    customProductFields: [
+      { id: 'paintBase', name: 'Base Type', nameAr: 'نوع القاعدة (Base)', type: 'select', options: ['قاعدة Base A (ألوان فاتحة)', 'قاعدة Base B (ألوان متوسطة)', 'قاعدة Base C (ألوان داكنة ونقية)', 'جاهز للدهان بدون خلط (Ready Mix)'] },
+      { id: 'glossLevel', name: 'Gloss / Finish Level', nameAr: 'درجة اللمعان', type: 'select', options: ['مط كلياً (Dead Matt)', 'مط حريري (Matt)', 'نصف لامع (Semi-Gloss)', 'لامع زيتي (High Gloss)', 'ديكوري ومؤثرات خاصة'] },
+      { id: 'packVolume', name: 'Package Volume', nameAr: 'حجم العبوة والتعبئة', type: 'select', options: ['بستلة / جردل 18 لتر', 'جالون 3.6 لتر', 'ربع جالون 0.9 لتر', 'كيلو / أنبوبة'] },
+      { id: 'colorCode', name: 'Color Recipe Code', nameAr: 'كود اللون بالكمبيوتر', type: 'text', placeholderAr: 'مثال: NCS S 1010-Y50R أو RAL 9010' }
+    ],
+    specializedFeatures: [
+      { id: 'f_tinting_dispenser', nameAr: 'محرك ماكينة تلوين الكمبيوتر وحقن الأحبار (Color Tinting Engine)', descriptionAr: 'حساب كميات أحبار التلوين (YOX, BLK, RED, BLU) وسعر التلوين المضاف آلياً', enabled: true },
+      { id: 'f_formula_history', nameAr: 'أرشيف تركيبات العملاء والألوان المخصصة', descriptionAr: 'حفظ وصفة اللون الخاصة بكل عميل برقم جواله لإعادة خلط نفس الدرجة بدقة 100%', enabled: true },
+      { id: 'f_coverage_calc', nameAr: 'حاسبة مساحات الجدران وعدد العبوات المطلوبة', descriptionAr: 'إدخال أبعاد الغرف لحساب عدد الجالونات والبستلات ووجه الأساس والبطانة والتشطيب', enabled: true }
+    ],
+    specializedReports: [
+      { id: 'r_paint_recipes', nameAr: 'تقرير استهلاك أحبار ماكينة التلوين والخلط', descriptionAr: 'متابعة رصيد الصبغات والأحبار المحقونة في ماكينة التلوين' },
+      { id: 'r_paint_sales', nameAr: 'تقرير مبيعات القواعد والدهانات والبراندات', descriptionAr: 'مقارنة مبيعات جوتن، GLC، سايبس، الجزيرة وهامش الربح' }
+    ],
+    accountingMapping: {
+      salesRevenueAccount: '41100',
+      cogsAccount: '51100',
+      inventoryAssetAccount: '11300'
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
 ];
 

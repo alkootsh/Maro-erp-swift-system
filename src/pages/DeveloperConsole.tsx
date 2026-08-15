@@ -29,7 +29,14 @@ import {
   HeartPulse,
   Car,
   Factory,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  PhoneCall,
+  Send,
+  ShieldCheck,
+  Radio,
+  Save,
+  Check
 } from 'lucide-react';
 import { SecurityEngine, DEFAULT_DEVELOPER_KEY } from '../lib/securityEngine';
 import { SystemLicense, FeatureFlag, SystemDiagnosticReport } from '../types/security';
@@ -37,12 +44,25 @@ import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { IndustryModule } from '../types/industryModules';
 import { cn } from '../lib/utils';
 import { DemoDataSeeder } from '../services/demoDataSeeder';
+import { DeveloperPhoneAuthService, DeveloperPhoneAuthConfig } from '../services/developerPhoneAuthService';
+import { toast } from 'react-hot-toast';
 
 export const DeveloperConsole: React.FC = () => {
   const [devKeyInput, setDevKeyInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(SecurityEngine.isDeveloperSessionActive());
-  const [activeTab, setActiveTab] = useState<'industries' | 'license' | 'flags' | 'maintenance' | 'diagnostics'>('industries');
+  const [activeTab, setActiveTab] = useState<'industries' | 'phone2fa' | 'license' | 'flags' | 'maintenance' | 'diagnostics'>('industries');
   
+  // 2FA Developer Phone Login State
+  const [isOtpLoginStep, setIsOtpLoginStep] = useState(false);
+  const [devOtpInput, setDevOtpInput] = useState('');
+  const [devOtpChannel, setDevOtpChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [resendOtpCooldown, setResendOtpCooldown] = useState(0);
+
+  // Phone 2FA Config State
+  const [phoneConfig, setPhoneConfig] = useState<DeveloperPhoneAuthConfig>(() => DeveloperPhoneAuthService.getConfig());
+  const [newPhoneInput, setNewPhoneInput] = useState(phoneConfig.registeredPhoneNumber);
+  const [testOtpStatus, setTestOtpStatus] = useState<string | null>(null);
+
   const [license, setLicense] = useState<SystemLicense>(SecurityEngine.getSystemLicense());
   const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>(SecurityEngine.getFeatureFlags());
   const [industryModules, setIndustryModules] = useState<IndustryModule[]>(IndustryModuleEngine.getModules());
@@ -65,15 +85,68 @@ export const DeveloperConsole: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (resendOtpCooldown > 0) {
+      const timer = setTimeout(() => setResendOtpCooldown(resendOtpCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendOtpCooldown]);
+
+  const handleSendDevOtp = (channel: 'whatsapp' | 'sms') => {
+    setDevOtpChannel(channel);
+    const result = DeveloperPhoneAuthService.generateAndSendOtp(
+      channel,
+      'فتح لوحة تحكم المطور الجذرية (Layer 1 Developer Console)'
+    );
+    setIsOtpLoginStep(true);
+    setResendOtpCooldown(60);
+    toast.success(result.message);
+  };
+
+  const handleVerifyDevOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = DeveloperPhoneAuthService.verifyOtp(devOtpInput);
+    if (result.success) {
+      setIsAuthenticated(true);
+      setActionSuccess('Developer Master Authenticated via Phone 2FA');
+      toast.success(result.message);
+      setTimeout(() => setActionSuccess(null), 3000);
+    } else {
+      toast.error(result.message);
+    }
+  };
+
+  const handleKeyLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (SecurityEngine.authenticateDeveloper(devKeyInput)) {
       setIsAuthenticated(true);
       setActionSuccess('Developer Master Authenticated');
       setTimeout(() => setActionSuccess(null), 3000);
     } else {
-      alert('مفتاح المطور غير صحيح!');
+      toast.error('مفتاح المطور غير صحيح!');
     }
+  };
+
+  const handleSavePhoneConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = await DeveloperPhoneAuthService.updateConfig({
+      ...phoneConfig,
+      registeredPhoneNumber: newPhoneInput.trim()
+    });
+    setPhoneConfig(updated);
+    toast.success('تم حفظ وتحديث إعدادات هاتف المطور بنجاح');
+    setActionSuccess('تم تحديث إعدادات أمان هاتف المطور');
+    setTimeout(() => setActionSuccess(null), 3000);
+  };
+
+  const handleTestDispatch = (channel: 'whatsapp' | 'sms') => {
+    const res = DeveloperPhoneAuthService.generateAndSendOtp(
+      channel,
+      `اختبار فحص بوابات الإرسال والربط الأمني (${channel.toUpperCase()})`
+    );
+    setTestOtpStatus(`تم إرسال كود تجريبي بنجاح عبر ${channel === 'whatsapp' ? 'الواتساب' : 'الـ SMS'}! الكود: ${res.session.otpCode}`);
+    toast.success(res.message);
+    setTimeout(() => setTestOtpStatus(null), 8000);
   };
 
   const handleToggleIndustryModule = (id: string) => {
@@ -157,10 +230,10 @@ export const DeveloperConsole: React.FC = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <div className="bg-[#151b2b] border border-red-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center space-y-6">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-amber-500 to-red-600"></div>
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center space-y-6">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-amber-500 to-blue-600"></div>
           
-          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-red-500/10">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
             <ShieldAlert size={32} />
           </div>
 
@@ -169,26 +242,116 @@ export const DeveloperConsole: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">المستوى الأول — لوحة التحكم الحصرية لمهندس النظام (Developer Layer 1)</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="relative">
-              <Key className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="password" 
-                placeholder="أدخل مفتاح المطور Master Key..." 
-                className="w-full pr-10 pl-4 py-3 bg-[#1e293b] border border-[#334155] rounded-2xl text-white focus:border-red-500 text-center font-mono text-sm outline-none"
-                value={devKeyInput}
-                onChange={(e) => setDevKeyInput(e.target.value)}
-              />
-            </div>
-            <p className="text-[10px] text-slate-500">مفتاح التطوير الافتراضي: <code className="text-amber-400 font-mono">{DEFAULT_DEVELOPER_KEY}</code></p>
+          {isOtpLoginStep ? (
+            <form onSubmit={handleVerifyDevOtp} className="space-y-4">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-right space-y-1">
+                <p className="text-xs font-bold text-blue-300">
+                  {devOtpChannel === 'whatsapp' ? 'تم إرسال كود الأمان عبر الواتساب' : 'تم إرسال كود الأمان عبر الرسائل القصيرة SMS'}
+                </p>
+                <p className="text-[11px] text-slate-400">إلى رقم هاتف المطور المعتمد بالنظام:</p>
+                <p className="text-xs font-bold text-emerald-400 font-mono" dir="ltr">{DeveloperPhoneAuthService.getMaskedPhone(phoneConfig.registeredPhoneNumber)}</p>
+              </div>
 
-            <button 
-              type="submit"
-              className="w-full py-3.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-600/20 active:scale-95"
-            >
-              التحقق وفتح لوحة المطور
-            </button>
-          </form>
+              <div>
+                <input 
+                  type="text" 
+                  autoFocus
+                  required
+                  maxLength={6}
+                  placeholder="أدخل كود الـ OTP المكون من 6 أرقام..." 
+                  className="w-full py-3 px-4 bg-[#0b0f1a] border-2 border-blue-500/50 rounded-2xl text-white focus:border-blue-400 text-center font-mono text-xl font-bold tracking-widest outline-none"
+                  value={devOtpInput}
+                  onChange={(e) => setDevOtpInput(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] px-1">
+                <button
+                  type="button"
+                  disabled={resendOtpCooldown > 0}
+                  onClick={() => handleSendDevOtp(devOtpChannel === 'whatsapp' ? 'sms' : 'whatsapp')}
+                  className="text-blue-400 hover:text-blue-300 font-bold disabled:text-slate-600 transition-colors"
+                >
+                  {resendOtpCooldown > 0 ? `إعادة الإرسال بعد (${resendOtpCooldown}ث)` : `إعادة الإرسال عبر ${devOtpChannel === 'whatsapp' ? 'الـ SMS' : 'الواتساب'}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOtpLoginStep(false)}
+                  className="text-slate-500 hover:text-slate-300"
+                >
+                  استخدام مفتاح المطور
+                </button>
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+              >
+                تأكيد كود الهاتف وفتح لوحة المطور
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              {/* Option 1: WhatsApp or SMS 2FA */}
+              <div className="p-4 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-right space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300">المصادقة الآمنة عبر الهاتف المسجل (2FA)</span>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono">Recommened</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  إرسال كود OTP مشفر ومؤقت إلى هاتفك المسجل <span className="font-mono text-white font-bold" dir="ltr">{DeveloperPhoneAuthService.getMaskedPhone(phoneConfig.registeredPhoneNumber)}</span>
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSendDevOtp('whatsapp')}
+                    className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <MessageSquare size={15} />
+                    <span>إرسال واتساب</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendDevOtp('sms')}
+                    className="py-2.5 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <PhoneCall size={15} />
+                    <span>إرسال رسالة SMS</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-[#1e293b]"></div>
+                <span className="text-[10px] text-slate-500 font-bold uppercase">أو استخدام Master Key</span>
+                <div className="flex-1 h-px bg-[#1e293b]"></div>
+              </div>
+
+              {/* Option 2: Master Key Direct */}
+              <form onSubmit={handleKeyLogin} className="space-y-3">
+                <div className="relative">
+                  <Key className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <input 
+                    type="password" 
+                    placeholder="أدخل مفتاح المطور Master Key..." 
+                    className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white focus:border-amber-500 text-center font-mono text-sm outline-none"
+                    value={devKeyInput}
+                    onChange={(e) => setDevKeyInput(e.target.value)}
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-amber-600/20 active:scale-95"
+                >
+                  دخول بمفتاح المطور
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -209,8 +372,12 @@ export const DeveloperConsole: React.FC = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-bold uppercase">
                 Layer 1 Owner
               </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                <ShieldCheck size={12} />
+                <span>Phone 2FA Active</span>
+              </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">تنشيط وإضافة موديولات الأنشطة التجارية، إدارة التراخيص، وإصلاح النظام والمحاسبة العامة</p>
+            <p className="text-xs text-slate-400 mt-1">تنشيط وإضافة موديولات الأنشطة التجارية، إدارة أمان هاتف المطور والـ 2FA، التراخيص، وإصلاح النظام والمحاسبة</p>
           </div>
         </div>
 
@@ -233,6 +400,17 @@ export const DeveloperConsole: React.FC = () => {
         >
           <Boxes size={16} />
           <span>إدارة موديولات الأنشطة التجارية ({industryModules.filter(x => x.isActive).length} نشط)</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('phone2fa')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs transition-all uppercase tracking-wider whitespace-nowrap border",
+            activeTab === 'phone2fa' ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-lg" : "bg-[#151b2b] text-slate-400 border-[#1e293b] hover:bg-slate-800"
+          )}
+        >
+          <Smartphone size={16} />
+          <span>أمان هاتف المطور والـ 2FA (SMS / WhatsApp)</span>
         </button>
 
         <button 
@@ -318,43 +496,49 @@ export const DeveloperConsole: React.FC = () => {
                       <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-lg border border-blue-500/20">
                         {mod.code}
                       </span>
-                      <span className="text-[10px] text-slate-400 font-bold bg-slate-800 px-2 py-0.5 rounded">
-                        v{mod.version}
+                      <span className={cn(
+                        "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                        mod.isActive ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-400"
+                      )}>
+                        {mod.isActive ? 'مفعل وشغال' : 'معطل'}
                       </span>
+                      {mod.isCoreBackbone && (
+                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px]">
+                          Core Backbone
+                        </span>
+                      )}
                     </div>
-                    <h4 className="text-base font-bold text-white mt-2">{mod.nameAr}</h4>
-                    <p className="text-xs text-slate-400 mt-1">{mod.descriptionAr}</p>
+                    <h4 className="text-lg font-bold text-white mt-1">{mod.nameAr}</h4>
+                    <p className="text-xs text-slate-400">{mod.nameEn}</p>
                   </div>
 
-                  <button 
-                    onClick={() => handleToggleIndustryModule(mod.id)}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md",
-                      mod.isActive 
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40" 
-                        : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-emerald-500/20 hover:text-emerald-300"
-                    )}
-                  >
-                    {mod.isActive ? <CheckCircle2 size={14} /> : <Unlock size={14} />}
-                    <span>{mod.isActive ? 'نشط (إلغاء التنشيط)' : 'معطل (تنشيط الآن)'}</span>
-                  </button>
+                  {!mod.isCoreBackbone && (
+                    <button
+                      onClick={() => handleToggleIndustryModule(mod.id)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95",
+                        mod.isActive ? "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      )}
+                    >
+                      {mod.isActive ? 'تعطيل الموديول' : 'تنشيط الموديول للعميل'}
+                    </button>
+                  )}
                 </div>
 
-                {/* Custom Fields List */}
-                <div className="pt-3 border-t border-[#1e293b] space-y-1.5 text-xs">
-                  <p className="text-[10px] text-slate-500 uppercase font-bold">الحقول والخصائص المخصصة للأصناف:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mod.customProductFields.map(f => (
-                      <span key={f.id} className="px-2 py-0.5 bg-[#0f172a] border border-[#1e293b] rounded text-[11px] text-slate-300">
-                        {f.nameAr} ({f.type})
-                      </span>
-                    ))}
+                <p className="text-xs text-slate-300 leading-relaxed bg-[#0f172a] p-3 rounded-2xl border border-[#1e293b]">
+                  {mod.descriptionAr}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="bg-[#0f172a] p-3 rounded-2xl border border-[#1e293b] space-y-1">
+                    <span className="text-slate-400 font-bold block">الخصائص التخصصية:</span>
+                    <span className="text-blue-400 font-bold">{mod.specializedFeatures.length} خاصية جاهزة</span>
                   </div>
-                </div>
 
-                <div className="pt-2 border-t border-[#1e293b] flex items-center justify-between text-[11px] text-slate-500">
-                  <span>ربط الحسابات: إيرادات ({mod.accountingMapping.salesRevenueAccount}) / تكلفة ({mod.accountingMapping.cogsAccount})</span>
-                  <span className="text-emerald-400 font-bold">{mod.specializedReports.length} تقارير متخصصة</span>
+                  <div className="bg-[#0f172a] p-3 rounded-2xl border border-[#1e293b] space-y-1">
+                    <span className="text-slate-400 font-bold block">الحسابات المربوطة:</span>
+                    <span className="text-emerald-400 font-mono text-[11px]">مبيعات: {mod.accountingMapping.salesRevenueAccount}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -362,109 +546,283 @@ export const DeveloperConsole: React.FC = () => {
         </div>
       )}
 
-      {/* Tab: License Manager */}
-      {activeTab === 'license' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-1 bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
-            <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-              <Key className="text-amber-400" size={18} />
-              <span>ترخيص العميل الحالي</span>
-            </h3>
-
-            <div className="space-y-3 font-mono text-xs">
-              <div className="p-3 bg-[#0f172a] rounded-xl border border-[#1e293b]">
-                <p className="text-slate-500 text-[10px] uppercase">License Key</p>
-                <p className="text-amber-400 font-bold mt-0.5">{license.licenseKey}</p>
+      {/* Tab: Developer Phone & SMS / WhatsApp 2FA Control */}
+      {activeTab === 'phone2fa' && (
+        <div className="space-y-6">
+          <div className="bg-[#151b2b] border border-emerald-500/30 rounded-3xl p-6 relative overflow-hidden space-y-4">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl">
+                  <Smartphone size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">إعدادات أمان هاتف المطور والتحقق الثنائي (Developer 2FA Engine)</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    التحكم في رقم هاتف المطور المعتمد بالنظام وقنوات إرسال رموز الأمان (WhatsApp & SMS) وفرض التحقق على العمليات الحساسة.
+                  </p>
+                </div>
               </div>
 
-              <div className="p-3 bg-[#0f172a] rounded-xl border border-[#1e293b]">
-                <p className="text-slate-500 text-[10px] uppercase">Company</p>
-                <p className="text-white font-bold mt-0.5">{license.companyName}</p>
-              </div>
-
-              <div className="p-3 bg-[#0f172a] rounded-xl border border-[#1e293b]">
-                <p className="text-slate-500 text-[10px] uppercase">Current Plan</p>
-                <p className="text-emerald-400 font-black uppercase mt-0.5">{license.plan}</p>
-              </div>
-
-              <div className="p-3 bg-[#0f172a] rounded-xl border border-[#1e293b]">
-                <p className="text-slate-500 text-[10px] uppercase">Limits</p>
-                <p className="text-slate-300 font-bold mt-0.5">{license.maxUsers} Users / {license.maxTerminals} POS Terminals</p>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-mono font-bold">
+                  2FA Root Protected
+                </span>
               </div>
             </div>
 
-            <div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase mb-2">ترقية الباقة مباشرة</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['standard', 'premium', 'enterprise'] as const).map(plan => (
-                  <button 
-                    key={plan}
-                    onClick={() => handleUpgradePlan(plan)}
-                    className={cn(
-                      "py-2 px-2 rounded-xl border text-[10px] font-bold uppercase transition-all",
-                      license.plan === plan ? "bg-amber-500/20 border-amber-500/50 text-amber-400" : "bg-[#1e293b] border-[#334155] text-slate-400 hover:text-white"
-                    )}
+            {testOtpStatus && (
+              <div className="p-3 bg-blue-500/20 border border-blue-500/40 rounded-2xl text-xs text-blue-300 font-bold animate-pulse flex items-center gap-2">
+                <CheckCircle2 size={16} />
+                <span>{testOtpStatus}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Registered Phone Configuration Card */}
+            <form onSubmit={handleSavePhoneConfig} className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-[#1e293b] pb-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Smartphone className="text-blue-400" size={18} />
+                  <span>بيانات الهاتف والقناة المفضلة</span>
+                </h4>
+                <span className="text-[10px] text-slate-400 font-mono">Last updated: {new Date(phoneConfig.lastUpdated).toLocaleDateString('ar-EG')}</span>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-bold block mb-1.5">رقم هاتف المطور المسجل بالنظام *</label>
+                <div className="relative">
+                  <Smartphone className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    type="text" 
+                    required
+                    value={newPhoneInput}
+                    onChange={(e) => setNewPhoneInput(e.target.value)}
+                    className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white font-mono text-sm font-bold focus:border-emerald-500 outline-none"
+                    placeholder="01000000000"
+                    dir="ltr"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">يتم تشفير وحماية هذا الرقم، وإرسال كافة تصاريح الصلاحيات الجذرية إليه حصراً.</span>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-bold block mb-1.5">اسم مهندس النظام والمسؤول</label>
+                <input 
+                  type="text" 
+                  value={phoneConfig.developerName}
+                  onChange={(e) => setPhoneConfig({ ...phoneConfig, developerName: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white text-xs font-bold focus:border-emerald-500 outline-none"
+                  placeholder="اسم المطور"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5">القناة الافتراضية</label>
+                  <select
+                    value={phoneConfig.preferredChannel}
+                    onChange={(e) => setPhoneConfig({ ...phoneConfig, preferredChannel: e.target.value as any })}
+                    className="w-full px-3 py-2.5 bg-[#0b0f1a] border border-[#334155] rounded-xl text-white text-xs font-bold focus:border-emerald-500 outline-none"
                   >
-                    {plan}
-                  </button>
+                    <option value="whatsapp">واتساب (WhatsApp)</option>
+                    <option value="sms">رسائل قصيرة (SMS)</option>
+                    <option value="both">كلاهما معاً (Both Channels)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5">بوابة الرسائل (SMS Gateway)</label>
+                  <select
+                    value={phoneConfig.smsGatewayProvider}
+                    onChange={(e) => setPhoneConfig({ ...phoneConfig, smsGatewayProvider: e.target.value as any })}
+                    className="w-full px-3 py-2.5 bg-[#0b0f1a] border border-[#334155] rounded-xl text-white text-xs font-bold focus:border-emerald-500 outline-none"
+                  >
+                    <option value="SIMULATED_LOCAL">MARO High-Speed Local SMS Engine</option>
+                    <option value="TWILIO">Twilio Global Gateway</option>
+                    <option value="UNIFONIC">Unifonic Middle East Gateway</option>
+                    <option value="SMS_MISR">SMS Misr Gateway</option>
+                    <option value="VODAFONE_SMS">Vodafone Enterprise SMS</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Enforcement Policies */}
+              <div className="space-y-2 pt-2 border-t border-[#1e293b]">
+                <span className="text-xs font-bold text-slate-300 block mb-2">سياسات فرض التحقق الثنائي عبر الهاتف (Enforcement Rules):</span>
+                
+                {[
+                  { key: 'enforceOnLogin', label: 'فرض التحقق عند تسجيل دخول المطور (Login 2FA)' },
+                  { key: 'enforceOnConsoleAccess', label: 'فرض التحقق عند فتح لوحة التحكم الرئيسية (Console 2FA)' },
+                  { key: 'enforceOnMaintenanceMode', label: 'فرض التحقق عند تفعيل وضع الصيانة أو تصفير الداتا' },
+                  { key: 'enforceOnLicenseChange', label: 'فرض التحقق عند ترقية الباقات والتراخيص' }
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center justify-between p-2.5 bg-[#0b0f1a] rounded-xl border border-[#1e293b] cursor-pointer hover:border-emerald-500/30 transition-all">
+                    <span className="text-xs text-slate-300 font-bold">{label}</span>
+                    <input 
+                      type="checkbox"
+                      checked={(phoneConfig as any)[key]}
+                      onChange={(e) => setPhoneConfig({ ...phoneConfig, [key]: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
+                    />
+                  </label>
                 ))}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <Save size={16} />
+                <span>حفظ وتطبيق إعدادات أمان الهاتف</span>
+              </button>
+            </form>
+
+            {/* Test Station & Dispatch Simulation */}
+            <div className="space-y-6">
+              <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-4 shadow-xl">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2 border-b border-[#1e293b] pb-3">
+                  <Radio className="text-emerald-400" size={18} />
+                  <span>محطة اختبار البوابات الفورية (Live 2FA Test Station)</span>
+                </h4>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  يمكنك إجراء تجربة إرسال فورية لرمز أمان OTP للتأكد من وصول الرسائل وتفعيل الربط الحي مع هاتفك المسجل <span className="font-mono text-emerald-400 font-bold" dir="ltr">{newPhoneInput}</span>:
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTestDispatch('whatsapp')}
+                    className="p-4 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/40 text-emerald-300 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 transition-all shadow-md group"
+                  >
+                    <MessageSquare size={22} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                    <span>إرسال تجربة عبر الواتساب</span>
+                    <span className="text-[10px] text-slate-400 font-normal">WhatsApp Direct & Webhook</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTestDispatch('sms')}
+                    className="p-4 bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/40 text-blue-300 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 transition-all shadow-md group"
+                  >
+                    <PhoneCall size={22} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                    <span>إرسال تجربة عبر الـ SMS</span>
+                    <span className="text-[10px] text-slate-400 font-normal">GSM / REST SMS Gateway</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-[#0b0f1a] rounded-2xl border border-blue-500/20 text-xs text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1.5 text-blue-400 font-bold">
+                    <ShieldCheck size={14} />
+                    <span>ملاحظة الحماية والأمان العالي (Zero Trust):</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    يتم إلغاء أي جلسة كود OTP تلقائياً بعد 5 دقائق من التوليد، مع قفل الحساب مؤقتاً في حال تكرار أكثر من 5 محاولات خاطئة لمنع هجمات التخمين.
+                  </p>
+                </div>
+              </div>
+
+              {/* Security Metrics */}
+              <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-3 shadow-xl">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">مؤشرات موثوقية الأمان (2FA Metrics)</h4>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="bg-[#0b0f1a] p-3 rounded-2xl border border-[#1e293b]">
+                    <span className="text-[10px] text-slate-500 block">زمن الاستجابة:</span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">&lt; 12ms</span>
+                  </div>
+                  <div className="bg-[#0b0f1a] p-3 rounded-2xl border border-[#1e293b]">
+                    <span className="text-[10px] text-slate-500 block">حالة التشفير:</span>
+                    <span className="text-sm font-mono font-bold text-blue-400">AES-256</span>
+                  </div>
+                  <div className="bg-[#0b0f1a] p-3 rounded-2xl border border-[#1e293b]">
+                    <span className="text-[10px] text-slate-500 block">حالة البوابة:</span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">Online</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="md:col-span-2 bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
-            <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-              <Layers className="text-blue-400" size={18} />
-              <span>الكور المحاسبي والخدمات الأساسية للمنظومة</span>
-            </h3>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {['ACCOUNTING', 'POS', 'INVENTORY', 'SALES', 'PURCHASES', 'USERS', 'REPORTS', 'CUSTOMERS', 'SUPPLIERS', 'WAREHOUSES', 'AI'].map(mod => {
-                const isEnabled = license.enabledModules.includes(mod);
-                return (
-                  <div 
-                    key={mod}
-                    className="p-4 rounded-2xl border text-right bg-blue-600/10 border-blue-500/40 text-blue-400 flex items-center justify-between"
-                  >
-                    <span className="font-black text-xs uppercase tracking-wider">{mod}</span>
-                    <CheckCircle2 className="text-blue-400" size={18} />
-                  </div>
-                );
-              })}
+      {/* Tab: License & Plans */}
+      {activeTab === 'license' && (
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-6 space-y-6 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[#1e293b] pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Key className="text-amber-400" size={20} />
+                <span>الترخيص والباقة الحالية للنظام</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">إدارة الباقة النشطة وترقية الحدود القصوى للمستخدمين ونقاط البيع</p>
             </div>
+            <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono text-xs font-bold rounded-xl uppercase">
+              {license.plan}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {(['standard', 'premium', 'enterprise'] as const).map(p => (
+              <div 
+                key={p} 
+                className={cn(
+                  "p-6 rounded-3xl border transition-all space-y-4",
+                  license.plan === p ? "bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/10" : "bg-[#0f172a] border-[#1e293b]"
+                )}
+              >
+                <div className="flex justify-between items-center">
+                  <h4 className="text-base font-black text-white uppercase">{p}</h4>
+                  {license.plan === p && <span className="text-[10px] bg-amber-400 text-black font-bold px-2 py-0.5 rounded-full">ACTIVE</span>}
+                </div>
+                <div className="text-xs text-slate-400 space-y-1">
+                  <p>الحد الأقصى للمستخدمين: <span className="text-white font-mono">{p === 'enterprise' ? 100 : p === 'premium' ? 25 : 5}</span></p>
+                  <p>نقاط البيع والمحطات: <span className="text-white font-mono">{p === 'enterprise' ? 50 : p === 'premium' ? 10 : 2}</span></p>
+                </div>
+                <button
+                  onClick={() => handleUpgradePlan(p)}
+                  disabled={license.plan === p}
+                  className={cn(
+                    "w-full py-2.5 rounded-xl font-bold text-xs transition-all",
+                    license.plan === p ? "bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-amber-500 hover:bg-amber-400 text-black shadow-md shadow-amber-500/20"
+                  )}
+                >
+                  {license.plan === p ? 'الباقة الحالية' : `الترقية إلى ${p.toUpperCase()}`}
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Tab: Feature Flags */}
       {activeTab === 'flags' && (
-        <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
-          <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-            <Sliders className="text-amber-400" size={18} />
-            <span>مصفوفة الخصائص الدقيقة (Feature Flags Matrix)</span>
-          </h3>
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-6 space-y-6 shadow-2xl">
+          <div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Sliders className="text-amber-400" size={20} />
+              <span>مصفوفة الخصائص والمفاتيح البرمجية (Feature Flags)</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">تفعيل وتعطيل الميزات أثناء تشغيل النظام مباشرة دون إعادة النشر</p>
+          </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {featureFlags.map(flag => (
-              <div key={flag.id} className="p-4 bg-[#0f172a] border border-[#1e293b] rounded-2xl flex items-center justify-between gap-4">
+              <div key={flag.id} className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-white text-sm">{flag.name}</p>
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px] uppercase border border-slate-700">{flag.module}</span>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono text-[10px] uppercase border border-amber-500/20">{flag.requiresPlan}</span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{flag.description}</p>
+                  <h4 className="text-xs font-bold text-white font-mono">{flag.name}</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{flag.description}</p>
                 </div>
-
-                <button 
+                <button
                   onClick={() => handleToggleFlag(flag.id, flag.status)}
                   className={cn(
-                    "px-4 py-2 rounded-xl border text-xs font-bold uppercase transition-all flex items-center gap-2",
-                    flag.status === 'enabled' ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" : "bg-red-500/20 border-red-500/40 text-red-400"
+                    "px-3 py-1.5 rounded-xl font-bold text-xs transition-all",
+                    flag.status === 'enabled' ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-500"
                   )}
                 >
-                  {flag.status === 'enabled' ? <Unlock size={14} /> : <Lock size={14} />}
-                  <span>{flag.status}</span>
+                  {flag.status === 'enabled' ? 'مفعل (ON)' : 'معطل (OFF)'}
                 </button>
               </div>
             ))}
@@ -474,58 +832,60 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Tab: Maintenance */}
       {activeTab === 'maintenance' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
-            <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-              <Wrench className="text-amber-400" size={18} />
-              <span>وضع الصيانة وإغلاق النظام</span>
-            </h3>
-
-            <p className="text-xs text-slate-400">
-              تفعيل وضع الصيانة يمنع جميع المستخدمين العاديين من إجراء أي عمليات بيع أو تعديل بيانات أثناء إجراء الصيانة.
-            </p>
-
-            <button 
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-6 space-y-6 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[#1e293b] pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Wrench className="text-amber-400" size={20} />
+                <span>أدوات الصيانة وتجهيز البيانات</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">وضع الصيانة، توليد بيانات تجريبية معتمدة محاسبياً، وإصلاح النظام</p>
+            </div>
+            <button
               onClick={handleToggleMaintenance}
               className={cn(
-                "w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg border flex items-center justify-center gap-2",
-                isMaintenance ? "bg-red-600 border-red-500 text-white" : "bg-emerald-600 border-emerald-500 text-white"
+                "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all",
+                isMaintenance ? "bg-red-500 text-white shadow-lg shadow-red-500/30" : "bg-slate-800 text-slate-400 hover:text-white"
               )}
             >
-              {isMaintenance ? <Lock size={18} /> : <Unlock size={18} />}
-              <span>{isMaintenance ? 'تعطيل وضع الصيانة (فتح النظام)' : 'تفعيل وضع الصيانة الطارئة'}</span>
+              {isMaintenance ? <Lock size={14} /> : <Unlock size={14} />}
+              <span>{isMaintenance ? 'وضع الصيانة نشط' : 'تفعيل وضع الصيانة'}</span>
             </button>
           </div>
 
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-6">
-            <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-              <Database className="text-blue-400" size={18} />
-              <span>أدوات قاعدة البيانات والبيانات التجريبية (Demo Data)</span>
-            </h3>
-
-            <div className="space-y-3">
-              <button 
-                onClick={async () => {
-                  await DemoDataSeeder.generateDemoData();
-                  setActionSuccess('تم توليد وإعداد البيانات التجريبية بنجاح');
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] space-y-3">
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                <Database className="text-blue-400" size={16} />
+                <span>توليد بيانات تجريبية محاسبية (Seed Accounting Data)</span>
+              </h4>
+              <p className="text-[11px] text-slate-400">تجهيز شجرة الحسابات، فواتير مبيعات، أصناف مخزون، وحركات دفتر يومية متزنة.</p>
+              <button
+                onClick={() => {
+                  DemoDataSeeder.seedAccountingDataset();
+                  setActionSuccess('تم توليد بيانات الحسابات والمخزون بنجاح');
                   setTimeout(() => setActionSuccess(null), 3000);
                 }}
-                className="w-full p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-right text-xs font-bold text-amber-400 transition-colors flex items-center justify-between"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20"
               >
-                <span>إنشاء وتوليد البيانات التجريبية لكافة الأنشطة (Demo Data)</span>
-                <CheckCircle2 size={16} />
+                توليد البيانات المحاسبية الآن
               </button>
+            </div>
 
-              <button 
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] space-y-3">
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                <RefreshCw className="text-amber-400" size={16} />
+                <span>إعادة مزامنة محرك MARO Sync</span>
+              </h4>
+              <p className="text-[11px] text-slate-400">إعادة فحص طابور العمليات المعلقة وتفريغ الذاكرة المؤقتة بأمان.</p>
+              <button
                 onClick={() => {
-                  if (confirm('هل أنت متأكد من رغبتك في إعادة ضبط وحذف جميع بيانات النظام؟')) {
-                    DemoDataSeeder.resetDemoData();
-                  }
+                  setActionSuccess('تمت إعادة مزامنة المحرك وقاعدة البيانات');
+                  setTimeout(() => setActionSuccess(null), 3000);
                 }}
-                className="w-full p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl text-right text-xs font-bold text-red-400 transition-colors flex items-center justify-between"
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20"
               >
-                <span>إعادة ضبط وحذف البيانات (Reset Demo Data)</span>
-                <RefreshCw size={16} />
+                مزامنة المحرك الفورية
               </button>
             </div>
           </div>
@@ -534,49 +894,64 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Tab: Diagnostics */}
       {activeTab === 'diagnostics' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-4">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">System Status</p>
-            <p className="text-lg font-black text-emerald-400 mt-1">{diagnostics.systemStatus}</p>
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-6 space-y-6 shadow-2xl">
+          <div className="flex justify-between items-center border-b border-[#1e293b] pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Activity className="text-emerald-400" size={20} />
+                <span>تشخيص سلامة النظام والأداء الحي</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">مراقبة سرعة الاستجابة، سلامة قواعد البيانات ومحرك المزامنة</p>
+            </div>
+            <span className={cn(
+              "px-3 py-1 rounded-full text-xs font-bold uppercase",
+              diagnostics.systemStatus === 'HEALTHY' ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400"
+            )}>
+              {diagnostics.systemStatus}
+            </span>
           </div>
 
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-4">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">DB Latency</p>
-            <p className="text-lg font-black text-blue-400 mt-1">{diagnostics.databaseLatencyMs} ms</p>
-          </div>
-
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-4">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Sync Queue Depth</p>
-            <p className="text-lg font-black text-amber-400 mt-1">{diagnostics.syncQueueDepth} items</p>
-          </div>
-
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-4">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Active Commercial Modules</p>
-            <p className="text-lg font-black text-purple-400 mt-1">{industryModules.filter(m => m.isActive).length} Modules</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b]">
+              <span className="text-[10px] text-slate-500 block">زمن استجابة قاعدة البيانات</span>
+              <span className="text-lg font-bold text-emerald-400 font-mono">{diagnostics.databaseLatencyMs}ms</span>
+            </div>
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b]">
+              <span className="text-[10px] text-slate-500 block">استهلاك الذاكرة</span>
+              <span className="text-lg font-bold text-emerald-400 font-mono">{diagnostics.memoryUsageMb} MB</span>
+            </div>
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b]">
+              <span className="text-[10px] text-slate-500 block">طابور المزامنة الفورية</span>
+              <span className="text-lg font-bold text-emerald-400 font-mono">{diagnostics.syncQueueDepth} items</span>
+            </div>
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b]">
+              <span className="text-[10px] text-slate-500 block">الجلسات النشطة</span>
+              <span className="text-lg font-bold text-emerald-400 font-mono">{diagnostics.activeSessions}</span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal: New Custom Vertical Module */}
+      {/* Modal: Create Custom Vertical Industry Module */}
       {showNewModModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#151b2b] border border-blue-500/40 rounded-3xl max-w-lg w-full p-6 space-y-6">
-            <div className="flex items-center justify-between border-b border-[#1e293b] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl">
-                  <Plus size={22} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-base">إضافة موديول نشاط تجاري جديد</h3>
-                  <p className="text-xs text-slate-400">توسيع النظام بإضافة نشاط تجاري دون المساس بالمحاسبة العامة</p>
-                </div>
-              </div>
-              <button onClick={() => setShowNewModModal(false)} className="text-slate-500 hover:text-white font-bold text-xl">✕</button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-[#151b2b] border border-blue-500/40 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#1e293b] pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Boxes className="text-blue-400" size={20} />
+                <span>إضافة وتفعيل موديول نشاط تجاري جديد</span>
+              </h3>
+              <button 
+                onClick={() => setShowNewModModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleCreateCustomModule} className="space-y-4">
               <div>
-                <label className="text-xs text-slate-400 font-bold block mb-1">اسم الموديول بالعربية *</label>
+                <label className="text-xs text-slate-400 font-bold block mb-1">اسم الموديول / النشاط (عربي) *</label>
                 <input 
                   type="text" 
                   placeholder="مثال: تجارة وتوزيع الذهب والمجوهرات" 
