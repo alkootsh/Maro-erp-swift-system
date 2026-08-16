@@ -65,6 +65,7 @@ import { usbScannerEngine } from '../services/usbScannerEngine';
 import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
 import { FunctionKeyBar } from '../components/common/FunctionKeyBar';
 import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
+import { POSStockInquiryModal } from '../components/POSStockInquiryModal';
 
 const CATEGORIES = ['الكل', 'مواد غذائية', 'مشروبات', 'خضروات وفواكه', 'لحوم ودواجن', 'ألبان وأجبان', 'عناية شخصية', 'مواد تنظيف'];
 
@@ -1355,6 +1356,53 @@ export const POS: React.FC = () => {
 
       {/* USB/Bluetooth Scanner Manager Modal */}
       <USBScannerModal isOpen={isUSBManagerOpen} onClose={() => setIsUSBManagerOpen(false)} />
+
+      {/* Quick Price & Stock Inquiry Modal (F13 / F14) */}
+      <POSStockInquiryModal
+        isOpen={isStockInquiryOpen}
+        onClose={() => setIsStockInquiryOpen(false)}
+        onAddToCart={(priceCheckProd) => {
+          const existingMaster = products.find(p => p.id === priceCheckProd.id || p.barcode === priceCheckProd.barcode || p.sku === priceCheckProd.sku);
+          if (existingMaster) {
+            addToCart(existingMaster, 1);
+          } else {
+            addToCart({
+              id: priceCheckProd.id,
+              name: priceCheckProd.nameAr,
+              nameArabic: priceCheckProd.nameAr,
+              nameEnglish: priceCheckProd.nameEn,
+              sku: priceCheckProd.sku,
+              barcode: priceCheckProd.barcode,
+              description: priceCheckProd.descriptionAr || priceCheckProd.nameAr,
+              price: priceCheckProd.hasPromotion && priceCheckProd.promoPrice ? priceCheckProd.promoPrice : priceCheckProd.retailPrice,
+              costPrice: priceCheckProd.costPrice,
+              category: priceCheckProd.category,
+              quantity: priceCheckProd.stockInCurrentBranch,
+              openingBalance: priceCheckProd.stockInCurrentBranch,
+              reorderLevel: 5,
+              batchTracking: false,
+              expiryTracking: false,
+              serialNumberTracking: false,
+              allowNegativeStock: true,
+              allowFraction: false,
+              isTaxable: true,
+              taxIncluded: true,
+              taxRate: priceCheckProd.taxRate,
+              units: [{ id: `u_${Date.now()}`, name: priceCheckProd.unit, symbol: priceCheckProd.unit, factor: 1, isBaseUnit: true, barcode: priceCheckProd.barcode, salePrice: priceCheckProd.retailPrice }],
+              barcodes: [{ id: `b_${Date.now()}`, code: priceCheckProd.barcode, type: 'EAN13', isPrimary: true }],
+              warehouseStocks: [{ warehouseId: 'BR-CAIRO-01', warehouseName: 'فرع المعادي الرئيسي', quantity: priceCheckProd.stockInCurrentBranch }],
+              priceLists: [],
+              batches: [],
+              images: priceCheckProd.imageUrl ? [{ id: 'img_1', url: priceCheckProd.imageUrl, isPrimary: true }] : [],
+              attachments: [],
+              status: 'active',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            } as ProductMaster, 1);
+          }
+          showToast(`تمت إضافة [${priceCheckProd.nameAr}] إلى فاتورة البيع`);
+        }}
+      />
 
       {/* Global POS Function Keys & Smart Keyboard Toolbar Bar */}
       <FunctionKeyBar 

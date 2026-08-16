@@ -21,6 +21,7 @@ export const InventorySettingsModal: React.FC<InventorySettingsModalProps> = ({ 
     defaultValuationMethod: 'FIFO',
     allowNegativeStock: false,
     defaultTaxRate: 14,
+    isTaxEnabled: true,
     defaultReorderLevel: 5,
     enforceBatchTracking: false,
     enforceExpiryTracking: false,

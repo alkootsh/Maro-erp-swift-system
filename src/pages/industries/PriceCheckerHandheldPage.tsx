@@ -50,7 +50,8 @@ import {
   Pause,
   AlertTriangle,
   RotateCcw,
-  PackageCheck
+  PackageCheck,
+  Camera
 } from 'lucide-react';
 import { 
   PriceCheckProduct, 
@@ -68,6 +69,10 @@ import { DigitalSignageAdManagerModal } from '../../components/kiosk/DigitalSign
 import { KioskPromotionalTicker } from '../../components/kiosk/KioskPromotionalTicker';
 import { DigitalSignageEngine } from '../../services/digitalSignageEngine';
 import { PriceCheckerMediaAd, KioskDigitalSignageSettings } from '../../types/digitalSignageAds';
+import { ProductLookupService } from '../../services/productLookupService';
+import { usbScannerEngine } from '../../services/usbScannerEngine';
+import { BarcodeScanner } from '../../components/BarcodeScanner';
+import { QuickAddProductModal } from '../../components/QuickAddProductModal';
 
 // Seed Catalog for Supermarket, Electronics, Pharmacy, Retail & Fashion
 const SEED_PRODUCTS: PriceCheckProduct[] = [
@@ -225,6 +230,11 @@ export const PriceCheckerHandheldPage: React.FC = () => {
   // Active Scanned Product for Kiosk & PDA
   const [scannedBarcode, setScannedBarcode] = useState<string>('622100100101');
   const [currentProduct, setCurrentProduct] = useState<PriceCheckProduct | null>(SEED_PRODUCTS[0]);
+  const [isNotFound, setIsNotFound] = useState<boolean>(false);
+  const [notFoundBarcode, setNotFoundBarcode] = useState<string>('');
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState<boolean>(false);
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
+  const [liveSuggestions, setLiveSuggestions] = useState<PriceCheckProduct[]>([]);
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('جاهز لقراءة الباركود أو إدخال الكود');
   const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
   const [isChimeActive, setIsChimeActive] = useState<boolean>(false);
@@ -407,27 +417,37 @@ export const PriceCheckerHandheldPage: React.FC = () => {
     };
   }, [activeSystemView, scannedBarcode, signageSettings?.idleTimeoutSeconds]);
 
-  // Handle Scanning Execution
+  // Handle Scanning Execution using Unified ProductLookupService
   const executeScan = (barcodeToScan: string) => {
     resetScreenSaverTimer();
-    const cleanCode = barcodeToScan.trim();
+    const cleanCode = (barcodeToScan || '').trim();
     if (!cleanCode) return;
+
+    setScannedBarcode(cleanCode);
+    setManualBarcodeInput(cleanCode);
+    setLiveSuggestions([]);
 
     setIsChimeActive(true);
     setTimeout(() => setIsChimeActive(false), 1500);
 
-    const found = products.find(p => p.barcode === cleanCode || p.sku.toLowerCase() === cleanCode.toLowerCase());
-    if (found) {
-      setCurrentProduct(found);
-      setScannedBarcode(cleanCode);
-      setScanStatusMessage(`تم العثور على الصنف: ${found.nameAr}`);
+    const result = ProductLookupService.lookup(cleanCode);
+
+    if (result.found && result.product) {
+      setCurrentProduct(result.product);
+      setIsNotFound(false);
+      setNotFoundBarcode('');
+      setIsScreenSaverActive(false);
+      setScanStatusMessage(`✓ تم العثور على الصنف: ${result.product.nameAr}`);
+      usbScannerEngine.playBeep('SUCCESS');
 
       // Voice Audio Speech Announcement
       if (isAudioEnabled && 'speechSynthesis' in window) {
         try {
           window.speechSynthesis.cancel();
-          const effectivePrice = found.hasPromotion && found.promoPrice ? found.promoPrice : found.finalPriceWithTax;
-          const msg = new SpeechSynthesisUtterance(`${found.nameAr}. السعر: ${effectivePrice} جنيه مصري.`);
+          const effectivePrice = result.product.hasPromotion && result.product.promoPrice 
+            ? result.product.promoPrice 
+            : result.product.finalPriceWithTax;
+          const msg = new SpeechSynthesisUtterance(`${result.product.nameAr}. السعر: ${effectivePrice} جنيه مصري.`);
           msg.lang = 'ar-SA';
           msg.rate = 1.0;
           window.speechSynthesis.speak(msg);
@@ -438,28 +458,84 @@ export const PriceCheckerHandheldPage: React.FC = () => {
 
       // If in Line Busting Mode on PDA, add item automatically
       if (activeSystemView === 'pda' && pdaSubMode === 'LINE_BUSTING_SALE') {
-        addItemToBustingCart(found);
+        addItemToBustingCart(result.product);
       }
     } else {
+      setCurrentProduct(null);
+      setIsNotFound(true);
+      setNotFoundBarcode(cleanCode);
+      setIsScreenSaverActive(false);
       setScanStatusMessage(`⚠️ الباركود [${cleanCode}] غير مسجل بدليل الأصناف!`);
+      usbScannerEngine.playBeep('ERROR');
+
+      if (isAudioEnabled && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance('عفواً، الصنف غير مسجل بالنظام');
+          msg.lang = 'ar-SA';
+          window.speechSynthesis.speak(msg);
+        } catch {
+          // Audio fallback silent
+        }
+      }
     }
   };
 
-  // Keyboard shortcut listener for physical laser scanner gun (triggers on Enter)
+  // 1. Subscribe to USB/Bluetooth Hardware Scanner Engine
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // If pressing F2, switch to PDA mode, F1 for Kiosk
+    const unsubscribe = usbScannerEngine.subscribe((parsedResult, rawCode) => {
+      if (rawCode) {
+        executeScan(rawCode);
+      }
+    });
+    return unsubscribe;
+  }, [activeSystemView, pdaSubMode]);
+
+  // 2. Global Rapid Keystroke Scanner Buffer (Hardware Keyboard Wedge Fallback)
+  useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Hotkeys F1 and F2 for switching view
       if (e.key === 'F1') {
         e.preventDefault();
         setActiveSystemView('kiosk');
+        return;
       } else if (e.key === 'F2') {
         e.preventDefault();
         setActiveSystemView('pda');
+        return;
+      }
+
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= 3 && !isInput) {
+          e.preventDefault();
+          executeScan(buffer);
+          buffer = '';
+        }
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (diff < 65) {
+          buffer += e.key;
+        } else {
+          buffer = e.key;
+        }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeSystemView, pdaSubMode]);
 
   // Print Shelf Label from PDA
   const handlePrintShelfLabel = (product: PriceCheckProduct, customPrice?: number) => {
@@ -731,16 +807,16 @@ export const PriceCheckerHandheldPage: React.FC = () => {
 
             {/* Barcode Quick Simulators & Manual Input */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-slate-400 font-bold">أصناف سريعة للاختبار:</span>
-                {products.map(p => (
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1">
+                <span className="text-[11px] text-slate-400 font-bold shrink-0">أصناف للاختبار:</span>
+                {products.slice(0, 4).map(p => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => executeScan(p.barcode)}
                     className={cn(
-                      "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all truncate max-w-[130px]",
-                      scannedBarcode === p.barcode 
+                      "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all truncate max-w-[120px] shrink-0",
+                      scannedBarcode === p.barcode && !isNotFound
                         ? "bg-amber-500/20 text-amber-300 border-amber-500" 
                         : "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500"
                     )}
@@ -750,29 +826,67 @@ export const PriceCheckerHandheldPage: React.FC = () => {
                 ))}
               </div>
 
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  executeScan(manualBarcodeInput);
-                  setManualBarcodeInput('');
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <input
-                  type="text"
-                  value={manualBarcodeInput}
-                  onChange={(e) => setManualBarcodeInput(e.target.value)}
-                  placeholder="ادخل الباركود أو SKU..."
-                  className="bg-[#151b2b] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono w-40 focus:outline-none focus:border-amber-500"
-                />
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 transition-all"
+              {/* Manual & Live Search Bar */}
+              <div className="relative">
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    executeScan(manualBarcodeInput);
+                  }}
+                  className="flex items-center gap-1.5"
                 >
-                  <Search size={14} />
-                  <span>فحص</span>
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    value={manualBarcodeInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setManualBarcodeInput(val);
+                      if (val.trim().length >= 2) {
+                        setLiveSuggestions(ProductLookupService.searchSuggestions(val, 6));
+                      } else {
+                        setLiveSuggestions([]);
+                      }
+                    }}
+                    placeholder="ادخل الباركود، الاسم، أو SKU..."
+                    className="bg-[#151b2b] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono w-48 sm:w-56 focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 transition-all"
+                  >
+                    <Search size={14} />
+                    <span>فحص</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-xl text-xs font-bold transition-all"
+                    title="مسح الباركود باستخدام كاميرا الهاتف أو التابلت"
+                  >
+                    <Camera size={16} />
+                  </button>
+                </form>
+
+                {/* Auto-suggest Dropdown */}
+                {liveSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#0f172a] border border-amber-500/30 rounded-xl p-1.5 shadow-2xl z-50 space-y-1 max-h-48 overflow-y-auto">
+                    {liveSuggestions.map((sug) => (
+                      <button
+                        key={sug.id}
+                        type="button"
+                        onClick={() => {
+                          executeScan(sug.barcode || sug.sku);
+                          setLiveSuggestions([]);
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-right flex items-center justify-between text-xs transition-colors"
+                      >
+                        <span className="font-bold text-white truncate max-w-[160px]">{sug.nameAr}</span>
+                        <span className="font-mono text-amber-400 font-bold">{formatCurrency(sug.finalPriceWithTax)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
@@ -789,8 +903,61 @@ export const PriceCheckerHandheldPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Screensaver mode or Interactive Product Presentation */}
-          {isScreenSaverActive || !currentProduct ? (
+          {/* VIEW STATE 1: NOT FOUND (الصنف غير مسجل) */}
+          {isNotFound ? (
+            <div className="bg-gradient-to-b from-rose-950/40 via-[#151b2b] to-[#0f172a] border-2 border-rose-500/50 rounded-3xl p-8 sm:p-12 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="w-20 h-20 bg-rose-500/20 text-rose-400 border-2 border-rose-500/40 rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+                <AlertTriangle size={40} className="animate-bounce" />
+              </div>
+
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black">
+                  <span>⚠️ صنف غير مسجل في قاعدة البيانات</span>
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-black text-white">
+                  عفواً، لم يتم العثور على الصنف الممسوح
+                </h2>
+
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-xs text-slate-400">الباركود المقروء:</span>
+                  <span className="bg-[#0f172a] px-4 py-1.5 rounded-xl border border-rose-500/40 font-mono text-rose-400 font-black text-xl tracking-wider">
+                    {notFoundBarcode}
+                  </span>
+                </div>
+
+                <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                  هذا الباركود غير معرف في دليل أصناف المنظومة أو ربما تم إدخاله بالخطأ. يمكنك إضافته فوراً إلى دليل الأصناف بضغطة زر واحدة.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-4 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddOpen(true)}
+                  className="px-6 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 shadow-xl shadow-amber-500/20 transition-all active:scale-95"
+                >
+                  <Plus size={18} />
+                  <span>تسجيل الصنف الآن (إضافة منتج جديد)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualBarcodeInput('');
+                    setIsNotFound(false);
+                    setNotFoundBarcode('');
+                    setIsScreenSaverActive(true);
+                  }}
+                  className="px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition-all"
+                >
+                  <RotateCcw size={16} />
+                  <span>العودة لشاشات العروض الإعلانية</span>
+                </button>
+              </div>
+            </div>
+          ) : isScreenSaverActive || !currentProduct ? (
+            /* VIEW STATE 2: SCREENSAVER DIGITAL SIGNAGE */
             <div className="space-y-4">
               <DigitalSignageMediaPlayer
                 onScanPromptClick={() => {
@@ -803,7 +970,7 @@ export const PriceCheckerHandheldPage: React.FC = () => {
               />
             </div>
           ) : currentProduct ? (
-            /* Active Product Interactive Showcase */
+            /* VIEW STATE 3: ACTIVE PRODUCT INTERACTIVE SHOWCASE */
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Product Visual & Pricing Card */}
               <div className="lg:col-span-8 bg-[#151b2b] border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
@@ -1234,7 +1401,39 @@ export const PriceCheckerHandheldPage: React.FC = () => {
           </div>
 
           {/* PDA Sub-Feature 1: PRICE_CHECK & SHELF AUDIT */}
-          {pdaSubMode === 'PRICE_CHECK' && currentProduct && (
+          {pdaSubMode === 'PRICE_CHECK' && isNotFound && (
+            <div className="bg-rose-950/40 border-2 border-rose-500/50 rounded-3xl p-6 space-y-4 text-center">
+              <div className="w-14 h-14 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto">
+                <AlertTriangle size={28} />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-white">الباركود [{notFoundBarcode}] غير مسجل بدليل الأصناف!</h4>
+                <p className="text-xs text-slate-400 mt-1">هل ترغب في تسجيل هذا الصنف سريعاً بواسطة الهاند تيرمينال؟</p>
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddOpen(true)}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  <span>تسجيل الصنف سريعاً</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNotFound(false);
+                    setNotFoundBarcode('');
+                  }}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+                >
+                  تجاهل ومسح صنف آخر
+                </button>
+              </div>
+            </div>
+          )}
+
+          {pdaSubMode === 'PRICE_CHECK' && currentProduct && !isNotFound && (
             <div className="bg-[#151b2b] border border-slate-800 rounded-3xl p-6 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
@@ -1745,6 +1944,33 @@ export const PriceCheckerHandheldPage: React.FC = () => {
         onClose={() => setIsAdManagerOpen(false)}
         onRefreshMedia={refreshMediaAds}
       />
+
+      {/* Quick Add Product Modal for Missing/Unknown Barcodes */}
+      <QuickAddProductModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        initialBarcode={notFoundBarcode || scannedBarcode}
+        onProductCreated={(newProd) => {
+          setIsQuickAddOpen(false);
+          setIsNotFound(false);
+          setCurrentProduct(newProd);
+          setScannedBarcode(newProd.barcode);
+          setScanStatusMessage(`✓ تم تسجيل الصنف الجديد بنجاح: ${newProd.nameAr}`);
+          // Update local products list in state
+          setProducts(prev => [newProd, ...prev]);
+        }}
+      />
+
+      {/* Camera Barcode Scanner Modal */}
+      {isCameraOpen && (
+        <BarcodeScanner
+          onScan={(scannedCode) => {
+            setIsCameraOpen(false);
+            executeScan(scannedCode);
+          }}
+          onClose={() => setIsCameraOpen(false)}
+        />
+      )}
     </div>
   );
 };

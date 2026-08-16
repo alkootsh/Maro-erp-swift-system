@@ -3,13 +3,13 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: WholesaleInvoicesPage.tsx.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Layers, Plus, Search, FileText, Printer, CheckCircle, 
   Building2, UserCheck, DollarSign, Package, ArrowRight, 
   ShieldAlert, Send, Eye, Columns, Upload, Download, 
   Settings2, Check, Smartphone, Volume2, HelpCircle, Save,
-  Truck, Coins, Compass
+  Truck, Coins, Compass, Keyboard, CornerDownLeft
 } from 'lucide-react';
 import { SalesInvoice, SalesInvoiceItem, Customer } from '../types/sprint8';
 import { ProductMaster } from '../types/productMaster';
@@ -19,6 +19,8 @@ import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 import { CustomerOrdersManager } from './CustomerOrdersManager';
+import { KeyboardSearchSelect, SearchOption } from '../components/common/KeyboardSearchSelect';
+import { FastKeyboardInvoiceLineEntry, FastInvoiceLinePayload } from '../components/invoices/FastKeyboardInvoiceLineEntry';
 
 // Synthesize a beautiful double-tone chime offline using Web Audio API
 const playSuccessChime = () => {
@@ -303,6 +305,44 @@ export const WholesaleInvoicesPage: React.FC = () => {
     localStorage.setItem('wholesale_visible_columns', JSON.stringify(updated));
     playSuccessChime();
     toast.success('تم حفظ وتعديل مظهر جدول بيانات الجملة');
+  };
+
+  const customerInputRef = useRef<HTMLInputElement>(null);
+
+  const customerOptions: SearchOption[] = useMemo(() => {
+    return customers.map(c => ({
+      id: c.id,
+      title: c.name,
+      subtitle: `كود: ${(c as any).code || c.id} | هاتف: ${c.phone || '—'}`,
+      badge: `حد ائتماني: ${formatCurrency(c.creditLimit || 0)}`,
+      badgeColor: (c.creditLimit && c.currentBalance && c.currentBalance > c.creditLimit) 
+        ? 'bg-rose-600/20 text-rose-400 border border-rose-500/30' 
+        : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30',
+      meta: `الرصيد: ${formatCurrency(c.currentBalance || 0)}`,
+      secondaryMeta: (c.creditLimit && c.currentBalance && c.currentBalance > c.creditLimit) ? '⚠️ متجاوز الحد' : undefined,
+      raw: c
+    }));
+  }, [customers]);
+
+  const handleAddFastLine = (line: FastInvoiceLinePayload) => {
+    const existingIndex = cart.findIndex(item => item.product.id === line.product.id && item.unit === line.unit);
+    if (existingIndex >= 0) {
+      const updated = [...cart];
+      updated[existingIndex].quantity += line.quantity;
+      updated[existingIndex].unitPrice = line.unitPrice;
+      updated[existingIndex].discountPercent = line.discountPercent;
+      setCart(updated);
+    } else {
+      setCart([...cart, {
+        product: line.product,
+        unit: line.unit as any,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discountPercent: line.discountPercent
+      }]);
+    }
+    playSuccessChime();
+    toast.success(`تم إضافة "${line.product.name}" بنجاح (${line.quantity} ${line.unit})`);
   };
 
   const handleAddProductToCart = (prod: ProductMaster) => {
@@ -1367,18 +1407,41 @@ export const WholesaleInvoicesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* New Wholesale Invoice Modal */}
+      {/* New Wholesale Invoice Modal - Keyboard-First Architecture */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#151b2b] border border-[#1e293b] w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onKeyDown={(e) => {
+            if (e.key === 'F2') {
+              e.preventDefault();
+              customerInputRef.current?.focus();
+              customerInputRef.current?.select();
+            } else if (e.key === 'F3') {
+              e.preventDefault();
+              const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
+              prodInput?.focus();
+              prodInput?.select();
+            } else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
+              e.preventDefault();
+              handleSaveWholesaleInvoice();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setIsNewModalOpen(false);
+            }
+          }}
+        >
+          <div className="bg-[#151b2b] border border-[#1e293b] w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-slate-900/40">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-600/20 text-emerald-400 rounded-2xl">
                   <FileText size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">إصدار فاتورة بيع جملة جديدة (B2B Wholesale Invoice)</h3>
-                  <p className="text-xs text-slate-400">إدخل وحدات التعبئة (كرتونة، بالته)، تطبيق الخصومات والتحقق الائتماني التلقائي.</p>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>إصدار فاتورة بيع جملة جديدة (B2B Wholesale)</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">إدخال بلوحة المفاتيح</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">التنقل بالكامل بالأسهم ومفتاح Enter، بحث فوري ومطابقة سريعة دون الحاجة للماوس.</p>
                 </div>
               </div>
               <button 
@@ -1389,88 +1452,153 @@ export const WholesaleInvoicesPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Keyboard Shortcuts Helper Bar */}
+            <div className="bg-[#0b0f19] px-6 py-2 border-b border-[#1e293b] flex items-center justify-between text-xs text-slate-400 overflow-x-auto">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 font-bold text-white">
+                  <Keyboard size={14} className="text-emerald-400" />
+                  اختصارات المفاتيح:
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-slate-800 text-amber-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F2</kbd>
+                  <span>اختيار العميل</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-slate-800 text-blue-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F3</kbd>
+                  <span>بحث الأصناف</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-slate-800 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">Enter ↵</kbd>
+                  <span>التأكيد والتنقل للحقل التالي</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-slate-800 text-teal-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">Ctrl+Enter / F9</kbd>
+                  <span>حفظ وإصدار</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                <kbd className="bg-slate-800 text-slate-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700">Esc</kbd>
+                <span>إغلاق</span>
+              </div>
+            </div>
+
             <div className="p-6 overflow-y-auto space-y-6 flex-1 text-right">
               {/* Customer & Rep Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">عميل الجملة / الموزع</label>
-                  <select
-                    className="w-full p-3 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
-                    onChange={(e) => {
-                      const cust = customers.find(c => c.id === e.target.value);
-                      setSelectedCustomer(cust || null);
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                <div className="md:col-span-1">
+                  <KeyboardSearchSelect
+                    id="wholesale-customer-search"
+                    label="عميل الجملة / الموزع"
+                    placeholder="اكتب أول حرف من اسم العميل أو الهاتف..."
+                    options={customerOptions}
+                    value={selectedCustomer?.id || ''}
+                    onChange={(id, opt) => {
+                      setSelectedCustomer(opt?.raw || null);
                     }}
-                  >
-                    <option value="">-- اختر عميل الجملة --</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (حد ائتماني: {formatCurrency(c.creditLimit)})</option>
-                    ))}
-                  </select>
+                    inputRef={customerInputRef}
+                    autoFocus={true}
+                    shortcutBadge="F2"
+                    onAdvanceToNextField={() => {
+                      const repInput = document.getElementById('wholesale-sales-rep') as HTMLInputElement;
+                      repInput?.focus();
+                      repInput?.select();
+                    }}
+                  />
+                  {selectedCustomer && (
+                    <div className="mt-1.5 text-[11px] bg-slate-900/90 p-2 rounded-xl border border-slate-800 text-slate-300 space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">الرصيد:</span>
+                        <span className="font-mono text-emerald-400 font-bold">{formatCurrency(selectedCustomer.currentBalance || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">الحد الائتماني:</span>
+                        <span className="font-mono text-slate-200">{formatCurrency(selectedCustomer.creditLimit || 0)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">مندوب المبيعات المسؤول</label>
+                  <label htmlFor="wholesale-sales-rep" className="block text-xs font-bold text-slate-400 mb-1">مندوب المبيعات المسؤول</label>
                   <input
+                    id="wholesale-sales-rep"
                     type="text"
                     value={salesRep}
                     onChange={(e) => setSalesRep(e.target.value)}
-                    className="w-full p-3 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
+                    onFocus={(e) => e.target.select()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const whInput = document.getElementById('wholesale-warehouse') as HTMLInputElement;
+                        whInput?.focus();
+                        whInput?.select();
+                      }
+                    }}
+                    className="w-full p-2.5 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">المستودع الصادر منه البضاعة</label>
+                  <label htmlFor="wholesale-warehouse" className="block text-xs font-bold text-slate-400 mb-1">المستودع الصادر منه</label>
                   <input
+                    id="wholesale-warehouse"
                     type="text"
                     value={warehouse}
                     onChange={(e) => setWarehouse(e.target.value)}
-                    className="w-full p-3 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
+                    onFocus={(e) => e.target.select()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const paySelect = document.getElementById('wholesale-payment-method') as HTMLSelectElement;
+                        paySelect?.focus();
+                      }
+                    }}
+                    className="w-full p-2.5 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">طريقة السداد</label>
+                  <label htmlFor="wholesale-payment-method" className="block text-xs font-bold text-slate-400 mb-1">طريقة السداد</label>
                   <select
+                    id="wholesale-payment-method"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full p-3 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
+                        prodInput?.focus();
+                        prodInput?.select();
+                      }
+                    }}
+                    className="w-full p-2.5 bg-[#0f172a] border border-[#1e293b] rounded-xl text-white text-xs font-bold focus:outline-none focus:border-emerald-500 text-right"
                   >
-                    <option value="CASH">نقدي (سداد فوري)</option>
                     <option value="CREDIT">آجل (Credit Account)</option>
+                    <option value="CASH">نقدي (سداد فوري)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Product Selector Bar */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 uppercase">إضافة منتجات من المستودع</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-48 overflow-y-auto p-2 bg-[#0f172a] rounded-2xl border border-[#1e293b]">
-                  {products.map(prod => (
-                    <div 
-                      key={prod.id}
-                      onClick={() => handleAddProductToCart(prod)}
-                      className="p-3 bg-[#151b2b] border border-[#1e293b] hover:border-emerald-500 rounded-xl cursor-pointer transition-all flex flex-col justify-between text-right"
-                    >
-                      <div>
-                        <div className="font-bold text-white text-xs truncate">{prod.name}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 font-mono">SKU: {prod.sku}</div>
-                      </div>
-                      <div className="flex items-center justify-between mt-3 text-xs">
-                        <span className="font-mono text-emerald-400 font-bold">{formatCurrency(prod.price)}</span>
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">+ إضافة</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Fast Keyboard Product Line Entry Bar */}
+              <FastKeyboardInvoiceLineEntry
+                products={products}
+                onAddLine={handleAddFastLine}
+                allowWholesaleUnits={true}
+                priceType="wholesale"
+                defaultUnit="كرتونة"
+              />
 
-              {/* Cart Items Table */}
+              {/* Cart Items Table with Keyboard Navigation */}
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 uppercase">بنود الفاتورة (مع وحدات التعبئة)</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase">بنود الفاتورة ({cart.length} بند)</h4>
+                  <span className="text-[11px] text-slate-500">اضغط على الخانات لتعديل الكمية والسعر مباشرة</span>
+                </div>
                 <div className="bg-[#0f172a] rounded-2xl border border-[#1e293b] overflow-hidden">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-900/60 text-slate-400">
                       <tr>
+                        <th className="p-3">#</th>
                         <th className="p-3">المنتج</th>
                         <th className="p-3">وحدة البيع</th>
                         <th className="p-3">الكمية</th>
@@ -1483,8 +1611,12 @@ export const WholesaleInvoicesPage: React.FC = () => {
                     <tbody className="divide-y divide-[#1e293b]">
                       {cart.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="p-6 text-center text-slate-500">
-                            اختر منتجات من الأعلى لإضافتها لفاتورة الجملة.
+                          <td colSpan={8} className="p-8 text-center text-slate-500">
+                            <div className="flex flex-col items-center gap-2">
+                              <Package size={28} className="text-slate-600" />
+                              <p className="font-bold text-slate-400">السلة فارغة حالياً</p>
+                              <p className="text-xs text-slate-500">اضغط <kbd className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded font-mono">F3</kbd> أو اكتب اسم الصنف في الشريط أعلاه للبدء.</p>
+                            </div>
                           </td>
                         </tr>
                       ) : (
@@ -1496,8 +1628,12 @@ export const WholesaleInvoicesPage: React.FC = () => {
                           const lineT = item.quantity * mult * item.unitPrice * (1 - item.discountPercent / 100);
 
                           return (
-                            <tr key={index}>
-                              <td className="p-3 font-bold text-white">{item.product.name}</td>
+                            <tr key={index} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="p-3 text-slate-500 font-mono">{index + 1}</td>
+                              <td className="p-3 font-bold text-white">
+                                <div>{item.product.name}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">SKU: {item.product.sku}</div>
+                              </td>
                               <td className="p-3">
                                 <select 
                                   value={item.unit}
@@ -1506,12 +1642,15 @@ export const WholesaleInvoicesPage: React.FC = () => {
                                     updated[index].unit = e.target.value as any;
                                     setCart(updated);
                                   }}
-                                  className="bg-[#151b2b] border border-[#1e293b] text-white rounded p-1 text-xs"
+                                  className="bg-[#151b2b] border border-[#1e293b] text-white rounded-lg p-1.5 text-xs font-bold"
                                 >
                                   <option value="قطعة">قطعة</option>
                                   <option value="كرتونة">كرتونة (12 قطعة)</option>
                                   <option value="دستة">دستة (12 قطعة)</option>
                                   <option value="بالته">بالته (120 قطعة)</option>
+                                  <option value="شريط">شريط</option>
+                                  <option value="علبة">علبة</option>
+                                  <option value="كجم">كجم</option>
                                 </select>
                               </td>
                               <td className="p-3">
@@ -1519,24 +1658,28 @@ export const WholesaleInvoicesPage: React.FC = () => {
                                   type="number"
                                   value={item.quantity}
                                   min={1}
+                                  step="any"
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     const updated = [...cart];
                                     updated[index].quantity = Number(e.target.value);
                                     setCart(updated);
                                   }}
-                                  className="w-16 bg-[#151b2b] border border-[#1e293b] text-white rounded p-1 text-xs font-mono"
+                                  className="w-20 bg-[#151b2b] border border-[#1e293b] focus:border-emerald-500 text-white rounded-lg p-1.5 text-xs font-mono font-bold"
                                 />
                               </td>
                               <td className="p-3">
                                 <input
                                   type="number"
                                   value={item.unitPrice}
+                                  step="any"
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     const updated = [...cart];
                                     updated[index].unitPrice = Number(e.target.value);
                                     setCart(updated);
                                   }}
-                                  className="w-24 bg-[#151b2b] border border-[#1e293b] text-emerald-400 rounded p-1 text-xs font-mono font-bold"
+                                  className="w-28 bg-[#151b2b] border border-[#1e293b] focus:border-emerald-500 text-emerald-400 rounded-lg p-1.5 text-xs font-mono font-bold"
                                 />
                               </td>
                               <td className="p-3">
@@ -1545,19 +1688,23 @@ export const WholesaleInvoicesPage: React.FC = () => {
                                   value={item.discountPercent}
                                   min={0}
                                   max={100}
+                                  step="any"
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     const updated = [...cart];
                                     updated[index].discountPercent = Number(e.target.value);
                                     setCart(updated);
                                   }}
-                                  className="w-16 bg-[#151b2b] border border-[#1e293b] text-amber-400 rounded p-1 text-xs font-mono"
+                                  className="w-16 bg-[#151b2b] border border-[#1e293b] focus:border-amber-500 text-amber-400 rounded-lg p-1.5 text-xs font-mono font-bold"
                                 />
                               </td>
                               <td className="p-3 font-mono font-black text-white">{formatCurrency(lineT)}</td>
                               <td className="p-3 text-center">
                                 <button
+                                  type="button"
                                   onClick={() => setCart(cart.filter((_, i) => i !== index))}
-                                  className="text-red-400 hover:text-red-300 font-bold"
+                                  className="p-1.5 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors font-bold"
+                                  title="حذف البند"
                                 >
                                   ✕
                                 </button>
@@ -1576,6 +1723,11 @@ export const WholesaleInvoicesPage: React.FC = () => {
                 <div className="space-y-1 text-xs text-slate-400">
                   <div>الصافي قبل الضريبة: <span className="font-mono text-white font-bold">{formatCurrency(currentSubtotal)}</span></div>
                   <div>ضريبة القيمة المضافة ({isTaxEnabled ? `${taxRate}%` : 'معطلة'}): <span className="font-mono text-blue-400 font-bold">{formatCurrency(currentTax)}</span></div>
+                  {paymentMethod === 'CREDIT' && selectedCustomer && (
+                    <div className="text-amber-400 font-bold text-[11px]">
+                      الرصيد بعد إصدار الفاتورة: {formatCurrency((selectedCustomer.currentBalance || 0) + currentGrandTotal)}
+                    </div>
+                  )}
                 </div>
                 <div className="text-left">
                   <div className="text-xs text-slate-400 font-bold">الإجمالي الشامل النهائي:</div>
@@ -1584,19 +1736,27 @@ export const WholesaleInvoicesPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-6 border-t border-[#1e293b] bg-slate-900/60 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setIsNewModalOpen(false)}
-                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleSaveWholesaleInvoice}
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg transition-all hover:scale-105"
-              >
-                حفظ وإصدار الفاتورة وإذن التسليم
-              </button>
+            <div className="p-6 border-t border-[#1e293b] bg-slate-900/60 flex items-center justify-between">
+              <div className="text-xs text-slate-400 flex items-center gap-2">
+                <kbd className="bg-slate-800 text-teal-300 font-mono text-[11px] px-2 py-1 rounded border border-slate-700 font-bold">Ctrl + Enter</kbd>
+                <span>أو F9 للحفظ السريع</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsNewModalOpen(false)}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+                >
+                  إلغاء (Esc)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveWholesaleInvoice}
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg transition-all hover:scale-105 active:scale-95"
+                >
+                  حفظ وإصدار الفاتورة (F9)
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Bills.tsx.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -13,7 +13,9 @@ import {
   MinusCircle,
   Send,
   ShoppingCart,
-  Sparkles
+  Sparkles,
+  Keyboard,
+  Package
 } from 'lucide-react';
 import { PurchaseBill, PurchaseBillItem, Supplier } from '../types/sprint8';
 import { ProductMaster } from '../types/productMaster';
@@ -25,6 +27,8 @@ import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import { LowStockReplenishmentModal } from '../components/Inventory/LowStockReplenishmentModal';
 import { LowStockReplenishmentService } from '../services/lowStockReplenishmentService';
+import { KeyboardSearchSelect, SearchOption } from '../components/common/KeyboardSearchSelect';
+import { FastKeyboardInvoiceLineEntry, FastInvoiceLinePayload } from '../components/invoices/FastKeyboardInvoiceLineEntry';
 
 export const Bills: React.FC = () => {
   const [bills, setBills] = useState<PurchaseBill[]>([]);
@@ -228,10 +232,39 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   });
 
+  const supplierInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setSuppliers(SupplierRepository.getSuppliers());
     setProducts(ProductRepository.getProducts());
   }, []);
+
+  // Supplier Search Options
+  const supplierOptions: SearchOption[] = useMemo(() => {
+    const opts: SearchOption[] = [
+      {
+        id: '',
+        title: 'مورد عام (مشتريات نقدية عاجلة)',
+        subtitle: 'المشتريات السريعة بدون فتح حساب مورد',
+        badge: 'نقدي',
+        badgeColor: 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+      }
+    ];
+
+    suppliers.forEach(s => {
+      opts.push({
+        id: s.id,
+        title: s.name,
+        subtitle: `كود: ${(s as any).code || s.id} | هاتف: ${s.phone || '—'}`,
+        badge: `مستحق له: ${formatCurrency(s.currentBalance || 0)}`,
+        badgeColor: 'bg-amber-600/20 text-amber-400 border border-amber-500/30',
+        meta: `رقم التسجيل الضريبي: ${s.taxNumber || '—'}`,
+        raw: s
+      });
+    });
+
+    return opts;
+  }, [suppliers]);
 
   // Auto-save draft effect
   useEffect(() => {
@@ -240,27 +273,27 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     localStorage.setItem('maro_bill_draft_items', JSON.stringify(items));
   }, [selectedSupplierId, isPaidCash, items]);
 
-  const handleAddItem = (prod: ProductMaster) => {
-    const existingIndex = items.findIndex(i => i.productId === prod.id);
+  const handleFastLineAdd = (payload: FastInvoiceLinePayload) => {
+    const existingIndex = items.findIndex(i => i.productId === payload.product.id && i.unitName === payload.unit);
     if (existingIndex >= 0) {
       const updated = [...items];
-      updated[existingIndex].quantity += 1;
-      const unitCost = updated[existingIndex].unitCost;
-      const untaxed = updated[existingIndex].quantity * unitCost;
+      updated[existingIndex].quantity += payload.quantity;
+      updated[existingIndex].unitCost = payload.unitPrice; // using unitPrice from entry as unitCost
+      const untaxed = updated[existingIndex].quantity * updated[existingIndex].unitCost * (1 - (payload.discountPercent || 0) / 100);
       updated[existingIndex].lineTotal = untaxed * 1.14;
       setItems(updated);
     } else {
-      const cost = prod.costPrice || prod.price || 0;
+      const untaxed = payload.quantity * payload.unitPrice * (1 - (payload.discountPercent || 0) / 100);
       setItems([...items, {
         id: `pbi_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        productId: prod.id,
-        productName: prod.name,
-        sku: prod.sku,
-        unitName: 'قطعة',
-        quantity: 1,
-        unitCost: cost,
+        productId: payload.product.id,
+        productName: payload.product.name,
+        sku: payload.product.sku,
+        unitName: payload.unit,
+        quantity: payload.quantity,
+        unitCost: payload.unitPrice,
         taxRate: 14,
-        lineTotal: cost * 1.14
+        lineTotal: untaxed * 1.14
       }]);
     }
   };
@@ -296,8 +329,8 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   });
   const grandTotal = totalUntaxed + totalTax;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (items.length === 0) {
       alert('يرجى إضافة منتج واحد على الأقل للفاتورة');
       return;
@@ -330,40 +363,109 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-[#151b2b] w-full max-w-5xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden my-8">
-        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
-          <h3 className="font-black text-xl text-white">تسجيل فاتورة شراء واستلام مخزني</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500">
+    <div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+      onKeyDown={(e) => {
+        if (e.key === 'F2') {
+          e.preventDefault();
+          supplierInputRef.current?.focus();
+          supplierInputRef.current?.select();
+        } else if (e.key === 'F3') {
+          e.preventDefault();
+          const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
+          prodInput?.focus();
+          prodInput?.select();
+        } else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
+          e.preventDefault();
+          handleSubmit();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <div className="bg-[#151b2b] w-full max-w-5xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden my-6 flex flex-col max-h-[92vh]">
+        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-slate-900/40">
+          <div>
+            <h3 className="font-black text-xl text-white flex items-center gap-2">
+              <span>تسجيل فاتورة شراء واستلام مخزني</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">لوحة المفاتيح والبحث الفوري</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">ادخال المشتريات بالبحث السريع والتنقل بمفتاح Enter والأسهم بدون الحاجة للماوس.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white">
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Keyboard Helper Bar */}
+        <div className="bg-[#0b0f19] px-6 py-2 border-b border-[#1e293b] flex items-center justify-between text-xs text-slate-400 overflow-x-auto">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 font-bold text-white">
+              <Keyboard size={14} className="text-amber-400" />
+              اختصارات فاتورة الشراء:
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="bg-slate-800 text-amber-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F2</kbd>
+              <span>اختيار المورد</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="bg-slate-800 text-blue-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F3</kbd>
+              <span>بحث الأصناف</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="bg-slate-800 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">Enter ↵</kbd>
+              <span>التأكيد والانتقال</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="bg-slate-800 text-teal-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F9 / Ctrl+Enter</kbd>
+              <span>حفظ وترحيل الفاتورة</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-slate-500">
+            <kbd className="bg-slate-800 text-slate-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700">Esc</kbd>
+            <span>إلغاء</span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1 text-right">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">المورد</label>
-              <select
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+              <KeyboardSearchSelect
+                id="bill-supplier-search"
+                label="المورد"
+                placeholder="ابحث باسم المورد، الهاتف، أو الكود..."
+                options={supplierOptions}
                 value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-              >
-                <option value="">-- مورد عام (نقدي) --</option>
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({formatCurrency(s.currentBalance)} مستحق له)</option>
-                ))}
-              </select>
+                onChange={(id) => setSelectedSupplierId(id)}
+                inputRef={supplierInputRef}
+                autoFocus={true}
+                shortcutBadge="F2"
+                onAdvanceToNextField={() => {
+                  const paySelect = document.getElementById('bill-payment-method') as HTMLSelectElement;
+                  paySelect?.focus();
+                }}
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">طريقة السداد</label>
+              <label htmlFor="bill-payment-method" className="block text-xs font-bold text-slate-400 uppercase mb-1">طريقة السداد</label>
               <select
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+                id="bill-payment-method"
+                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-bold text-xs"
                 value={isPaidCash ? 'CASH' : 'CREDIT'}
                 onChange={(e) => setIsPaidCash(e.target.value === 'CASH')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
+                    prodInput?.focus();
+                    prodInput?.select();
+                  }
+                }}
               >
                 <option value="CREDIT">آجل على حساب المورد (AP Credit)</option>
-                <option value="CASH">نقداً فوراً (Cash Paid)</option>
+                <option value="CASH">نقداً فوراً من الخزينة (Cash Paid)</option>
               </select>
             </div>
 
@@ -372,85 +474,123 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <input 
                 disabled
                 type="text" 
-                className="w-full px-4 py-2.5 bg-[#1e293b]/50 border border-[#334155] rounded-xl text-slate-400 font-bold"
+                className="w-full px-4 py-2.5 bg-[#1e293b]/50 border border-[#334155] rounded-xl text-slate-400 font-bold text-xs"
                 value="المستودع الرئيسي (Main Warehouse)"
               />
             </div>
           </div>
 
-          {/* Items Selector & Table */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-[#1e293b]/50 p-4 rounded-2xl border border-[#334155] space-y-3 max-h-[350px] overflow-y-auto">
-              <p className="text-xs font-bold text-slate-400 uppercase">اختر أصناف المشتريات:</p>
-              {products.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleAddItem(p)}
-                  className="w-full text-right p-3 bg-[#151b2b] hover:bg-blue-600/20 border border-[#334155] rounded-xl transition-all flex justify-between items-center"
-                >
-                  <div>
-                    <div className="font-bold text-white text-sm">{p.name}</div>
-                    <div className="text-xs text-slate-500">SKU: {p.sku}</div>
-                  </div>
-                  <div className="font-mono font-black text-blue-400 text-sm">{formatCurrency(p.costPrice || p.price)}</div>
-                </button>
-              ))}
-            </div>
+          {/* Fast Product Entry Bar for Purchase Cost */}
+          <FastKeyboardInvoiceLineEntry
+            products={products}
+            onAddLine={handleFastLineAdd}
+            allowWholesaleUnits={true}
+            priceType="cost"
+            defaultUnit="قطعة"
+          />
 
-            <div className="lg:col-span-2 space-y-3">
-              <p className="text-xs font-bold text-slate-400 uppercase">عناصر فاتورة الشراء:</p>
-              <div className="border border-[#334155] rounded-2xl overflow-hidden bg-[#151b2b]">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-900/50 text-slate-500 font-bold uppercase">
+          {/* Items Table */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-slate-400 uppercase">عناصر فاتورة الشراء ({items.length} صنف):</p>
+              <span className="text-[11px] text-slate-500">التعديل السريع للكميات والتكلفة مدعوم بـ Enter و Tab</span>
+            </div>
+            <div className="border border-[#334155] rounded-2xl overflow-hidden bg-[#151b2b]">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-900/60 text-slate-400 font-bold uppercase">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">المنتج</th>
+                    <th className="px-4 py-3">الوحدة</th>
+                    <th className="px-4 py-3">تكلفة الوحدة (EGP)</th>
+                    <th className="px-4 py-3">الكمية الموردة</th>
+                    <th className="px-4 py-3">الضريبة (14%)</th>
+                    <th className="px-4 py-3">الإجمالي</th>
+                    <th className="px-4 py-3 text-center">حذف</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1e293b]">
+                  {items.length === 0 ? (
                     <tr>
-                      <th className="px-4 py-3">المنتج</th>
-                      <th className="px-4 py-3">تكلفة الوحدة (EGP)</th>
-                      <th className="px-4 py-3">الكمية الموردة</th>
-                      <th className="px-4 py-3">الضريبة (14%)</th>
-                      <th className="px-4 py-3">الإجمالي</th>
+                      <td colSpan={8} className="py-8 text-center text-slate-500 font-bold">
+                        <div className="flex flex-col items-center gap-2">
+                          <Package size={28} className="text-slate-600" />
+                          <span>لم يتم إضافة أي أصناف بعد</span>
+                          <span className="text-xs text-slate-500">اضغط <kbd className="bg-slate-800 text-slate-300 px-1 py-0.5 rounded font-mono">F3</kbd> واكتب اسم الصنف ثم اضغط Enter</span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#1e293b]">
-                    {items.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-600 font-bold">لم يتم إضافة أي أصناف بعد</td>
-                      </tr>
-                    ) : items.map((item, idx) => {
-                      const untaxed = item.quantity * item.unitCost;
-                      const tax = untaxed * 0.14;
-                      const lineTotal = untaxed + tax;
-                      return (
-                        <tr key={idx}>
-                          <td className="px-4 py-3 font-bold text-white">{item.productName}</td>
-                          <td className="px-4 py-3">
+                  ) : items.map((item, idx) => {
+                    const untaxed = item.quantity * item.unitCost;
+                    const tax = untaxed * 0.14;
+                    const lineTotal = untaxed + tax;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="px-4 py-3 text-slate-500 font-mono">{idx + 1}</td>
+                        <td className="px-4 py-3 font-bold text-white">
+                          <div>{item.productName}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">SKU: {item.sku}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300 text-[11px] font-bold border border-slate-700">
+                            {item.unitName || 'قطعة'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input 
+                            type="number" 
+                            step="any"
+                            onFocus={(e) => e.target.select()}
+                            className="w-24 px-2 py-1 bg-[#1e293b] border border-[#334155] rounded-lg text-white text-center font-mono font-bold text-xs focus:border-amber-500"
+                            value={item.unitCost}
+                            onChange={(e) => handleUpdateCost(idx, parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => handleUpdateQty(idx, -1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><MinusCircle size={14} /></button>
                             <input 
-                              type="number" 
-                              step="0.01"
-                              className="w-24 px-2 py-1 bg-[#1e293b] border border-[#334155] rounded text-white text-center font-mono"
-                              value={item.unitCost}
-                              onChange={(e) => handleUpdateCost(idx, parseFloat(e.target.value) || 0)}
+                              type="number"
+                              min={1}
+                              step="any"
+                              onFocus={(e) => e.target.select()}
+                              className="w-16 px-1.5 py-1 bg-[#1e293b] border border-[#334155] rounded-lg text-white text-center font-bold font-mono text-xs focus:border-blue-500"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const updated = [...items];
+                                updated[idx].quantity = val;
+                                const untaxed = val * updated[idx].unitCost;
+                                updated[idx].lineTotal = untaxed * 1.14;
+                                setItems(updated);
+                              }}
                             />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <button type="button" onClick={() => handleUpdateQty(idx, -1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><MinusCircle size={14} /></button>
-                              <span className="font-bold text-white font-mono">{item.quantity}</span>
-                              <button type="button" onClick={() => handleUpdateQty(idx, 1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><PlusCircle size={14} /></button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-emerald-400">{formatCurrency(tax)}</td>
-                          <td className="px-4 py-3 font-mono font-bold text-blue-400">{formatCurrency(lineTotal)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            <button type="button" onClick={() => handleUpdateQty(idx, 1)} className="p-1 hover:bg-slate-800 text-slate-400 rounded"><PlusCircle size={14} /></button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-emerald-400">{formatCurrency(tax)}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-blue-400">{formatCurrency(lineTotal)}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = items.filter((_, i) => i !== idx);
+                              setItems(updated);
+                            }}
+                            className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 rounded-md transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <div className="bg-[#1e293b]/70 p-5 rounded-2xl border border-[#334155] flex justify-between items-center">
+          <div className="bg-[#1e293b]/70 p-5 rounded-2xl border border-[#334155] flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex gap-6 text-sm">
               <div>
                 <span className="text-slate-400 font-bold block text-xs">إجمالي تكلفة المشتريات الصافي:</span>
@@ -463,24 +603,30 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
             <div className="text-right">
               <span className="text-xs font-bold text-slate-400 uppercase block">إجمالي فاتورة الشراء النهائي:</span>
-              <span className="text-3xl font-black font-mono text-blue-400">{formatCurrency(grandTotal)}</span>
+              <span className="text-3xl font-black font-mono text-amber-400">{formatCurrency(grandTotal)}</span>
             </div>
           </div>
 
-          <div className="pt-2 flex gap-3">
-            <button 
-              type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-black text-lg shadow-lg shadow-blue-600/20"
-            >
-              حفظ فاتورة الشراء إضافة للمخزون وترحيل القيد
-            </button>
-            <button 
-              type="button"
-              onClick={onClose}
-              className="px-8 bg-[#1e293b] text-slate-300 py-3.5 rounded-xl font-bold hover:bg-[#334155]"
-            >
-              إلغاء
-            </button>
+          <div className="pt-2 flex items-center justify-between gap-3">
+            <div className="text-xs text-slate-400 flex items-center gap-2">
+              <kbd className="bg-slate-800 text-amber-300 font-mono text-[11px] px-2 py-1 rounded border border-slate-700 font-bold">F9 / Ctrl + Enter</kbd>
+              <span>للحفظ الفوري والاعتماد</span>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={onClose}
+                className="px-6 bg-[#1e293b] text-slate-300 py-3 rounded-xl font-bold hover:bg-[#334155] text-xs transition-colors"
+              >
+                إلغاء (Esc)
+              </button>
+              <button 
+                type="submit"
+                className="px-8 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white py-3 rounded-xl font-black text-xs shadow-lg shadow-amber-600/20 active:scale-95 transition-all"
+              >
+                حفظ فاتورة الشراء وإضافة للمخزون (F9)
+              </button>
+            </div>
           </div>
         </form>
       </div>
