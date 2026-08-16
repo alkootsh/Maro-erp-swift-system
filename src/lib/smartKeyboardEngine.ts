@@ -1,3 +1,8 @@
+/**
+ * @file smartKeyboardEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: smartKeyboardEngine.ts.
+ */
 // MARO ERP - Smart Keyboard & Table Navigation Engine
 // Sprint 8.2 Enterprise Usability Architecture
 // Provides: Enter key navigation, Arrow Key grid traversal, Auto-Select on Focus, InputMode triggers, & Function Key handlers.

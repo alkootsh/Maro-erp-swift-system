@@ -1,3 +1,8 @@
+/**
+ * @file industryModuleEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: industryModuleEngine.ts.
+ */
 // MARO ERP - Industry Modules Registry & Plugin Engine
 // Master Enterprise Architecture v4.0
 

@@ -1,3 +1,8 @@
+/**
+ * @file DigitalSignageAdManagerModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: DigitalSignageAdManagerModal.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   X, 

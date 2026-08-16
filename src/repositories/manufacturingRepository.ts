@@ -1,3 +1,8 @@
+/**
+ * @file manufacturingRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: manufacturingRepository.ts.
+ */
 // MARO ERP - Enterprise Manufacturing Repository & Service
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { BillOfMaterials, WorkOrder, BOMComponent, ProductionOperation, WorkOrderStage, ConsumedMaterial } from '../types/manufacturing';

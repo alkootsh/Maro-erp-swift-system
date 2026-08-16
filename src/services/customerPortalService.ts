@@ -1,3 +1,8 @@
+/**
+ * @file customerPortalService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: customerPortalService.ts.
+ */
 // MARO ERP - Customer & Merchant B2B Ordering Portal Service
 import { 
   CustomerPortalOrder, 
@@ -19,8 +24,9 @@ const PORTAL_SETTINGS_KEY = 'portal_store_settings';
 const DEFAULT_PORTAL_SETTINGS: PortalStoreSettings = {
   storeName: 'منصة مارو للأعمال - متجر الطلبيات الذكي',
   storeSubtitle: 'بوابة طلبات الجملة والتجزئة والتوريد المباشر للعملاء والتجار',
-  hotlinePhone: '01012345678',
-  whatsappPhone: '01012345678',
+  hotlinePhone: '01050557853',
+  whatsappPhone: '01050557853',
+  storekeeperWhatsappPhone: '01050557853',
   address: 'المنطقة الصناعية - مجمع المستودعات المركزي',
   currency: 'EGP',
   defaultTaxRate: 14,
@@ -41,7 +47,13 @@ export class CustomerPortalService {
       return DEFAULT_PORTAL_SETTINGS;
     }
     try {
-      return { ...DEFAULT_PORTAL_SETTINGS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      // Upgrade old dummy numbers to the correct one globally if they haven't been customized
+      if (parsed.whatsappPhone === '01012345678') parsed.whatsappPhone = '01050557853';
+      if (parsed.hotlinePhone === '01012345678') parsed.hotlinePhone = '01050557853';
+      if (parsed.storekeeperWhatsappPhone === '01012345678') parsed.storekeeperWhatsappPhone = '01050557853';
+      
+      return { ...DEFAULT_PORTAL_SETTINGS, ...parsed };
     } catch {
       return DEFAULT_PORTAL_SETTINGS;
     }
@@ -226,7 +238,10 @@ export class CustomerPortalService {
   }
 
   static getOrderById(id: string): CustomerPortalOrder | null {
-    return MaroSyncEngine.getLocalDocument<CustomerPortalOrder>(PORTAL_ORDERS_COLLECTION, id);
+    const doc = MaroSyncEngine.getLocalDocument<CustomerPortalOrder>(PORTAL_ORDERS_COLLECTION, id);
+    if (doc) return doc;
+    const all = this.getOrders();
+    return all.find(o => o.id === id || o.orderNumber === id) || null;
   }
 
   static async submitCustomerOrder(data: {
@@ -235,6 +250,7 @@ export class CustomerPortalService {
     email?: string;
     deliveryAddress: string;
     city?: string;
+    deliveryLocationLink?: string;
     preferredDeliveryDate?: string;
     preferredDeliveryTime?: string;
     paymentMethod: CustomerPortalOrder['paymentMethod'];
@@ -272,6 +288,27 @@ export class CustomerPortalService {
     // Check if phone matches an existing registered customer in database
     const customers = CustomerRepository.getCustomers();
     const matchedCustomer = customers.find(c => c.phone && c.phone.replace(/\D/g, '').includes(data.phone.replace(/\D/g, '')));
+
+    // Automatically update customer details in the ERP system if they changed, so they are persistent
+    if (matchedCustomer) {
+      try {
+        const updatedCust = {
+          ...matchedCustomer,
+          address: data.deliveryAddress.trim(),
+          city: data.city?.trim() || matchedCustomer.city || 'المركز الرئيسي',
+          deliveryLocationLink: data.deliveryLocationLink?.trim() || (matchedCustomer as any).deliveryLocationLink || ''
+        };
+        await CustomerRepository.saveCustomer(updatedCust as any);
+        
+        // Also update local portal session if they are currently logged in with this phone
+        const currentSession = this.getPortalCustomerSession();
+        if (currentSession && currentSession.id === matchedCustomer.id) {
+          this.setPortalCustomerSession(updatedCust as any);
+        }
+      } catch (e) {
+        console.warn('[CustomerPortalService] Non-blocking: Could not update customer profile upon order submission', e);
+      }
+    }
 
     let subtotal = 0;
     let discountAmount = 0;
@@ -326,6 +363,7 @@ export class CustomerPortalService {
       email: data.email?.trim(),
       deliveryAddress: data.deliveryAddress.trim(),
       city: data.city?.trim() || 'المركز الرئيسي',
+      deliveryLocationLink: data.deliveryLocationLink?.trim(),
       preferredDeliveryDate: data.preferredDeliveryDate || new Date().toISOString().split('T')[0],
       preferredDeliveryTime: data.preferredDeliveryTime || 'صباحاً (9:00 ص - 2:00 م)',
       paymentMethod: data.paymentMethod,
@@ -387,62 +425,106 @@ export class CustomerPortalService {
       cashierId?: string;
       customNotes?: string;
       markAsPaid?: boolean;
+      paymentMethod?: 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT';
     }
   ): Promise<{ order: CustomerPortalOrder; invoice: SalesInvoice }> {
     const order = this.getOrderById(orderId);
     if (!order) throw new Error('الطلب غير موجود');
 
-    // 1. Ensure Customer exists or create guest profile
+    // 1. Ensure Customer exists and is registered in CustomerRepository
     let customerId = order.customerId;
-    if (!customerId) {
+    let customer = customerId ? CustomerRepository.getCustomerById(customerId) : null;
+    let isOriginallyRegistered = !!customer;
+
+    if (!customer) {
       const customers = CustomerRepository.getCustomers();
-      const existing = customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase() || (c.phone && c.phone === order.phone));
+      const existing = customers.find(c => 
+        (c.phone && order.phone && c.phone.trim() === order.phone.trim()) || 
+        (c.name && order.customerName && c.name.toLowerCase().trim() === order.customerName.toLowerCase().trim())
+      );
       if (existing) {
         customerId = existing.id;
-      } else {
-        const newCustId = await CustomerRepository.saveCustomer({
-          name: order.customerName,
-          phone: order.phone,
-          email: order.email,
-          creditLimit: 10000,
-          creditDays: 30,
-          priceListId: 'RETAIL',
-          currentBalance: 0,
-          status: 'active'
-        });
-        customerId = newCustId;
+        customer = existing;
+        isOriginallyRegistered = true;
       }
     }
+
+    // Determine final payment method:
+    // If not originally registered, force CASH (تحويل كاش مسبق)
+    let finalPaymentMethod: 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT' = 'CASH';
+    
+    if (isOriginallyRegistered && customer) {
+      // Customer is registered in the system
+      const requestedPM = options?.paymentMethod || 'CASH';
+      if (requestedPM === 'CREDIT') {
+        // Check if customer is allowed credit
+        if (!customer.creditLimit || customer.creditLimit <= 0) {
+          throw new Error(`العميل ${customer.name} غير مسموح له بالشراء الآجل (حد الائتمان غير متاح). تم رفض التحويل آجل.`);
+        }
+        finalPaymentMethod = 'CREDIT';
+      } else {
+        finalPaymentMethod = requestedPM === 'CARD' ? 'CARD' : 'CASH';
+      }
+    } else {
+      // Unregistered: must pay pre-paid cash transfer
+      finalPaymentMethod = 'CASH';
+    }
+
+    // If customer is not in repository at all, we create a guest profile for record-keeping
+    if (!customer) {
+      const newCustId = await CustomerRepository.saveCustomer({
+        name: order.customerName || 'عميل الطلبات الإلكترونية (غير مسجل)',
+        phone: order.phone || '01000000000',
+        email: order.email || '',
+        creditLimit: 0, // No credit for unregistered guests
+        creditDays: 0,
+        priceListId: 'RETAIL',
+        currentBalance: 0,
+        status: 'active'
+      });
+      customerId = newCustId;
+      customer = CustomerRepository.getCustomerById(newCustId);
+    }
+
+    const previousBalance = customer ? (customer.currentBalance || 0) : 0;
+    const customerCreditLimit = customer ? (customer.creditLimit || 0) : 0;
+    const creditStatus = isOriginallyRegistered 
+      ? (customerCreditLimit > 0 ? `مسموح بالآجل (حد: ${customerCreditLimit} ج.م)` : 'عميل مسجل: نقدي فقط (الآجل غير مسموح)') 
+      : 'عميل غير مسجل بالنظام (نقدي فقط)';
 
     // 2. Prepare Invoice Items
     const invoiceItems = order.items.map(item => {
       const prod = ProductRepository.getProductByIdSync(item.productId);
+      const multiplier = (item.unitMultiplier && item.unitMultiplier > 0) ? item.unitMultiplier : 1;
+      const qty = item.totalPieces || (item.quantity ? item.quantity * multiplier : 1);
+      const pricePerPiece = item.unitPrice ? (item.unitPrice / multiplier) : 0;
       return {
         id: `inv_item_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         productId: item.productId,
         productName: item.productName,
-        sku: item.sku,
-        unitName: item.unitName,
-        quantity: item.totalPieces, // in base units
-        unitPrice: item.unitPrice / item.unitMultiplier, // unit price per piece
-        costPrice: prod?.costPrice || (item.unitPrice * 0.7),
+        sku: item.sku || 'SKU-GEN',
+        unitName: item.unitName || 'قطعة',
+        quantity: qty,
+        unitPrice: pricePerPiece,
+        costPrice: prod?.costPrice || (pricePerPiece * 0.7),
         discountPercent: item.discountPercent || 0,
         taxRate: item.taxRate || 14,
-        lineTotal: item.lineTotal
+        lineTotal: item.lineTotal || (qty * pricePerPiece)
       };
     });
 
-    const paymentMethodMap: Record<string, 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT'> = {
-      'COD': 'CASH',
-      'CREDIT_ACCOUNT': 'CREDIT',
-      'BANK_TRANSFER': 'CARD',
-      'E_WALLET': 'CARD'
-    };
+    // Decide paid & due amounts based on finalPaymentMethod
+    const isPaidInFull = finalPaymentMethod === 'CASH' || finalPaymentMethod === 'CARD' || options?.markAsPaid;
+    const paidAmount = isPaidInFull ? order.grandTotal : 0;
+    const dueAmount = isPaidInFull ? 0 : order.grandTotal;
+    const status = isPaidInFull ? 'PAID' : 'APPROVED';
+
+    const currentBalance = previousBalance + (finalPaymentMethod === 'CREDIT' ? order.grandTotal : 0);
 
     // 3. Create Official Sales Invoice
     const invoice = await SalesRepository.createInvoice({
       type: 'RETAIL',
-      customerId,
+      customerId: customerId!,
       customerName: order.customerName,
       branchId: 'branch_main',
       warehouseId: options?.warehouseId || 'wh_main',
@@ -451,11 +533,15 @@ export class CustomerPortalService {
       totalTax: order.taxAmount,
       totalDiscount: order.discountAmount,
       grandTotal: order.grandTotal,
-      paidAmount: options?.markAsPaid ? order.grandTotal : (order.paymentMethod === 'COD' ? 0 : 0),
-      dueAmount: options?.markAsPaid ? 0 : order.grandTotal,
-      paymentMethod: paymentMethodMap[order.paymentMethod] || 'CREDIT',
-      status: options?.markAsPaid ? 'PAID' : 'APPROVED',
-      notes: options?.customNotes || `فاتورة مبيعات تم إنشاؤها وتأكيدها آلياً بناءً على طلب الشراء الإلكتروني رقم ${order.orderNumber} - التوصيل إلى: ${order.deliveryAddress}`
+      paidAmount,
+      dueAmount,
+      paymentMethod: finalPaymentMethod,
+      status,
+      previousBalance,
+      currentBalance,
+      customerCreditLimit,
+      creditStatus,
+      notes: options?.customNotes || `فاتورة مبيعات معتمدة لطلب الشراء الإلكتروني رقم ${order.orderNumber} - طريقة السداد: ${finalPaymentMethod === 'CREDIT' ? 'آجل على الحساب' : 'نقدي / تحويل مسبق'}`
     });
 
     // 4. Update Web Order Status
@@ -464,13 +550,105 @@ export class CustomerPortalService {
       status: 'CONVERTED_TO_INVOICE',
       convertedInvoiceId: invoice.id,
       convertedInvoiceNumber: invoice.invoiceNumber,
-      adminNotes: `تم التحويل بنجاح لفاتورة مبيعات رسمية رقم ${invoice.invoiceNumber}`,
+      adminNotes: `تم التحويل بنجاح لفاتورة مبيعات رسمية رقم ${invoice.invoiceNumber}. الرصيد السابق: ${previousBalance}. الرصيد الحالي: ${currentBalance}. حالة الائتمان: ${creditStatus}`,
       updatedAt: new Date().toISOString()
     };
 
     await MaroSyncEngine.saveDocument(PORTAL_ORDERS_COLLECTION, updatedOrder, false);
 
     return { order: updatedOrder, invoice };
+  }
+
+  // --- Save / Update Reviewed Order Items & Totals ---
+  static async updateOrder(updatedOrder: CustomerPortalOrder): Promise<CustomerPortalOrder> {
+    const recalculatedSubtotal = updatedOrder.items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
+    const taxRate = 0.14;
+    const recalculatedTax = (recalculatedSubtotal - updatedOrder.discountAmount) * taxRate;
+    const recalculatedGrandTotal = (recalculatedSubtotal - updatedOrder.discountAmount) + recalculatedTax + updatedOrder.shippingCost;
+
+    const finalOrder: CustomerPortalOrder = {
+      ...updatedOrder,
+      subtotal: +recalculatedSubtotal.toFixed(2),
+      taxAmount: +recalculatedTax.toFixed(2),
+      grandTotal: +recalculatedGrandTotal.toFixed(2),
+      updatedAt: new Date().toISOString()
+    };
+
+    await MaroSyncEngine.saveDocument(PORTAL_ORDERS_COLLECTION, finalOrder, false);
+    return finalOrder;
+  }
+
+  // --- Dispatch Picking Task to Storekeeper / Warehouse System ---
+  static async dispatchOrderToStorekeeperSystem(order: CustomerPortalOrder): Promise<{ success: boolean; pickingTask: any; updatedOrder: CustomerPortalOrder }> {
+    const pickingTaskId = `picking_task_${order.id}_${Date.now()}`;
+    const pickingTask = {
+      id: pickingTaskId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerPhone: order.phone,
+      deliveryAddress: order.deliveryAddress,
+      city: order.city || '',
+      preferredDeliveryDate: order.preferredDeliveryDate,
+      preferredDeliveryTime: order.preferredDeliveryTime,
+      items: order.items.map(it => ({
+        productName: it.productName,
+        sku: it.sku,
+        quantity: it.quantity,
+        unitName: it.unitName,
+        totalPieces: it.totalPieces || (it.quantity * (it.unitMultiplier || 1))
+      })),
+      status: 'PENDING_PICKING', // 'PENDING_PICKING' | 'PICKED' | 'PACKED'
+      createdAt: new Date().toISOString(),
+      dispatchedBy: 'إدارة الطلبيات والمبيعات'
+    };
+
+    // Save task to system collection for Storekeepers
+    await MaroSyncEngine.saveDocument('storekeeper_picking_tasks', pickingTask, true);
+
+    // Update order state
+    const updatedOrder: CustomerPortalOrder = {
+      ...order,
+      status: order.status === 'PENDING_REVIEW' ? 'APPROVED' : order.status,
+      isDispatchedToStorekeeper: true,
+      storekeeperDispatchedAt: new Date().toISOString(),
+      adminNotes: `${order.adminNotes ? order.adminNotes + ' | ' : ''}تم إرسال إذن التجهيز والصرف لأمين المخزن على السيستم بتاريخ ${new Date().toLocaleString('ar-EG')}`
+    };
+
+    await MaroSyncEngine.saveDocument(PORTAL_ORDERS_COLLECTION, updatedOrder, false);
+
+    // Emit event for real-time warehouse dashboard update
+    MaroEventBus.publish('INVENTORY_ADJUSTED' as any, pickingTask);
+
+    return { success: true, pickingTask, updatedOrder };
+  }
+
+  // --- WhatsApp Storekeeper Picking List Message Generator ---
+  static generateStorekeeperWhatsAppMessage(order: CustomerPortalOrder): string {
+    const settings = this.getStoreSettings();
+    const itemsList = order.items.map((it, idx) => 
+      `📦 *${idx + 1}. ${it.productName}* [كود: ${it.sku}]\n   الكمية المطلوبة للتجهيز: *${it.quantity} ${it.unitName}* (${it.totalPieces || (it.quantity * (it.unitMultiplier || 1))} قطعة إجمالاً)`
+    ).join('\n\n');
+
+    return `🚛 *إذن تجهيز وصرف طلبية عميل | قسم المستودعات والمخازن*
+----------------------------------------
+عزيزي أمين المخزن المحترم،
+يرجى سحب وتجهيز الأصناف التالية من المستودع للطلب المعتمد:
+
+📋 *رقم الطلب:* ${order.orderNumber}
+👤 *العميل:* ${order.customerName}
+📞 *هاتف العميل:* ${order.phone}
+📍 *موقع ومسار التسليم:* ${order.deliveryAddress} - ${order.city || ''}
+🕒 *موعد التوريد:* ${order.preferredDeliveryDate || 'فوري'} (${order.preferredDeliveryTime || ''})
+
+📦 *بيان الاصناف المطلوب سحبها وتجهيزها:*
+----------------------------------------
+${itemsList}
+----------------------------------------
+📝 *ملاحظات التجهيز:* ${order.customerNotes || 'لا توجد ملاحظات خاصة'}
+⚡ *الحالة:* معتمد للتجهيز والصرف بالمستودع
+
+يرجى مراجعة الأصناف ومطابقة الكميات قبل تسليمها لمسؤول الشحن والتوزيع.`;
   }
 
   // --- WhatsApp Order Confirmation Message Generator ---

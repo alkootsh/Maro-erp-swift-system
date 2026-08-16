@@ -1,3 +1,8 @@
+/**
+ * @file SmartQueuePage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SmartQueuePage.tsx.
+ */
 import React, { useState, useId } from 'react';
 import { 
   MessageSquare, 

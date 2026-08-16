@@ -1,3 +1,8 @@
+/**
+ * @file EcommerceIntegrations.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: EcommerceIntegrations.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Globe, 

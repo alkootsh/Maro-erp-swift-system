@@ -1,3 +1,8 @@
+/**
+ * @file LowStockReplenishmentModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: LowStockReplenishmentModal.tsx.
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 

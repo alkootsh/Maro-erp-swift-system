@@ -1,3 +1,8 @@
+/**
+ * @file Warehouses.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Warehouses.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { 
   Plus, 

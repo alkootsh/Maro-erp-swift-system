@@ -1,3 +1,8 @@
+/**
+ * @file ParkingGaragePage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ParkingGaragePage.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   ParkingSquare, 

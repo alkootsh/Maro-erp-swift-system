@@ -1,3 +1,8 @@
+/**
+ * @file posKeys.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posKeys.ts.
+ */
 // MARO ERP - Sprint 8.1 POS Function Keys Customization Types
 
 export type FunctionKey = 'F1' | 'F2' | 'F3' | 'F4' | 'F5' | 'F6' | 'F7' | 'F8' | 'F9' | 'F10' | 'F11' | 'F12';

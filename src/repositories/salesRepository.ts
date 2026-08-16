@@ -1,3 +1,8 @@
+/**
+ * @file salesRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: salesRepository.ts.
+ */
 // MARO ERP - Sales Invoices Repository & Tax QR Generator
 import { SalesInvoice, SalesInvoiceItem } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -68,9 +73,11 @@ export class SalesRepository {
     let totalDiscount = 0;
     let totalCostPrice = 0;
 
+    const settings = await ProductRepository.getInventorySettings();
     const items: SalesInvoiceItem[] = invoiceData.items.map(item => {
       const lineUntaxed = item.quantity * item.unitPrice * (1 - (item.discountPercent || 0) / 100);
-      const lineTax = lineUntaxed * ((item.taxRate || 14) / 100);
+      const taxRate = settings.isTaxEnabled ? (item.taxRate || settings.defaultTaxRate) : 0;
+      const lineTax = lineUntaxed * (taxRate / 100);
       const lineTotal = lineUntaxed + lineTax;
 
       totalUntaxed += lineUntaxed;

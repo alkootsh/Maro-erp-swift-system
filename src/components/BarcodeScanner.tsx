@@ -1,3 +1,8 @@
+/**
+ * @file BarcodeScanner.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: BarcodeScanner.tsx.
+ */
 import React, { useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { X } from 'lucide-react';

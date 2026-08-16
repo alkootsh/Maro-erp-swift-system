@@ -1,3 +1,8 @@
+/**
+ * @file inventoryEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: inventoryEngine.ts.
+ */
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { db } from '../../db';
 import { products, warehouses, stockLedger } from '../../db/schema';

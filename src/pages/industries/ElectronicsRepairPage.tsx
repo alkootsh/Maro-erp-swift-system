@@ -1,3 +1,8 @@
+/**
+ * @file ElectronicsRepairPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ElectronicsRepairPage.tsx.
+ */
 // MARO ERP - Electronics, Mobile & Maintenance Workshop Module
 import React, { useState } from 'react';
 import { 

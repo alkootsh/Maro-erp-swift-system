@@ -1,3 +1,8 @@
+/**
+ * @file security.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: security.ts.
+ */
 // MARO ERP - Enterprise Security & Permission System Typings
 
 export type SecurityLayer = 'DEVELOPER' | 'COMPANY_OWNER' | 'USER';

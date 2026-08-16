@@ -1,3 +1,8 @@
+/**
+ * @file AuthProvider.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AuthProvider.tsx.
+ */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface UserProfile {

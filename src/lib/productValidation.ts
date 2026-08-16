@@ -1,3 +1,8 @@
+/**
+ * @file productValidation.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: productValidation.ts.
+ */
 // MARO ERP - Master Enterprise Validation Framework: Zod Schemas
 import { z } from 'zod';
 

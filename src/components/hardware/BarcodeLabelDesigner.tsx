@@ -1,3 +1,8 @@
+/**
+ * @file BarcodeLabelDesigner.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: BarcodeLabelDesigner.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Printer, 

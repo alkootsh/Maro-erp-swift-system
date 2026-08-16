@@ -1,3 +1,8 @@
+/**
+ * @file ProtectedRoute.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ProtectedRoute.tsx.
+ */
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './AuthProvider';

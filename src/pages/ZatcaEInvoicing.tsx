@@ -1,3 +1,8 @@
+/**
+ * @file ZatcaEInvoicing.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ZatcaEInvoicing.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   FileCheck, 

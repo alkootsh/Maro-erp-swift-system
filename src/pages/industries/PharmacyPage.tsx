@@ -1,3 +1,8 @@
+/**
+ * @file PharmacyPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: PharmacyPage.tsx.
+ */
 // MARO ERP - Master Pharmacy & Medical Generics, Shelf Guidance & FEFO Engine
 // Master Enterprise Modular Protocol v4.0
 

@@ -1,3 +1,8 @@
+/**
+ * @file erpClient.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: erpClient.ts.
+ */
 import { MaroSyncEngine } from '../../lib/maroSyncEngine';
 
 export interface ProductPayload {

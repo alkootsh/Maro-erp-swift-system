@@ -1,3 +1,8 @@
+/**
+ * @file ProductionMRP.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ProductionMRP.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Factory, 

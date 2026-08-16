@@ -1,3 +1,8 @@
+/**
+ * @file ImportExportPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ImportExportPage.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Ship, 

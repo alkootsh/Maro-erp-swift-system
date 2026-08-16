@@ -1,3 +1,8 @@
+/**
+ * @file userManualContent.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: userManualContent.ts.
+ */
 
 export interface ManualContent {
   title: string;

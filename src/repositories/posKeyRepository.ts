@@ -1,3 +1,8 @@
+/**
+ * @file posKeyRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posKeyRepository.ts.
+ */
 // MARO ERP - Sprint 8.1 POS Function Key Repository
 
 import { FunctionKey, POSKeyMapping, POSFunctionKeyConfig } from '../types/posKeys';

@@ -1,3 +1,8 @@
+/**
+ * @file WhatsAppNotificationsCenter.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: WhatsAppNotificationsCenter.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Bell, 
@@ -46,6 +51,8 @@ import { CustomerRepository } from '../repositories/customerRepository';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'react-hot-toast';
+import { soundAlerts } from '../lib/soundAlerts';
 
 export const WhatsAppNotificationsCenter: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ALERTS' | 'INBOUND_ORDERS' | 'INVOICES_DISPATCH' | 'LOGS_SETTINGS'>('ALERTS');
@@ -731,6 +738,8 @@ export const WhatsAppNotificationsCenter: React.FC = () => {
                     const prov = e.target.value as any;
                     setGatewaySettings({ ...gatewaySettings, provider: prov });
                     WhatsAppNotificationService.updateSettings({ provider: prov });
+                    toast.success('تم تحديث مزود خدمة بوابة الواتساب بنجاح');
+                    soundAlerts.playSave();
                   }}
                   className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none focus:border-blue-500"
                 >
@@ -742,7 +751,7 @@ export const WhatsAppNotificationsCenter: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 font-bold mb-1">رقم هاتف المنظومة الافتراضي</label>
+                <label className="block text-slate-400 font-bold mb-1">رقم هاتف المنظومة الإرسال الافتراضي</label>
                 <input 
                   type="text" 
                   value={gatewaySettings.senderPhoneNumber}
@@ -750,8 +759,108 @@ export const WhatsAppNotificationsCenter: React.FC = () => {
                     setGatewaySettings({ ...gatewaySettings, senderPhoneNumber: e.target.value });
                     WhatsAppNotificationService.updateSettings({ senderPhoneNumber: e.target.value });
                   }}
+                  onBlur={() => {
+                    toast.success('تم حفظ رقم هاتف الإرسال الافتراضي بنجاح');
+                    soundAlerts.playSave();
+                  }}
                   className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none focus:border-blue-500"
                 />
+              </div>
+
+              {/* Manager Notification Settings */}
+              <div className="p-4 bg-purple-950/20 border border-purple-500/20 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-purple-300 text-sm">👑 توجيه إشعارات الإدارة العليا والمدير العام</h4>
+                  <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-bold">Background Alert Dispatch</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">رقم واتساب المدير العام / المالك</label>
+                    <input 
+                      type="text" 
+                      value={gatewaySettings.managerPhoneNumber || '01050557853'}
+                      onChange={(e) => {
+                        setGatewaySettings({ ...gatewaySettings, managerPhoneNumber: e.target.value });
+                        WhatsAppNotificationService.updateSettings({ managerPhoneNumber: e.target.value });
+                      }}
+                      onBlur={() => {
+                        toast.success('تم حفظ رقم المدير العام وتأكيد ربطه بالبوابة');
+                        soundAlerts.playSave();
+                      }}
+                      placeholder="01050557853"
+                      className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">اسم صفة المدير المستلم</label>
+                    <input 
+                      type="text" 
+                      value={gatewaySettings.managerName || 'المدير العام'}
+                      onChange={(e) => {
+                        setGatewaySettings({ ...gatewaySettings, managerName: e.target.value });
+                        WhatsAppNotificationService.updateSettings({ managerName: e.target.value });
+                      }}
+                      onBlur={() => {
+                        toast.success('تم تعديل مسمى المستلم الإداري وحفظه بنجاح');
+                        soundAlerts.playSave();
+                      }}
+                      placeholder="المدير العام"
+                      className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-1 space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 font-bold">
+                    <input 
+                      type="checkbox" 
+                      checked={gatewaySettings.notifyOnShiftClose ?? true}
+                      onChange={(e) => {
+                        setGatewaySettings({ ...gatewaySettings, notifyOnShiftClose: e.target.checked });
+                        WhatsAppNotificationService.updateSettings({ notifyOnShiftClose: e.target.checked });
+                        toast.success(e.target.checked ? 'تم تفعيل إشعار تقفيل الوردية التلقائي للمدير' : 'تم إيقاف إشعار تقفيل الوردية للمدير');
+                        soundAlerts.playSave();
+                      }}
+                      className="w-4 h-4 rounded text-purple-600 bg-slate-900 border-slate-700"
+                    />
+                    <span>إرسال إشعار تقفيل الوردية Z-Report تلقائياً إلى واتساب المدير</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 font-bold">
+                    <input 
+                      type="checkbox" 
+                      checked={gatewaySettings.notifyOnShiftOpen ?? true}
+                      onChange={(e) => {
+                        setGatewaySettings({ ...gatewaySettings, notifyOnShiftOpen: e.target.checked });
+                        WhatsAppNotificationService.updateSettings({ notifyOnShiftOpen: e.target.checked });
+                        toast.success(e.target.checked ? 'تم تفعيل إشعار فتح الوردية التلقائي للمدير' : 'تم إيقاف إشعار فتح الوردية للمدير');
+                        soundAlerts.playSave();
+                      }}
+                      className="w-4 h-4 rounded text-purple-600 bg-slate-900 border-slate-700"
+                    />
+                    <span>إشعار فتح وردية كاشير جديدة</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 font-bold">
+                    <input 
+                      type="checkbox" 
+                      checked={gatewaySettings.notifyOnCashierLogin ?? true}
+                      onChange={(e) => {
+                        setGatewaySettings({ ...gatewaySettings, notifyOnCashierLogin: e.target.checked });
+                        WhatsAppNotificationService.updateSettings({ notifyOnCashierLogin: e.target.checked });
+                        toast.success(e.target.checked ? 'تم تفعيل إشعار دخول الموظفين والكاشيرز للمدير' : 'تم إيقاف إشعار دخول الموظفين للمدير');
+                        soundAlerts.playSave();
+                      }}
+                      className="w-4 h-4 rounded text-purple-600 bg-slate-900 border-slate-700"
+                    />
+                    <span>تنبيه تسجيل دخول الكاشير والمستخدمين</span>
+                  </label>
+                </div>
+
+                <div className="p-2.5 bg-blue-950/40 border border-blue-500/30 rounded-xl text-[11px] text-blue-200 leading-relaxed">
+                  💡 <strong>طريقة العمل الذكية:</strong> جميع التنبيهات الإدارية وتنبيهات الكاشير تُرحل خلفياً إلى رقم المدير العام الموضح أعلاه وسجلات العمليات، دون فتح نوافذ منبثقة أو إزعاج الكاشير أو العميل أثناء استخدام النظام.
+                </div>
               </div>
 
               <div className="pt-2">
@@ -762,6 +871,8 @@ export const WhatsAppNotificationsCenter: React.FC = () => {
                     onChange={(e) => {
                       setGatewaySettings({ ...gatewaySettings, autoReplyConfirmation: e.target.checked });
                       WhatsAppNotificationService.updateSettings({ autoReplyConfirmation: e.target.checked });
+                      toast.success(e.target.checked ? 'تم تفعيل الرد التلقائي لتأكيد استلام الطلبيات للتاجر' : 'تم إيقاف الرد التلقائي للتاجر');
+                      soundAlerts.playSave();
                     }}
                     className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700"
                   />

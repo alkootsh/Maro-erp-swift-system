@@ -1,3 +1,8 @@
+/**
+ * @file posLayoutRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posLayoutRepository.ts.
+ */
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export interface POSPanelConfig {

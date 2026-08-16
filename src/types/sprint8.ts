@@ -1,3 +1,8 @@
+/**
+ * @file sprint8.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: sprint8.ts.
+ */
 // MARO ERP - Sprint 8 Enterprise Types Specification
 
 export interface Customer {
@@ -11,6 +16,9 @@ export interface Customer {
   priceListId: string; // 'RETAIL' | 'WHOLESALE' | 'DISTRIBUTOR'
   currentBalance: number; // Accounts Receivable balance
   status: 'active' | 'inactive';
+  address?: string;
+  city?: string;
+  deliveryLocationLink?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -92,6 +100,10 @@ export interface SalesInvoice {
   paymentMethod: 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT';
   status: SalesInvoiceStatus;
   notes?: string;
+  previousBalance?: number;
+  currentBalance?: number;
+  customerCreditLimit?: number;
+  creditStatus?: string;
   taxQrCode?: string; // ZATCA / ETA Base64 TLV string
   posSessionId?: string;
   cashierId?: string;

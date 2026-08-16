@@ -1,3 +1,8 @@
+/**
+ * @file validationFramework.test.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: validationFramework.test.ts.
+ */
 // MARO ERP - Enterprise Validation Framework Automated Test Suite
 import { productMasterSchema } from '../lib/productValidation';
 import { ProductService } from '../services/productService';

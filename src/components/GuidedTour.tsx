@@ -1,3 +1,8 @@
+/**
+ * @file GuidedTour.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: GuidedTour.tsx.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 

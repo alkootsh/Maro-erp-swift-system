@@ -1,3 +1,8 @@
+/**
+ * @file schema.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: schema.ts.
+ */
 import { relations } from 'drizzle-orm';
 import {
   pgTable,

@@ -1,3 +1,8 @@
+/**
+ * @file ProductFormModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ProductFormModal.tsx.
+ */
 // MARO ERP - Product Master Form Modal with Enterprise Validation Framework
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';

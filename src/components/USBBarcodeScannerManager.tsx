@@ -1,3 +1,8 @@
+/**
+ * @file USBBarcodeScannerManager.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: USBBarcodeScannerManager.tsx.
+ */
 // MARO ERP - USB & Bluetooth Barcode Scanner Interface & Manager
 import React, { useState, useEffect } from 'react';
 import { 

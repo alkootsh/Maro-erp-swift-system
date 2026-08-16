@@ -1,3 +1,8 @@
+/**
+ * @file barcodeEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: barcodeEngine.ts.
+ */
 // MARO ERP - Enterprise Barcode & Scale Parser Engine
 import { ScaleBarcodeConfig, BarcodeMapping } from '../types/sprint8';
 import { ProductRepository } from '../repositories/productRepository';

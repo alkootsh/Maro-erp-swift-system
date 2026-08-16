@@ -1,3 +1,8 @@
+/**
+ * @file eventBus.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: eventBus.ts.
+ */
 // MARO ERP - Decoupled Event Bus Engine
 import { MaroEvent } from '../types/sprint8';
 

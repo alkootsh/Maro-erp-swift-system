@@ -1,3 +1,8 @@
+/**
+ * @file customerPortal.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: customerPortal.ts.
+ */
 // MARO ERP - Customer & Merchant B2B Ordering Portal Types
 export type PortalOrderStatus = 
   | 'PENDING_REVIEW' 
@@ -39,6 +44,7 @@ export interface CustomerPortalOrder {
   email?: string;
   deliveryAddress: string;
   city?: string;
+  deliveryLocationLink?: string;
   preferredDeliveryDate?: string;
   preferredDeliveryTime?: string;
   paymentMethod: PortalPaymentMethod;
@@ -54,6 +60,8 @@ export interface CustomerPortalOrder {
   source: 'CUSTOMER_PORTAL' | 'QR_CODE' | 'WHATSAPP_LINK' | 'REP_APP';
   convertedInvoiceId?: string;
   convertedInvoiceNumber?: string;
+  isDispatchedToStorekeeper?: boolean;
+  storekeeperDispatchedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -63,6 +71,7 @@ export interface PortalStoreSettings {
   storeSubtitle: string;
   hotlinePhone: string;
   whatsappPhone: string;
+  storekeeperWhatsappPhone?: string;
   address: string;
   currency: string;
   defaultTaxRate: number; // 14

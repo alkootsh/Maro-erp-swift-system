@@ -1,3 +1,8 @@
+/**
+ * @file salesReturnRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: salesReturnRepository.ts.
+ */
 // MARO ERP - Sales Returns Repository
 import { SalesReturn, SalesReturnItem } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

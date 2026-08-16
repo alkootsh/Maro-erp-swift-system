@@ -1,3 +1,8 @@
+/**
+ * @file pilotAcceptanceTest.test.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: pilotAcceptanceTest.test.ts.
+ */
 // MARO ERP - Pilot Functional Acceptance Test (FAT) Suite
 // Master Enterprise Protocol v3.0
 

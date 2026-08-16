@@ -1,3 +1,8 @@
+/**
+ * @file Manufacturing.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Manufacturing.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Factory, 

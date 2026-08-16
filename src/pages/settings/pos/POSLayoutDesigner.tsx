@@ -1,3 +1,8 @@
+/**
+ * @file POSLayoutDesigner.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: POSLayoutDesigner.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutTemplate, Monitor, Smartphone, Tablet, Save, Plus, 

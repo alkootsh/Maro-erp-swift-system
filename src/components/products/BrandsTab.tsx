@@ -1,3 +1,8 @@
+/**
+ * @file BrandsTab.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: BrandsTab.tsx.
+ */
 // MARO ERP - Brands & Manufacturers Management
 import React, { useState, useEffect } from 'react';
 import { Plus, Award, Factory, Trash2, Globe, Mail, Phone, ExternalLink } from 'lucide-react';

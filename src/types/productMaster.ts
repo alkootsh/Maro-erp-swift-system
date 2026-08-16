@@ -1,3 +1,8 @@
+/**
+ * @file productMaster.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: productMaster.ts.
+ */
 // MARO ERP - Sprint 7: Product & Inventory Foundation Enterprise Types
 
 export interface ProductCategory {
@@ -124,6 +129,7 @@ export interface InventorySettings {
   id?: string;
   defaultValuationMethod: 'FIFO' | 'LIFO' | 'WEIGHTED_AVG';
   allowNegativeStock: boolean;
+  isTaxEnabled: boolean;
   defaultTaxRate: number; // e.g. 14%
   defaultReorderLevel: number;
   enforceBatchTracking: boolean;

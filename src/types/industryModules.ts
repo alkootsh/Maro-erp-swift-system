@@ -1,3 +1,8 @@
+/**
+ * @file industryModules.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: industryModules.ts.
+ */
 // MARO ERP - Vertical Industry Modules Type Definitions
 // Master Enterprise Modular Protocol v4.0
 

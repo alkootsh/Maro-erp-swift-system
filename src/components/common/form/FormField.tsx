@@ -1,3 +1,8 @@
+/**
+ * @file FormField.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FormField.tsx.
+ */
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import { ErrorMessage } from './ErrorMessage';

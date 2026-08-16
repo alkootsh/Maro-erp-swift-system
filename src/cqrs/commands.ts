@@ -1,3 +1,8 @@
+/**
+ * @file commands.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: commands.ts.
+ */
 // MARO ERP - CQRS Command Handlers (Product, Sales, Purchase, POS, Accounting)
 import { ProductRepository } from '../repositories/productRepository';
 import { ProductMaster, WarehouseData } from '../types/productMaster';
@@ -133,6 +138,20 @@ export class DeleteSupplierCommand implements ICommand<void> {
   constructor(private id: string, private name?: string) {}
   async execute(): Promise<void> {
     await SupplierRepository.deleteSupplier(this.id, this.name);
+  }
+}
+
+export class ToggleSupplierStatusCommand implements ICommand<void> {
+  constructor(private id: string, private currentStatus: 'active' | 'inactive') {}
+
+  async execute(): Promise<void> {
+    const supplier = SupplierRepository.getSupplierById(this.id);
+    if (!supplier) throw new Error('المورد غير موجود');
+    const newStatus = this.currentStatus === 'active' ? 'inactive' : 'active';
+    supplier.status = newStatus;
+    supplier.updatedAt = new Date().toISOString();
+    await SupplierRepository.saveSupplier(supplier);
+    await ProductRepository.logAudit('UPDATE', 'suppliers', this.id, `تم ${newStatus === 'active' ? 'تنشيط' : 'إيقاف'} المورد: ${supplier.name}`);
   }
 }
 

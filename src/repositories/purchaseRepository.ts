@@ -1,3 +1,8 @@
+/**
+ * @file purchaseRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: purchaseRepository.ts.
+ */
 // MARO ERP - Purchase Orders & Bills Repository
 import { PurchaseOrder, PurchaseBill, PurchaseBillItem } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -55,9 +60,11 @@ export class PurchaseRepository {
     let totalUntaxed = 0;
     let totalTax = 0;
 
+    const settings = await ProductRepository.getInventorySettings();
     const items: PurchaseBillItem[] = billData.items.map(item => {
       const lineUntaxed = item.quantity * item.unitCost;
-      const lineTax = lineUntaxed * ((item.taxRate || 14) / 100);
+      const taxRate = settings.isTaxEnabled ? (item.taxRate || settings.defaultTaxRate) : 0;
+      const lineTax = lineUntaxed * (taxRate / 100);
       const lineTotal = lineUntaxed + lineTax;
 
       totalUntaxed += lineUntaxed;

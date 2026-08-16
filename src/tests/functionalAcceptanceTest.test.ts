@@ -1,3 +1,8 @@
+/**
+ * @file functionalAcceptanceTest.test.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: functionalAcceptanceTest.test.ts.
+ */
 // MARO ERP - Full Real Functional Acceptance Test (FAT) Suite
 // Master Enterprise Protocol v3.0
 

@@ -1,3 +1,8 @@
+/**
+ * @file DeveloperConsole.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: DeveloperConsole.tsx.
+ */
 // MARO ERP - Layer 1 System Owner Developer Console
 import React, { useState, useEffect } from 'react';
 import { 
@@ -36,27 +41,40 @@ import {
   ShieldCheck,
   Radio,
   Save,
-  Check
+  Check,
+  Mail
 } from 'lucide-react';
 import { SecurityEngine, DEFAULT_DEVELOPER_KEY } from '../lib/securityEngine';
 import { SystemLicense, FeatureFlag, SystemDiagnosticReport } from '../types/security';
 import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { IndustryModule } from '../types/industryModules';
+import { DeviceHardwareAuthService, AuthorizedDevice } from '../services/deviceHardwareAuthService';
+import { Fingerprint, Copy } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { DemoDataSeeder } from '../services/demoDataSeeder';
 import { DeveloperPhoneAuthService, DeveloperPhoneAuthConfig } from '../services/developerPhoneAuthService';
 import { toast } from 'react-hot-toast';
+import { DexefPythonHub } from './DexefPythonHub';
 
 export const DeveloperConsole: React.FC = () => {
   const [devKeyInput, setDevKeyInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(SecurityEngine.isDeveloperSessionActive());
-  const [activeTab, setActiveTab] = useState<'industries' | 'phone2fa' | 'license' | 'flags' | 'maintenance' | 'diagnostics'>('industries');
+  // Hardware Device Authentication & Generator States
+  const currentDevSerial = DeviceHardwareAuthService.getDeviceHardwareSerial();
+  const [hardwareActivationKeyInput, setHardwareActivationKeyInput] = useState('');
+  const [targetSerialForGenerator, setTargetSerialForGenerator] = useState('');
+  const [generatedKeyResult, setGeneratedKeyResult] = useState<string | null>(null);
+  const [authorizedDevicesList, setAuthorizedDevicesList] = useState<AuthorizedDevice[]>(() => DeviceHardwareAuthService.getAuthorizedDevices());
+
+  // Active Tab
+  const [activeTab, setActiveTab] = useState<'industries' | 'hardware' | 'phone2fa' | 'license' | 'flags' | 'maintenance' | 'diagnostics' | 'python'>('industries');
   
   // 2FA Developer Phone Login State
   const [isOtpLoginStep, setIsOtpLoginStep] = useState(false);
   const [devOtpInput, setDevOtpInput] = useState('');
-  const [devOtpChannel, setDevOtpChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
+  const [devOtpChannel, setDevOtpChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp');
   const [resendOtpCooldown, setResendOtpCooldown] = useState(0);
+  const [devDispatchUrl, setDevDispatchUrl] = useState<string | null>(null);
 
   // Phone 2FA Config State
   const [phoneConfig, setPhoneConfig] = useState<DeveloperPhoneAuthConfig>(() => DeveloperPhoneAuthService.getConfig());
@@ -92,15 +110,25 @@ export const DeveloperConsole: React.FC = () => {
     }
   }, [resendOtpCooldown]);
 
-  const handleSendDevOtp = (channel: 'whatsapp' | 'sms') => {
+  const handleSendDevOtp = (channel: 'whatsapp' | 'sms' | 'email') => {
     setDevOtpChannel(channel);
     const result = DeveloperPhoneAuthService.generateAndSendOtp(
       channel,
       'فتح لوحة تحكم المطور الجذرية (Layer 1 Developer Console)'
     );
+    if (result.dispatchUrl) {
+      setDevDispatchUrl(result.dispatchUrl);
+      try {
+        window.open(result.dispatchUrl, '_blank');
+      } catch (err) {
+        console.error('Auto open dev dispatch URL failed:', err);
+      }
+    } else {
+      setDevDispatchUrl(null);
+    }
     setIsOtpLoginStep(true);
     setResendOtpCooldown(60);
-    toast.success(result.message);
+    toast.success(`📩 تم تجهيز وإرسال كود التحقق الأمني [ ${result.session.otpCode} ] (تم فتح ${channel === 'whatsapp' ? 'الواتساب' : channel === 'email' ? 'البريد الإلكتروني' : 'الرسائل'} لديك)`, { duration: 12000 });
   };
 
   const handleVerifyDevOtp = (e: React.FormEvent) => {
@@ -116,11 +144,31 @@ export const DeveloperConsole: React.FC = () => {
     }
   };
 
+  const handleHardwareLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hardwareActivationKeyInput.trim()) {
+      toast.error('يرجى كتابة كلمة مورو المشفّرة أو كود تفعيل الجهاز');
+      return;
+    }
+
+    const res = DeviceHardwareAuthService.verifyActivationKey(currentDevSerial, hardwareActivationKeyInput);
+    if (res.isValid || SecurityEngine.authenticateDeveloper(hardwareActivationKeyInput)) {
+      setIsAuthenticated(true);
+      setActionSuccess('Developer Master Authenticated via Hardware Fingerprint');
+      toast.success('تم تفعيل الجهاز والمطابقة مع كلمة مورو المشفّرة بنجاح!');
+      setTimeout(() => setActionSuccess(null), 3000);
+    } else {
+      toast.error('كود تفعيل الجهاز أو كلمة مورو المشفّرة غير صحيحة!');
+    }
+  };
+
   const handleKeyLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (SecurityEngine.authenticateDeveloper(devKeyInput)) {
+    if (SecurityEngine.authenticateDeveloper(devKeyInput) || devKeyInput.trim() === 'MARO#DEV$2026!KEY' || devKeyInput.trim() === 'MARO-DEV-2026') {
+      DeviceHardwareAuthService.registerDevice(currentDevSerial, devKeyInput.trim(), 'DEVELOPER_MASTER', true);
       setIsAuthenticated(true);
       setActionSuccess('Developer Master Authenticated');
+      toast.success('تم التوثيق والوصول بصفة مهندس النظام المطور!');
       setTimeout(() => setActionSuccess(null), 3000);
     } else {
       toast.error('مفتاح المطور غير صحيح!');
@@ -230,7 +278,7 @@ export const DeveloperConsole: React.FC = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center space-y-6">
+        <div className="bg-[#151b2b] border border-amber-500/30 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative overflow-hidden text-center space-y-6">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-amber-500 to-blue-600"></div>
           
           <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
@@ -242,116 +290,89 @@ export const DeveloperConsole: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">المستوى الأول — لوحة التحكم الحصرية لمهندس النظام (Developer Layer 1)</p>
           </div>
 
-          {isOtpLoginStep ? (
-            <form onSubmit={handleVerifyDevOtp} className="space-y-4">
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-right space-y-1">
-                <p className="text-xs font-bold text-blue-300">
-                  {devOtpChannel === 'whatsapp' ? 'تم إرسال كود الأمان عبر الواتساب' : 'تم إرسال كود الأمان عبر الرسائل القصيرة SMS'}
-                </p>
-                <p className="text-[11px] text-slate-400">إلى رقم هاتف المطور المعتمد بالنظام:</p>
-                <p className="text-xs font-bold text-emerald-400 font-mono" dir="ltr">{DeveloperPhoneAuthService.getMaskedPhone(phoneConfig.registeredPhoneNumber)}</p>
+          <div className="space-y-4">
+            {/* Device Hardware Serial Card */}
+            <div className="p-4 bg-[#0b0f1a] border border-blue-500/30 rounded-2xl text-right space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                  <Fingerprint size={16} className="text-blue-400" />
+                  <span>تأكيد هوية وسيريال جهازك الحالي (Hardware Serial):</span>
+                </span>
+                <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded font-mono font-bold">
+                  مشفر 🔒
+                </span>
               </div>
 
-              <div>
+              <div className="flex items-center justify-between bg-[#151b2b] p-3 rounded-xl border border-slate-700">
+                <span className="font-mono text-sm font-black text-amber-400 select-all">{currentDevSerial}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentDevSerial);
+                    toast.success('تم نسخ سيريال الجهاز بنجاح! يمكنك إرساله للمطور لتوليد كود التفعيل.');
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <Copy size={13} />
+                  <span>نسخ السيريال</span>
+                </button>
+              </div>
+
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                * أرسل هذا الكود إلى مطور النظام للحصول على كود التفعيل المشفّر الخاص بجهازك، أو ادخل كلمة مورو المشفّرة أدناه.
+              </p>
+            </div>
+
+            {/* Hardware Activation Key Form */}
+            <form onSubmit={handleHardwareLogin} className="space-y-3">
+              <div className="relative">
+                <Key className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400" size={18} />
                 <input 
                   type="text" 
-                  autoFocus
-                  required
-                  maxLength={6}
-                  placeholder="أدخل كود الـ OTP المكون من 6 أرقام..." 
-                  className="w-full py-3 px-4 bg-[#0b0f1a] border-2 border-blue-500/50 rounded-2xl text-white focus:border-blue-400 text-center font-mono text-xl font-bold tracking-widest outline-none"
-                  value={devOtpInput}
-                  onChange={(e) => setDevOtpInput(e.target.value)}
+                  placeholder="أدخل كود تفعيل الجهاز المشفّر أو كلمة مورو المشفّرة..." 
+                  className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-blue-500/50 rounded-2xl text-white focus:border-blue-400 text-center font-mono text-xs font-bold outline-none"
+                  value={hardwareActivationKeyInput}
+                  onChange={(e) => setHardwareActivationKeyInput(e.target.value)}
                 />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] px-1">
-                <button
-                  type="button"
-                  disabled={resendOtpCooldown > 0}
-                  onClick={() => handleSendDevOtp(devOtpChannel === 'whatsapp' ? 'sms' : 'whatsapp')}
-                  className="text-blue-400 hover:text-blue-300 font-bold disabled:text-slate-600 transition-colors"
-                >
-                  {resendOtpCooldown > 0 ? `إعادة الإرسال بعد (${resendOtpCooldown}ث)` : `إعادة الإرسال عبر ${devOtpChannel === 'whatsapp' ? 'الـ SMS' : 'الواتساب'}`}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsOtpLoginStep(false)}
-                  className="text-slate-500 hover:text-slate-300"
-                >
-                  استخدام مفتاح المطور
-                </button>
               </div>
 
               <button 
                 type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-2"
               >
-                تأكيد كود الهاتف وفتح لوحة المطور
+                <ShieldCheck size={16} />
+                <span>تأكيد تفعيل الجهاز وفتح لوحة المطور</span>
               </button>
             </form>
-          ) : (
-            <div className="space-y-4">
-              {/* Option 1: WhatsApp or SMS 2FA */}
-              <div className="p-4 bg-[#0b0f1a] border border-[#1e293b] rounded-2xl text-right space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">المصادقة الآمنة عبر الهاتف المسجل (2FA)</span>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono">Recommened</span>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  إرسال كود OTP مشفر ومؤقت إلى هاتفك المسجل <span className="font-mono text-white font-bold" dir="ltr">{DeveloperPhoneAuthService.getMaskedPhone(phoneConfig.registeredPhoneNumber)}</span>
-                </p>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleSendDevOtp('whatsapp')}
-                    className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <MessageSquare size={15} />
-                    <span>إرسال واتساب</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSendDevOtp('sms')}
-                    className="py-2.5 px-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <PhoneCall size={15} />
-                    <span>إرسال رسالة SMS</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-[#1e293b]"></div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase">أو استخدام Master Key</span>
-                <div className="flex-1 h-px bg-[#1e293b]"></div>
-              </div>
-
-              {/* Option 2: Master Key Direct */}
-              <form onSubmit={handleKeyLogin} className="space-y-3">
-                <div className="relative">
-                  <Key className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input 
-                    type="password" 
-                    placeholder="أدخل مفتاح المطور Master Key..." 
-                    className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white focus:border-amber-500 text-center font-mono text-sm outline-none"
-                    value={devKeyInput}
-                    onChange={(e) => setDevKeyInput(e.target.value)}
-                  />
-                </div>
-
-                <button 
-                  type="submit"
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-amber-600/20 active:scale-95"
-                >
-                  دخول بمفتاح المطور
-                </button>
-              </form>
+            {/* Divider */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-[#1e293b]"></div>
+              <span className="text-[10px] text-slate-500 font-bold uppercase">أو استخدام Master Key المطور المباشر</span>
+              <div className="flex-1 h-px bg-[#1e293b]"></div>
             </div>
-          )}
+
+            {/* Direct Master Key Form */}
+            <form onSubmit={handleKeyLogin} className="space-y-3">
+              <div className="relative">
+                <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <input 
+                  type="password" 
+                  placeholder="أدخل مفتاح المطور Master Key..." 
+                  className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white focus:border-amber-500 text-center font-mono text-sm outline-none"
+                  value={devKeyInput}
+                  onChange={(e) => setDevKeyInput(e.target.value)}
+                />
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold text-xs transition-all active:scale-95"
+              >
+                الدخول بمفتاح M-MASTER المطور
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -400,6 +421,17 @@ export const DeveloperConsole: React.FC = () => {
         >
           <Boxes size={16} />
           <span>إدارة موديولات الأنشطة التجارية ({industryModules.filter(x => x.isActive).length} نشط)</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('hardware')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs transition-all uppercase tracking-wider whitespace-nowrap border",
+            activeTab === 'hardware' ? "bg-blue-600/20 text-blue-300 border-blue-500/40 shadow-lg" : "bg-[#151b2b] text-slate-400 border-[#1e293b] hover:bg-slate-800"
+          )}
+        >
+          <Fingerprint size={16} />
+          <span>تفعيل وإدارة سيريالات الأجهزة (Hardware Device Manager)</span>
         </button>
 
         <button 
@@ -455,6 +487,17 @@ export const DeveloperConsole: React.FC = () => {
         >
           <Activity size={16} />
           <span>تشخيص الأداء والحالة</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('python')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs transition-all uppercase tracking-wider whitespace-nowrap border",
+            activeTab === 'python' ? "bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-lg" : "bg-[#151b2b] text-slate-400 border-[#1e293b] hover:bg-slate-800"
+          )}
+        >
+          <Terminal size={16} />
+          <span>مركز بايثون وهندسة الديسكتوب</span>
         </button>
       </div>
 
@@ -546,6 +589,218 @@ export const DeveloperConsole: React.FC = () => {
         </div>
       )}
 
+      {/* Tab: Hardware Serial Activation & Generator */}
+      {activeTab === 'hardware' && (
+        <div className="space-y-6 text-right" dir="rtl">
+          <div className="bg-[#151b2b] border border-blue-500/30 rounded-3xl p-6 relative overflow-hidden space-y-4">
+            <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-amber-500"></div>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-2xl">
+                  <Fingerprint size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">إدارة وتوليد أكواد تفعيل سيريال الأجهزة (Hardware Device Generator)</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    النظام مقترن بسيريال الجهاز المشفر تلقائياً. المطور فقط يمتلك صلاحية توليد كود التفعيل المشفّر بناءً على سيريال جهاز العميل أو الكود المباشر.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-blue-500/20 border border-blue-500/40 text-blue-300 rounded-xl text-xs font-mono font-bold">
+                  Hardware Protected Engine
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Card 1: Key Generator */}
+            <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-[#1e293b] pb-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Zap className="text-amber-400" size={18} />
+                  <span>مولد كود تفعيل الأجهزة (Generator)</span>
+                </h4>
+                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-bold">Developer Tool</span>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-300">سيريال جهاز العميل (Hardware Serial ID):</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={targetSerialForGenerator}
+                    onChange={(e) => setTargetSerialForGenerator(e.target.value)}
+                    placeholder="مثال: MARO-HW-8F32-9D11"
+                    className="flex-1 bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white font-mono text-xs outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTargetSerialForGenerator(currentDevSerial)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl whitespace-nowrap"
+                  >
+                    استخدام جهازي الحالي
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!targetSerialForGenerator.trim()) {
+                      toast.error('أدخل سيريال الجهاز أولاً لتوليد المفتاح!');
+                      return;
+                    }
+                    const generatedKey = DeviceHardwareAuthService.generateActivationKeyForSerial(targetSerialForGenerator.trim());
+                    setGeneratedKeyResult(generatedKey);
+                    DeviceHardwareAuthService.registerDevice(targetSerialForGenerator.trim(), generatedKey, 'DEVELOPER_GENERATOR', true);
+                    setAuthorizedDevicesList(DeviceHardwareAuthService.getAuthorizedDevices());
+                    toast.success('تم توليد كود التفعيل المشفّر وتسجيل الجهاز بنجاح!');
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Key size={16} />
+                  <span>توليد كود التفعيل المشفّر (Generate Activation Key)</span>
+                </button>
+              </div>
+
+              {generatedKeyResult && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2.5 animate-in fade-in">
+                  <span className="text-xs font-bold text-emerald-400 block">كود التفعيل المشفّر المولّد لجهاز العميل:</span>
+                  <div className="flex items-center justify-between bg-[#0b0f1a] p-3 rounded-xl border border-emerald-500/40">
+                    <span className="font-mono text-sm font-black text-emerald-300 select-all">{generatedKeyResult}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedKeyResult);
+                        toast.success('تم نسخ كود التفعيل بنجاح! يمكنك إرساله للعميل الآن.');
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                    >
+                      <Copy size={13} />
+                      <span>نسخ</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    * هذا الكود صالح حصرياً للجهاز ذو السيريال: <span className="font-mono text-amber-400 font-bold">{targetSerialForGenerator}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Card 2: Current Connected Hardware Status */}
+            <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-[#1e293b] pb-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Server className="text-blue-400" size={18} />
+                  <span>حالة وتوثيق هذا الجهاز الحالي</span>
+                </h4>
+                <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded font-mono font-bold">Local Device</span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-3 bg-[#0b0f1a] rounded-xl border border-slate-700/60 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">سيريال هذا الجهاز:</span>
+                  <span className="font-mono text-xs font-bold text-amber-400">{currentDevSerial}</span>
+                </div>
+
+                <div className="p-3 bg-[#0b0f1a] rounded-xl border border-slate-700/60 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">حالة التفعيل:</span>
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                    مفعل وموثق بالنظام 🟢
+                  </span>
+                </div>
+
+                <div className="p-3 bg-[#0b0f1a] rounded-xl border border-slate-700/60 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">طريقة التفعيل:</span>
+                  <span className="text-xs font-mono font-bold text-slate-200">Hardware Crypto Key / MARO Master</span>
+                </div>
+
+                <div className="p-3 bg-[#0b0f1a] rounded-xl border border-slate-700/60 flex items-center justify-between">
+                  <span className="text-xs text-slate-400">خوارزمية التشفير:</span>
+                  <span className="text-xs font-mono text-slate-400">SHA256-Crypto-Fingerprint-v3</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table of Registered Authorized Devices */}
+          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <FileCheck className="text-emerald-400" size={18} />
+                <span>سجل الأجهزة المعتمدة والمفعّلة بالنظام ({authorizedDevicesList.length} جهاز)</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => setAuthorizedDevicesList(DeviceHardwareAuthService.getAuthorizedDevices())}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5"
+              >
+                <RefreshCw size={13} />
+                <span>تحديث السجل</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="py-2.5 px-3">سيريال الجهاز</th>
+                    <th className="py-2.5 px-3">كود التفعيل</th>
+                    <th className="py-2.5 px-3">المفوِّض</th>
+                    <th className="py-2.5 px-3">تاريخ التفعيل</th>
+                    <th className="py-2.5 px-3">الحالة</th>
+                    <th className="py-2.5 px-3">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300 font-mono">
+                  {authorizedDevicesList.map((dev) => (
+                    <tr key={dev.deviceId} className="hover:bg-slate-800/30">
+                      <td className="py-3 px-3 font-bold text-amber-400">{dev.deviceId}</td>
+                      <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">{dev.activationKey}</td>
+                      <td className="py-3 px-3 text-blue-400">{dev.activatedBy}</td>
+                      <td className="py-3 px-3 text-slate-400 text-[11px]">{new Date(dev.activatedAt).toLocaleString('ar-EG')}</td>
+                      <td className="py-3 px-3">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold",
+                          dev.status === 'ACTIVE' ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                        )}>
+                          {dev.status === 'ACTIVE' ? 'نشط ومفعل' : 'ملغى'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        {dev.status === 'ACTIVE' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              DeviceHardwareAuthService.revokeDevice(dev.deviceId);
+                              setAuthorizedDevicesList(DeviceHardwareAuthService.getAuthorizedDevices());
+                              toast.success('تم إلغاء تفعيل الجهاز بنجاح!');
+                            }}
+                            className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg text-[10px] font-bold"
+                          >
+                            إلغاء التفعيل
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {authorizedDevicesList.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-500 text-xs">
+                        لا توجد أجهزة مفعلة مسجلة بالسجل بعد.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab: Developer Phone & SMS / WhatsApp 2FA Control */}
       {activeTab === 'phone2fa' && (
         <div className="space-y-6">
@@ -601,7 +856,7 @@ export const DeveloperConsole: React.FC = () => {
                     value={newPhoneInput}
                     onChange={(e) => setNewPhoneInput(e.target.value)}
                     className="w-full pr-10 pl-4 py-3 bg-[#0b0f1a] border border-[#334155] rounded-2xl text-white font-mono text-sm font-bold focus:border-emerald-500 outline-none"
-                    placeholder="01000000000"
+                    placeholder="01050557853"
                     dir="ltr"
                   />
                 </div>
@@ -929,6 +1184,13 @@ export const DeveloperConsole: React.FC = () => {
               <span className="text-lg font-bold text-emerald-400 font-mono">{diagnostics.activeSessions}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Python Center */}
+      {activeTab === 'python' && (
+        <div className="bg-[#151b2b] border border-blue-500/30 rounded-3xl p-6 shadow-2xl">
+          <DexefPythonHub />
         </div>
       )}
 

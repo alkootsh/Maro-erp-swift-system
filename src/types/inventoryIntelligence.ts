@@ -1,3 +1,8 @@
+/**
+ * @file inventoryIntelligence.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: inventoryIntelligence.ts.
+ */
 export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
 export type AlertType = 

@@ -1,3 +1,8 @@
+/**
+ * @file unitOfWork.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: unitOfWork.ts.
+ */
 // MARO ERP - Unit of Work Pattern (Atomic Transactional Operations for PostgreSQL & MARO Sync Engine)
 import { MaroSyncEngine, SyncOperation } from '../lib/maroSyncEngine';
 

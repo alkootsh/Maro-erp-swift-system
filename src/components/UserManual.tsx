@@ -1,3 +1,8 @@
+/**
+ * @file UserManual.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: UserManual.tsx.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, BookOpen, Compass, Sparkles, Shield, User, FileText, Layers, 

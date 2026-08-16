@@ -1,3 +1,8 @@
+/**
+ * @file productRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: productRepository.ts.
+ */
 // MARO ERP - Operational Data Repository (MARO Sync Engine + PostgreSQL Architecture)
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { 
@@ -197,6 +202,7 @@ export class ProductRepository {
     const defaultSettings: InventorySettings = {
       defaultValuationMethod: 'FIFO',
       allowNegativeStock: false,
+      isTaxEnabled: true,
       defaultTaxRate: 14,
       defaultReorderLevel: 5,
       enforceBatchTracking: false,

@@ -1,3 +1,8 @@
+/**
+ * @file FuelStationPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FuelStationPage.tsx.
+ */
 // MARO ERP - Fuel & Gas Station Module
 // Master Enterprise Industry Module v4.0
 

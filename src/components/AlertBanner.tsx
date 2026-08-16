@@ -1,3 +1,8 @@
+/**
+ * @file AlertBanner.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AlertBanner.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { motion, AnimatePresence } from 'motion/react';

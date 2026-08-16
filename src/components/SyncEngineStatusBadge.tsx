@@ -1,3 +1,8 @@
+/**
+ * @file SyncEngineStatusBadge.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SyncEngineStatusBadge.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { MaroSyncEngine, SyncStatusEvent } from '../lib/maroSyncEngine';
 import { Database, RefreshCw, CheckCircle2, AlertTriangle, WifiOff } from 'lucide-react';

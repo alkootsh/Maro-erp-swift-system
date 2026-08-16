@@ -1,3 +1,8 @@
+/**
+ * @file FoodSupermarketPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FoodSupermarketPage.tsx.
+ */
 // MARO ERP - Food, Supermarket, Multi-Units & Scale Barcode Module
 // Master Enterprise Protocol v4.0 - Clean Architecture
 import React, { useState } from 'react';

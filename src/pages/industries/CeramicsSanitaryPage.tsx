@@ -1,3 +1,8 @@
+/**
+ * @file CeramicsSanitaryPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: CeramicsSanitaryPage.tsx.
+ */
 // MARO ERP - Ceramics, Porcelain & Sanitary Ware Module
 import React, { useState } from 'react';
 import { 

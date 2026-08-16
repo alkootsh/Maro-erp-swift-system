@@ -1,4 +1,10 @@
+/**
+ * @file Suppliers.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Suppliers.tsx.
+ */
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Search, 
   Truck, 
@@ -8,15 +14,17 @@ import {
   Trash2,
   X,
   History,
-  DollarSign
+  DollarSign,
+  Power
 } from 'lucide-react';
 import { Supplier, SupplierLedger } from '../types/sprint8';
 import { SupplierRepository } from '../repositories/supplierRepository';
-import { SaveSupplierCommand, DeleteSupplierCommand, RecordSupplierPaymentCommand } from '../cqrs/commands';
+import { SaveSupplierCommand, DeleteSupplierCommand, RecordSupplierPaymentCommand, ToggleSupplierStatusCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
 
 export const Suppliers: React.FC = () => {
+  const location = useLocation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,6 +32,13 @@ export const Suppliers: React.FC = () => {
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+
+  useEffect(() => {
+    if (location.search.includes('action=add')) {
+      setIsModalOpen(true);
+      setEditingSupplier(null);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     // Reactive subscription to local offline supplier store
@@ -51,6 +66,15 @@ export const Suppliers: React.FC = () => {
       } catch (e: any) {
         alert(e.message || 'حدث خطأ أثناء الحذف');
       }
+    }
+  };
+
+  const handleToggleStatus = async (supplier: Supplier) => {
+    try {
+      const cmd = new ToggleSupplierStatusCommand(supplier.id, supplier.status);
+      await cmd.execute();
+    } catch (e: any) {
+      alert(e.message || 'حدث خطأ أثناء تغيير الحالة');
     }
   };
 
@@ -99,6 +123,7 @@ export const Suppliers: React.FC = () => {
               <tr>
                 <th className="px-6 py-4">المورد</th>
                 <th className="px-6 py-4">الهاتف / البريد</th>
+                <th className="px-6 py-4">الحالة</th>
                 <th className="px-6 py-4">الرقم الضريبي</th>
                 <th className="px-6 py-4">شروط السداد</th>
                 <th className="px-6 py-4">المستحقات المتبقية (AP)</th>
@@ -116,6 +141,14 @@ export const Suppliers: React.FC = () => {
                   <td className="px-6 py-4 text-sm text-slate-400">
                     <div>{supplier.phone || '—'}</div>
                     <div className="text-xs text-slate-500">{supplier.email || '—'}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-bold",
+                      supplier.status === 'active' ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400"
+                    )}>
+                      {supplier.status === 'active' ? 'نشط' : 'غير نشط'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-mono text-slate-300">
                     {supplier.taxNumber || 'غير مسجل'}
@@ -142,11 +175,19 @@ export const Suppliers: React.FC = () => {
                         سداد
                       </button>
                       <button 
+                        onClick={() => handleToggleStatus(supplier)}
+                        className={cn("p-2 rounded-lg transition-colors", supplier.status === 'active' ? "hover:bg-amber-500/10 text-amber-400" : "hover:bg-emerald-500/10 text-emerald-400")}
+                        title={supplier.status === 'active' ? "إيقاف المورد" : "تنشيط المورد"}
+                      >
+                        <Power size={16} />
+                      </button>
+                      <button 
                         onClick={() => { setSelectedSupplier(supplier); setIsLedgerOpen(true); }}
-                        className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors"
+                        className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-all flex items-center gap-1 text-xs font-bold"
                         title="كشف حساب"
                       >
-                        <History size={16} />
+                        <History size={14} />
+                        <span>كشف حساب</span>
                       </button>
                       <button 
                         onClick={() => { setEditingSupplier(supplier); setIsModalOpen(true); }}

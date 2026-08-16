@@ -1,3 +1,8 @@
+/**
+ * @file productService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: productService.ts.
+ */
 // MARO ERP - Product Service Layer for Business Logic
 import { ProductRepository } from '../repositories/productRepository';
 import { ProductMaster, InventorySettings } from '../types/productMaster';

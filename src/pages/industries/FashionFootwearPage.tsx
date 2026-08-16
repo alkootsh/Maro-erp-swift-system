@@ -1,3 +1,8 @@
+/**
+ * @file FashionFootwearPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FashionFootwearPage.tsx.
+ */
 // MARO ERP - Fashion, Footwear & Multi-Attribute Matrix Module
 // Master Enterprise Protocol v4.0 - Clean Architecture
 import React, { useState } from 'react';

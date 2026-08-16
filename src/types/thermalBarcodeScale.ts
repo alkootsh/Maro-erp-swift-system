@@ -1,3 +1,8 @@
+/**
+ * @file thermalBarcodeScale.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: thermalBarcodeScale.ts.
+ */
 // MARO ERP - Enterprise Thermal Printer, Barcode Label & Scale Integration Engine Types
 
 export type ThermalPrintProtocol = 'ESC_POS' | 'TSPL' | 'ZPL' | 'EPL' | 'CPCL' | 'RAW_HTML' | 'PDF_BLOB';

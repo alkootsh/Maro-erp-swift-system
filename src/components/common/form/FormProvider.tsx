@@ -1,3 +1,8 @@
+/**
+ * @file FormProvider.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FormProvider.tsx.
+ */
 import React from 'react';
 import { FormProvider as RHFFormProvider, UseFormReturn, FieldErrors } from 'react-hook-form';
 

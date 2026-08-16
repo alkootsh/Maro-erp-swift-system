@@ -1,3 +1,8 @@
+/**
+ * @file DigitalSignageMediaPlayer.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: DigitalSignageMediaPlayer.tsx.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, 

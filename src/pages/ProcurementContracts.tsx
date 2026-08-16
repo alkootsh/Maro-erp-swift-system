@@ -1,3 +1,8 @@
+/**
+ * @file ProcurementContracts.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ProcurementContracts.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   FileSignature, 
@@ -7,18 +12,46 @@ import {
   Plus, 
   Clock, 
   CheckCircle2, 
-  AlertTriangle 
+  AlertTriangle,
+  Receipt,
+  Eye,
+  Check
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../lib/utils';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export const ProcurementContracts: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'po' | 'contracts'>('po');
 
-  const mockPOs = [
-    { id: 'PO-2023-0901', supplier: 'الشركة السعودية للتوريدات', date: '2023-11-15', amount: 45000, status: 'approved' },
-    { id: 'PO-2023-0902', supplier: 'مؤسسة الأفق المحدودة', date: '2023-11-14', amount: 12500, status: 'pending' },
-    { id: 'PO-2023-0903', supplier: 'المصنع الوطني للتقنية', date: '2023-11-10', amount: 150000, status: 'received' },
-  ];
+  const [posList, setPosList] = useState([
+    { id: 'PO-2026-0901', supplier: 'الشركة السعودية للتوريدات', date: '2026-08-15', amount: 45000, status: 'approved', convertedBillId: '' },
+    { id: 'PO-2026-0902', supplier: 'مؤسسة الأفق المحدودة', date: '2026-08-14', amount: 12500, status: 'pending', convertedBillId: '' },
+    { id: 'PO-2026-0903', supplier: 'المصنع الوطني للتقنية', date: '2026-08-10', amount: 150000, status: 'received', convertedBillId: '' },
+  ]);
+
+  const handleConvertToBill = (poId: string) => {
+    const po = posList.find(p => p.id === poId);
+    if (!po) return;
+
+    const newBill = {
+      id: `bill_${Date.now()}`,
+      billNumber: `BILL-${po.id.replace('PO-', '')}`,
+      supplierName: po.supplier,
+      date: po.date,
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      totalAmount: po.amount,
+      taxAmount: po.amount * 0.14,
+      grandTotal: po.amount * 1.14,
+      status: 'UNPAID',
+      notes: `فاتورة مشتريات صادرة بناءً على أمر الشراء رقم ${po.id}`
+    };
+
+    MaroSyncEngine.saveDocument('purchase_bills', newBill, true);
+
+    setPosList(prev => prev.map(p => p.id === poId ? { ...p, status: 'converted', convertedBillId: newBill.billNumber } : p));
+    toast.success(`تم تحويل أمر الشراء ${po.id} بنجاح إلى فاتورة مشتريات رقم ${newBill.billNumber}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -73,10 +106,11 @@ export const ProcurementContracts: React.FC = () => {
                   <th className="px-6 py-4 font-bold">التاريخ</th>
                   <th className="px-6 py-4 font-bold">القيمة الإجمالية</th>
                   <th className="px-6 py-4 font-bold">الحالة</th>
+                  <th className="px-6 py-4 font-bold text-center">الإجراءات والتحويل</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {mockPOs.map((po) => (
+                {posList.map((po) => (
                   <tr key={po.id} className="hover:bg-[#0f172a]/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-blue-400 font-bold">{po.id}</td>
                     <td className="px-6 py-4 text-white font-bold text-xs">{po.supplier}</td>
@@ -84,15 +118,33 @@ export const ProcurementContracts: React.FC = () => {
                     <td className="px-6 py-4 font-mono text-xs text-white font-bold">{formatCurrency(po.amount)}</td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 w-max",
+                        "px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 w-max",
+                        po.status === 'converted' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
                         po.status === 'approved' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                        po.status === 'received' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                        po.status === 'received' ? "bg-teal-500/10 text-teal-400 border-teal-500/20" :
                         "bg-amber-500/10 text-amber-400 border-amber-500/20"
                       )}>
+                        {po.status === 'converted' && <><Check size={14}/> تم التحويل لفاتورة ({po.convertedBillId})</>}
                         {po.status === 'approved' && <><CheckCircle2 size={12}/> معتمد (بانتظار الاستلام)</>}
                         {po.status === 'received' && <><Truck size={12}/> تم الاستلام بالكامل</>}
                         {po.status === 'pending' && <><Clock size={12}/> بانتظار الاعتماد</>}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {po.status === 'converted' ? (
+                        <span className="text-xs text-emerald-400 font-bold flex items-center justify-center gap-1">
+                          <Receipt size={14} />
+                          <span>محررة بفاتورة</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleConvertToBill(po.id)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 mx-auto active:scale-95"
+                        >
+                          <Receipt size={14} />
+                          <span>تحويل لفاتورة مشتريات</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -1,3 +1,8 @@
+/**
+ * @file posFunctionKeyRegistry.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posFunctionKeyRegistry.ts.
+ */
 // MARO ERP - Dynamic POS Function Keys Registry & Plugin Action Engine
 // Sprint 8.1 Enterprise Customization Architecture
 

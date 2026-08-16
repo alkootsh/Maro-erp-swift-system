@@ -1,3 +1,8 @@
+/**
+ * @file invoiceNumberingEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: invoiceNumberingEngine.ts.
+ */
 // MARO ERP - Non-Repeating Daily Sequential Invoice Numbering Engine
 // Master Enterprise Protocol v4.0 - Node.js Safe, Idempotency-Protected, Multi-Tenant
 

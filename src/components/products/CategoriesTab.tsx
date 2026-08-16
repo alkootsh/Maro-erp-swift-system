@@ -1,3 +1,8 @@
+/**
+ * @file CategoriesTab.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: CategoriesTab.tsx.
+ */
 // MARO ERP - Categories & Product Groups Management
 import React, { useState, useEffect } from 'react';
 import { Plus, FolderTree, Tag, Trash2, Edit2, Layers, CheckCircle } from 'lucide-react';

@@ -1,3 +1,8 @@
+/**
+ * @file accountingService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: accountingService.ts.
+ */
 import { MaroSyncEngine } from '../../lib/maroSyncEngine';
 
 export interface Account {

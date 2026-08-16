@@ -1,3 +1,8 @@
+/**
+ * @file scenarioAnalysisEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: scenarioAnalysisEngine.ts.
+ */
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { Scenario } from '../types/businessIntelligence';
 import { SalesRepository } from '../repositories/salesRepository';

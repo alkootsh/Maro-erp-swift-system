@@ -1,3 +1,8 @@
+/**
+ * @file CashierSessionView.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: CashierSessionView.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { POSSession, SalesInvoice, Customer } from '../types/sprint8';
 import { POSRepository } from '../repositories/posRepository';
@@ -5,6 +10,7 @@ import { SalesRepository } from '../repositories/salesRepository';
 import { CustomerRepository } from '../repositories/customerRepository';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { useAuth, UserProfile } from '../components/AuthProvider';
+import { printSalesInvoice } from '../lib/invoicePrinter';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import ColumnManagerModal from '../components/ColumnManagerModal';
 import { SHIFTS_COLUMNS, SHIFTS_DEFAULT_VISIBLE } from '../lib/columns';
@@ -296,8 +302,8 @@ export default function CashierSessionView() {
 📥 *الفعلي بالدرج:* ${(actual || 0).toLocaleString()} ج.م
 ⚖️ *الفارق (عجز/زيادة):* ${variance === 0 ? 'مطابق تماماً 0 ج.م ✅' : variance > 0 ? `+${(variance || 0).toLocaleString()} ج.م (زيادة)` : `${(variance || 0).toLocaleString()} ج.م (عجز ⚠️)`}`;
 
-      // Open direct web link
-      WhatsAppNotificationService.openWhatsAppDirectly(whatsappSettings.senderPhoneNumber || '01000000000', zMsg);
+      // Dispatch Z-Report directly to Manager's Phone Number silently without popping up window on cashier screen
+      await WhatsAppNotificationService.dispatchManagerAlert('CASH_DRAWER_CLOSING', zMsg, whatsappSettings.managerPhoneNumber);
 
       setSecurityLog(prev => [
         { time: new Date().toLocaleTimeString('ar-EG'), cam: 'كاميرا 04 (الخزينة)', event: `إغلاق الوردية وإنشاء تقرير Z. النقدية الفعلية: ${actual} ج.م (الفارق: ${variance} ج.م)`, status: variance !== 0 ? 'warning' : 'info' },
@@ -951,7 +957,7 @@ export default function CashierSessionView() {
 🎯 *المتوقع بالدرج:* ${s.expectedCash || 0} ج.م
 📥 *الفعلي بالدرج:* ${s.closingCash || 0} ج.م
 ⚖️ *الفارق:* ${diff === 0 ? 'مطابق تماماً 0 ج.م ✅' : diff > 0 ? `+${diff} ج.م (زيادة)` : `${diff} ج.م (عجز ⚠️)`}`;
-                                        WhatsAppNotificationService.openWhatsAppDirectly(whatsappSettings.senderPhoneNumber || '01000000000', zMsg);
+                                        WhatsAppNotificationService.openWhatsAppDirectly(whatsappSettings.managerPhoneNumber || '01050557853', zMsg);
                                       }}
                                       className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 border border-emerald-500/30 cursor-pointer"
                                     >
@@ -1105,48 +1111,7 @@ export default function CashierSessionView() {
                       }
 
                       const handlePrintInvoice = (s: SalesInvoice) => {
-                        const pWin = window.open('', '_blank');
-                        if (!pWin) return;
-                        pWin.document.write(`
-                          <html dir="rtl" lang="ar">
-                            <head>
-                              <title>فاتورة مبيعات #${s.invoiceNumber || s.id}</title>
-                              <style>
-                                body { font-family: Tahoma, Arial, sans-serif; padding: 25px; color: #111; max-width: 600px; margin: 0 auto; }
-                                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-                                h2 { margin: 5px 0; color: #222; }
-                                .meta-info { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 15px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
-                                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                                th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: right; font-size: 13px; }
-                                th { background: #f9f9f9; font-weight: bold; }
-                                .totals { margin-top: 20px; text-align: left; font-size: 14px; line-height: 1.8; }
-                                .totals span { display: inline-block; width: 150px; text-align: right; }
-                                .footer { text-align: center; margin-top: 40px; font-size: 11px; color: #666; border-top: 1px solid #eee; padding-top: 15px; }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="header">
-                                <h2>شركة مارو للأعمال</h2>
-                                <p style="margin: 3px 0; font-size: 12px; color: #666;">فاتورة مبيعات مبسطة</p>
-                              </div>
-                              <div class="meta-info">
-                                <div>
-                                  <p><strong>رقم الفاتورة:</strong> ${s.invoiceNumber || s.id.substring(0, 8)}</p>
-                                  <p><strong>تاريخ المعاملة:</strong> ${new Date(s.createdAt).toLocaleString('ar-EG')}</p>
-                                </div>
-                                <div style="text-align: left;">
-                                  <p><strong>العميل:</strong> ${s.customerName || 'عميل نقدي'}</p>
-                                  <p><strong>حالة الدفع:</strong> ${s.paymentMethod === 'CREDIT' ? 'آجل' : 'مدفوع بالكامل'}</p>
-                                </div>
-                              </div>
-                              <div class="footer">
-                                <p>شكرًا لتعاملكم معنا • تم توليد الفاتورة تلقائيًا عبر مارو للأعمال</p>
-                              </div>
-                              <script>window.print();</script>
-                            </body>
-                          </html>
-                        `);
-                        pWin.document.close();
+                        printSalesInvoice(s);
                       };
 
                       return (

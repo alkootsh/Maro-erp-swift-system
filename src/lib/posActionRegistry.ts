@@ -1,3 +1,8 @@
+/**
+ * @file posActionRegistry.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posActionRegistry.ts.
+ */
 // MARO ERP - Sprint 8.1 POS Action Registry Engine
 
 import { POSActionDefinition, POSActionCategory } from '../types/posKeys';

@@ -1,3 +1,8 @@
+/**
+ * @file businessIntelligence.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: businessIntelligence.ts.
+ */
 export interface BusinessHealth {
   id: string;
   companyId: string;

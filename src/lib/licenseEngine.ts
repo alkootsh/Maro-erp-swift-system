@@ -1,3 +1,8 @@
+/**
+ * @file licenseEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: licenseEngine.ts.
+ */
 // MARO ERP - Enterprise Software Licensing & Activation Engine
 import { SystemLicense } from '../types/security';
 import { SecurityEngine } from './securityEngine';

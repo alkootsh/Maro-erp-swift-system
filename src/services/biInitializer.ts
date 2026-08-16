@@ -1,3 +1,8 @@
+/**
+ * @file biInitializer.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: biInitializer.ts.
+ */
 import { MaroEventBus } from '../lib/eventBus';
 import { BusinessHealthEngine } from './businessHealthEngine';
 import { BIRepository } from '../repositories/biRepository';

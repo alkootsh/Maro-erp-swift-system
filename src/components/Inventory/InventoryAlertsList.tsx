@@ -1,3 +1,8 @@
+/**
+ * @file InventoryAlertsList.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: InventoryAlertsList.tsx.
+ */
 import React from 'react';
 import { 
   AlertTriangle, 

@@ -1,3 +1,8 @@
+/**
+ * @file Reports.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Reports.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { LayoutTemplate, BarChart3, 
   TrendingUp, 

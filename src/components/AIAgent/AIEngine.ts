@@ -1,3 +1,8 @@
+/**
+ * @file AIEngine.ts
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AIEngine.ts.
+ */
 import { SecurityEngine } from '../../lib/securityEngine';
 import { ProductRepository } from '../../repositories/productRepository';
 import { MaroEventBus } from '../../lib/eventBus';

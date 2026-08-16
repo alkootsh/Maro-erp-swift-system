@@ -1,3 +1,8 @@
+/**
+ * @file businessHealthEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: businessHealthEngine.ts.
+ */
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { BusinessHealth } from '../types/businessIntelligence';
 import { ProductRepository } from '../repositories/productRepository';

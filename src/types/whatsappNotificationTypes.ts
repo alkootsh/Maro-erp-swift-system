@@ -1,3 +1,8 @@
+/**
+ * @file whatsappNotificationTypes.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: whatsappNotificationTypes.ts.
+ */
 // MARO ERP - WhatsApp & Email Notifications & Inbound Merchant Orders Types
 import { SalesInvoice, PurchaseBill, Customer, Supplier } from './sprint8';
 
@@ -18,6 +23,9 @@ export type AlertCategory =
   | 'DAILY_SALES_PROFIT'          // ملخص المبيعات والأرباح اليومية
   | 'LOW_STOCK_REPLENISHMENT'     // تنبيه نواقص المخزون والحد الأدنى
   | 'CASH_DRAWER_CLOSING'         // جرد وإقفال الخزينة والوردية
+  | 'CASHIER_LOGIN_ALERT'         // تنبيه تسجيل دخول الكاشير
+  | 'SHIFT_OPEN_ALERT'            // تنبيه فتح وردية كاشير جديدة
+  | 'SHIFT_CLOSE_ALERT'           // تنبيه إغلاق وردية كاشير وتقرير Z-Report
   | 'CUSTOMER_DEBT_OVERDUE'       // تحصيل مديونيات العملاء والتجار
   | 'EXPIRY_DATES_ALERT'          // تواريخ الصلاحية والتشغيلات
   | 'LARGE_TRANSACTION_ALERT'     // العمليات الكبرى ومرتجعات المبيعات
@@ -129,12 +137,21 @@ export interface WhatsAppGatewaySettings {
   apiUrl?: string;
   apiKey?: string;
   senderPhoneNumber: string;
+  managerPhoneNumber?: string;
+  managerEmail?: string;
+  managerName?: string;
+  notifyOnCashierLogin?: boolean;
+  notifyOnShiftOpen?: boolean;
+  notifyOnShiftClose?: boolean;
   webhookSecret?: string;
   autoReplyConfirmation: boolean;
   defaultSalesTemplate: string;
   defaultPurchaseTemplate: string;
   defaultDebtReminderTemplate: string;
   defaultDailyReportTemplate: string;
+  defaultCashierLoginTemplate?: string;
+  defaultShiftOpenTemplate?: string;
+  defaultShiftCloseTemplate?: string;
   emailSmtpHost?: string;
   emailSenderAddress?: string;
 }

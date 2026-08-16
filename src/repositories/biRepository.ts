@@ -1,3 +1,8 @@
+/**
+ * @file biRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: biRepository.ts.
+ */
 import { BusinessHealth, KPI, Scenario } from '../types/businessIntelligence';
 import { InventoryAlert } from '../types/inventoryIntelligence';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

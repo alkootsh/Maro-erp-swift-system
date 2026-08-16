@@ -1,3 +1,8 @@
+/**
+ * @file reportsEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: reportsEngine.ts.
+ */
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { salesInvoices, purchaseInvoices, products, journalLines, chartOfAccounts } from '../../db/schema';

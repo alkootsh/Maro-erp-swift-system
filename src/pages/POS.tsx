@@ -1,3 +1,8 @@
+/**
+ * @file POS.tsx
+ * @module POS Terminal
+ * @description شاشة نقطة البيع الرئيسية (Core POS Terminal). المسؤولة عن عمليات البيع المباشر، التعامل مع الباركود، الطابعات، وإدارة سلة المشتريات.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
@@ -52,8 +57,10 @@ import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { OpenPOSSessionCommand, ClosePOSSessionCommand, ProcessPOSTransactionCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { MaroEventBus } from '../lib/eventBus';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, playSystemChime } from '../lib/utils';
+import { toast } from 'react-hot-toast';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { printSalesInvoice } from '../lib/invoicePrinter';
 import { usbScannerEngine } from '../services/usbScannerEngine';
 import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScannerManager';
 import { FunctionKeyBar } from '../components/common/FunctionKeyBar';
@@ -110,14 +117,38 @@ const ICON_COMPONENTS: { [key: string]: any } = {
 export const POS: React.FC = () => {
   const [products, setProducts] = useState<ProductMaster[]>([]);
   const [activeSession, setActiveSession] = useState<POSSession | null>(null);
-  const [cart, setCart] = useState<{ product: ProductMaster; quantity: number; unitPrice: number; discount: number }[]>([]);
+  const [cart, setCart] = useState<{ product: ProductMaster; quantity: number; unitPrice: number; discount: number }[]>(() => {
+    try {
+      const saved = localStorage.getItem('maro_pos_draft_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedCartIndex, setSelectedCartIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
+    try {
+      const saved = localStorage.getItem('maro_pos_draft_customer');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Auto-save draft effect
+  useEffect(() => {
+    localStorage.setItem('maro_pos_draft_cart', JSON.stringify(cart));
+    if (selectedCustomer) {
+      localStorage.setItem('maro_pos_draft_customer', JSON.stringify(selectedCustomer));
+    } else {
+      localStorage.removeItem('maro_pos_draft_customer');
+    }
+  }, [cart, selectedCustomer]);
   
   // Key Mappings & Actions Registry State
   const [keyMappings, setKeyMappings] = useState<POSKeyMapping>(POSKeyRepository.getKeyMappings());
@@ -391,7 +422,7 @@ export const POS: React.FC = () => {
       case 'PRINT_INVOICE':
       case 'REPRINT_INVOICE':
         if (lastReceipt) {
-          window.print();
+          printSalesInvoice(lastReceipt);
         } else {
           showToast('لا توجد فاتورة سابقة لإعادة طباعتها');
         }
@@ -486,9 +517,20 @@ export const POS: React.FC = () => {
       await cmd.execute();
       setActiveSession(POSRepository.getActiveSession('term_01'));
       setIsOpenSessionModalOpen(false);
+      
+      // Sound & Visual alerts
+      playSystemChime('confirm');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">🟢 تم فتح وردية الكاشير بنجاح!</span>
+          <span className="text-[10px] text-slate-400 mt-0.5">العهدة الإفتتاحية: {formatCurrency(openingFloat)}</span>
+        </div>,
+        { duration: 4000 }
+      );
       showToast('تم فتح وردية جديدة بنجاح');
     } catch (e: any) {
-      alert(e.message || 'خطأ أثناء فتح الجلسة');
+      playSystemChime('error');
+      toast.error(e.message || 'خطأ أثناء فتح الجلسة');
     }
   };
 
@@ -499,14 +541,25 @@ export const POS: React.FC = () => {
       await cmd.execute();
       setActiveSession(null);
       setIsCloseSessionModalOpen(false);
-      alert('تم إغلاق نقطة البيع وإصدار تقرير Z-Report بنجاح');
+      
+      // Sound & Visual alerts
+      playSystemChime('success');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">🔒 تم إنهاء وإقفال الوردية الحالية!</span>
+          <span className="text-[10px] text-slate-400 mt-0.5">تم تصدير تقرير Z-Report بنجاح للمراجعة المالية.</span>
+        </div>,
+        { duration: 5000 }
+      );
     } catch (e: any) {
-      alert(e.message || 'خطأ أثناء إغلاق الجلسة');
+      playSystemChime('error');
+      toast.error(e.message || 'خطأ أثناء إغلاق الجلسة');
     }
   };
 
   const handleCheckout = async () => {
     if (!activeSession) {
+      playSystemChime('warning');
       alert('يرجى فتح جلسة نقطة البيع POS أولاً');
       setIsOpenSessionModalOpen(true);
       return;
@@ -538,6 +591,17 @@ export const POS: React.FC = () => {
 
       const txn = await cmd.execute();
       setLastReceipt(txn);
+      printSalesInvoice(txn);
+
+      // Sound & Visual Checkout confirmation
+      playSystemChime('success');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">🧾 تم تأكيد وحفظ فاتورة البيع!</span>
+          <span className="text-[10px] text-slate-400 mt-0.5">القيمة: {formatCurrency(grandTotal)} | تم طباعة إيصال العميل.</span>
+        </div>,
+        { duration: 5000 }
+      );
 
       // Reset
       setCart([]);
@@ -550,7 +614,8 @@ export const POS: React.FC = () => {
       // Refresh active session
       setActiveSession(POSRepository.getActiveSession('term_01'));
     } catch (e: any) {
-      alert(e.message || 'حدث خطأ أثناء تنفيذ عملية البيع');
+      playSystemChime('error');
+      toast.error(e.message || 'حدث خطأ أثناء تنفيذ عملية البيع');
     }
   };
 

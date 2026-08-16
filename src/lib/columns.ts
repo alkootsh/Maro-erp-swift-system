@@ -1,3 +1,8 @@
+/**
+ * @file columns.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: columns.ts.
+ */
 export interface TableColumn {
   key: string;
   label: string;

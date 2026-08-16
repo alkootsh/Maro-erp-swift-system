@@ -1,3 +1,8 @@
+/**
+ * @file predictionEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: predictionEngine.ts.
+ */
 import { SalesRepository } from '../repositories/salesRepository';
 import { PredictionResult } from '../types/businessIntelligence';
 

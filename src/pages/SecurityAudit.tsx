@@ -1,3 +1,8 @@
+/**
+ * @file SecurityAudit.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SecurityAudit.tsx.
+ */
 // MARO ERP - Realtime Security Audit Log Viewer & Alert Console
 import React, { useState, useEffect } from 'react';
 import { 

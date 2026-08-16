@@ -1,3 +1,8 @@
+/**
+ * @file aiRecommendationEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: aiRecommendationEngine.ts.
+ */
 import { AIRecommendation } from '../types/businessIntelligence';
 import { ProductRepository } from '../repositories/productRepository';
 import { SalesRepository } from '../repositories/salesRepository';

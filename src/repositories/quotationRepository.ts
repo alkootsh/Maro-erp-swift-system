@@ -1,3 +1,8 @@
+/**
+ * @file quotationRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: quotationRepository.ts.
+ */
 // MARO ERP - Sales Quotations Repository
 import { SalesQuotation, SalesQuotationItem } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

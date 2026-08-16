@@ -1,3 +1,8 @@
+/**
+ * @file FormNumber.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FormNumber.tsx.
+ */
 import React from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { FormField } from './FormField';

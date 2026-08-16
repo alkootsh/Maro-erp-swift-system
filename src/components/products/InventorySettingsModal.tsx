@@ -1,3 +1,8 @@
+/**
+ * @file InventorySettingsModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: InventorySettingsModal.tsx.
+ */
 // MARO ERP - Inventory Settings Modal Component
 import React, { useState, useEffect } from 'react';
 import { X, Settings2, Save, ShieldAlert, Percent, Clock, AlertTriangle } from 'lucide-react';

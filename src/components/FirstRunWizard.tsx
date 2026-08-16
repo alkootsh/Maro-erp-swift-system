@@ -1,3 +1,8 @@
+/**
+ * @file FirstRunWizard.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FirstRunWizard.tsx.
+ */
 // MARO ERP - Enterprise First Run Wizard Modal
 import React, { useState } from 'react';
 import { Sparkles, Database, ArrowRight, ShieldCheck, CheckCircle2, Loader2, Building2, Package, Users, ShoppingBag, Utensils, Zap, HelpCircle, LayoutGrid, Check } from 'lucide-react';

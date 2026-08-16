@@ -1,3 +1,8 @@
+/**
+ * @file purchasesEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: purchasesEngine.ts.
+ */
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../../db';
 import { purchaseInvoices, purchaseInvoiceLines, products } from '../../db/schema';

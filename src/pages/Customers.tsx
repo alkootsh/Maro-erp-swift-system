@@ -1,3 +1,8 @@
+/**
+ * @file Customers.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Customers.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { 
   Search, 
@@ -12,13 +17,17 @@ import {
   DollarSign,
   AlertTriangle,
   CreditCard,
-  Building2
+  Building2,
+  Volume2,
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import { Customer, CustomerLedger } from '../types/sprint8';
 import { CustomerRepository } from '../repositories/customerRepository';
 import { SaveCustomerCommand, DeleteCustomerCommand, RecordCustomerPaymentCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
-import { cn, formatCurrency, formatDate } from '../lib/utils';
+import { cn, formatCurrency, formatDate, playSystemChime } from '../lib/utils';
+import { toast } from 'react-hot-toast';
 
 export const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -53,8 +62,34 @@ export const Customers: React.FC = () => {
       try {
         const cmd = new DeleteCustomerCommand(customer.id, customer.name);
         await cmd.execute();
+        playSystemChime('success');
+        toast.success('تم حذف العميل بنجاح');
       } catch (e: any) {
+        playSystemChime('error');
         alert(e.message || 'حدث خطأ أثناء الحذف');
+      }
+    }
+  };
+
+  const handleDeleteInactive = async () => {
+    const inactiveCustomers = customers.filter(c => c.status !== 'active' || (c.currentBalance === 0 && !c.phone));
+    if (inactiveCustomers.length === 0) {
+      playSystemChime('warning');
+      toast.error('لا يوجد عملاء غير نشطين حالياً للحذف.');
+      return;
+    }
+
+    if (window.confirm(`هل أنت متأكد من حذف كافة العملاء غير النشطين والذين لا توجد عليهم أرصدة مالية (${inactiveCustomers.length} عميل)؟`)) {
+      try {
+        for (const c of inactiveCustomers) {
+          const cmd = new DeleteCustomerCommand(c.id, c.name);
+          await cmd.execute();
+        }
+        playSystemChime('success');
+        toast.success(`✅ تم حذف ${inactiveCustomers.length} عميل غير نشط بنجاح!`);
+      } catch (e: any) {
+        playSystemChime('error');
+        toast.error(e.message || 'حدث خطأ أثناء حذف العملاء غير النشطين');
       }
     }
   };
@@ -87,18 +122,30 @@ export const Customers: React.FC = () => {
           <input 
             type="text" 
             placeholder="البحث بالاسم، الهاتف، الرقم الضريبي..." 
-            className="w-full pr-10 pl-4 py-2.5 bg-[#151b2b] border border-[#1e293b] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+            className="w-full pr-10 pl-4 py-2.5 bg-[#151b2b] border border-[#1e293b] rounded-xl text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600 font-bold text-xs"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
-          onClick={() => { setEditingCustomer(null); setIsModalOpen(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95"
-        >
-          <UserPlus size={18} />
-          <span>إضافة عميل جديد</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            type="button"
+            onClick={handleDeleteInactive}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-xl transition-all font-bold text-xs active:scale-95 shadow-lg shadow-red-950/20"
+            title="حذف جميع العملاء غير النشطين وأصحاب الأرصدة الصفرية"
+          >
+            <Trash2 size={16} />
+            <span>حذف غير النشطين 🗑️</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => { setEditingCustomer(null); setIsModalOpen(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95"
+          >
+            <UserPlus size={16} />
+            <span>إضافة عميل جديد</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-[#151b2b] rounded-2xl border border-[#1e293b] shadow-xl overflow-hidden">
@@ -168,20 +215,23 @@ export const Customers: React.FC = () => {
                         </button>
                         <button 
                           onClick={() => { setSelectedCustomer(customer); setIsLedgerOpen(true); }}
-                          className="p-2 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors"
-                          title="كشف حساب"
+                          className="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                          title="كشف حساب تفصيلي"
                         >
-                          <History size={16} />
+                          <FileText size={14} />
+                          كشف حساب
                         </button>
                         <button 
                           onClick={() => { setEditingCustomer(customer); setIsModalOpen(true); }}
                           className="p-2 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+                          title="تعديل العميل"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button 
                           onClick={() => handleDelete(customer)}
                           className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                          title="حذف العميل"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -234,6 +284,25 @@ const CustomerModal: React.FC<{ customer: Customer | null; onClose: () => void }
     status: customer?.status || 'active'
   });
 
+  const [hasPlayedWarning, setHasPlayedWarning] = useState(false);
+
+  // Check for duplicate phone number dynamically in offline storage
+  const allCustomers = MaroSyncEngine.getLocalCollection<Customer>('customers');
+  const duplicateCustomer = formData.phone?.trim()
+    ? allCustomers.find(c => c.phone?.trim() === formData.phone?.trim() && c.id !== customer?.id)
+    : null;
+
+  useEffect(() => {
+    if (duplicateCustomer) {
+      if (!hasPlayedWarning) {
+        playSystemChime('warning');
+        setHasPlayedWarning(true);
+      }
+    } else {
+      setHasPlayedWarning(false);
+    }
+  }, [duplicateCustomer, hasPlayedWarning]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -243,88 +312,128 @@ const CustomerModal: React.FC<{ customer: Customer | null; onClose: () => void }
         currentBalance: customer?.currentBalance || 0
       });
       await cmd.execute();
+      
+      // Visual & Auditory Confirmation
+      playSystemChime('success');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">✅ تم حفظ بيانات العميل بنجاح!</span>
+          <span className="text-[10px] text-slate-400 mt-0.5">تم ترحيل البيانات وتأمين الدفاتر المحاسبية بنجاح.</span>
+        </div>,
+        { duration: 4000 }
+      );
+      
       onClose();
     } catch (e: any) {
-      alert(e.message || 'حدث خطأ أثناء إدخال العميل');
+      playSystemChime('error');
+      toast.error(e.message || 'حدث خطأ أثناء حفظ العميل');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#151b2b] w-full max-w-lg rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
-          <h3 className="font-bold text-xl text-white">
-            {customer ? 'تعديل بيانات عميل' : 'إضافة عميل جديد'}
-          </h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
+      <div className="bg-[#151b2b] w-full max-w-lg rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+        
+        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/40">
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-blue-400 animate-pulse" size={18} />
+            <h3 className="font-black text-sm text-white tracking-tight">
+              {customer ? 'تعديل بيانات عميل مسجل' : 'إضافة وتأسيس عميل جديد'}
+            </h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-semibold">
+          
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">اسم العميل *</label>
+            <label className="block text-slate-400 font-bold mb-1.5">اسم العميل بالكامل *</label>
             <input 
               required
               type="text" 
-              className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+              className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-bold"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">رقم الهاتف</label>
+              <label className="block text-slate-400 font-bold mb-1.5">رقم الهاتف الجوال</label>
               <input 
                 type="text" 
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+                className={cn(
+                  "w-full px-4 py-2.5 bg-[#1e293b] border rounded-xl text-white outline-none font-bold",
+                  duplicateCustomer ? "border-amber-500/50 focus:border-amber-500" : "border-[#334155] focus:border-blue-500"
+                )}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">الرقم الضريبي (TRN)</label>
+              <label className="block text-slate-400 font-bold mb-1.5">الرقم الضريبي (TRN)</label>
               <input 
                 type="text" 
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-mono"
+                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-mono font-bold"
                 value={formData.taxNumber}
                 onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
               />
             </div>
           </div>
+
+          {/* DYNAMIC DUPLICATE PHONE NUMBER WARNING (كاشف تكرار الهواتف) */}
+          {duplicateCustomer && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-2.5 animate-pulse text-amber-300">
+              <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={16} />
+              <div className="space-y-1">
+                <p className="font-black text-[11px]">⚠️ تنبيه: رقم الهاتف مكرر ومسجل مسبقاً!</p>
+                <p className="text-[10px] text-amber-400/90 leading-relaxed">
+                  هذا الرقم مسجل بالفعل للعميل: <span className="font-black underline text-white">{duplicateCustomer.name}</span>. 
+                  يُفضل استخدام رقم فريد لكل عميل لتفادي تداخل حسابات المندوبين وإشعارات الواتساب.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">الحد الائتماني (EGP)</label>
+              <label className="block text-slate-400 font-bold mb-1.5">الحد الائتماني المالي (EGP)</label>
               <input 
                 type="number" 
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-mono"
+                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-mono font-bold"
                 value={formData.creditLimit}
                 onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">قائمة الأسعار</label>
+              <label className="block text-slate-400 font-bold mb-1.5">قائمة تسعير الفواتير</label>
               <select
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500 font-bold"
                 value={formData.priceListId}
                 onChange={(e) => setFormData({ ...formData, priceListId: e.target.value })}
               >
                 <option value="RETAIL">سعر التجزئة (عادي)</option>
-                <option value="WHOLESALE">سعر الجملة</option>
+                <option value="WHOLESALE">سعر الجملة المعتمد</option>
                 <option value="DISTRIBUTOR">سعر الموزع VIP</option>
               </select>
             </div>
           </div>
-          <div className="pt-4 flex gap-3">
+
+          <div className="pt-4 flex gap-3 border-t border-[#1e293b]">
             <button 
               type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20"
+              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl font-black shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
-              حفظ العميل
+              <Volume2 size={14} className="animate-bounce" />
+              <span>حفظ العميل وتأكيد القيد 🔊</span>
             </button>
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#1e293b] text-slate-300 py-3 rounded-xl font-bold hover:bg-[#334155]"
+              className="flex-1 bg-[#1e293b] text-slate-300 py-3 rounded-xl font-bold hover:bg-[#334155] transition-all"
             >
               إلغاء
             </button>
@@ -345,55 +454,69 @@ const PaymentModal: React.FC<{ customer: Customer; onClose: () => void }> = ({ c
     try {
       const cmd = new RecordCustomerPaymentCommand(customer.id, amount, refNo, notes);
       await cmd.execute();
+      
+      // Visual & Auditory Confirmation
+      playSystemChime('success');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">💵 تم قيد وتحصيل الدفعة النقدية!</span>
+          <span className="text-[10px] text-slate-400 mt-0.5">المبلغ: {formatCurrency(amount)} | رقم المرجع: {refNo}</span>
+        </div>,
+        { duration: 5000 }
+      );
+      
       onClose();
     } catch (e: any) {
-      alert(e.message || 'حدث خطأ أثناء تحصيل الدفعة');
+      playSystemChime('error');
+      toast.error(e.message || 'حدث خطأ أثناء تحصيل الدفعة');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#151b2b] w-full max-w-md rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
+      <div className="bg-[#151b2b] w-full max-w-md rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-600 to-teal-600"></div>
+        
+        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/40">
           <div>
-            <h3 className="font-bold text-xl text-white">تحصيل دفعة نقدية</h3>
-            <p className="text-xs text-blue-400 font-bold mt-0.5">{customer.name}</p>
+            <h3 className="font-black text-sm text-white tracking-tight">تحصيل دفعة نقدية من عميل 💵</h3>
+            <p className="text-[10px] text-blue-400 font-bold mt-1">العميل: {customer.name}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500">
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-semibold">
           <div className="bg-[#1e293b] p-4 rounded-xl border border-[#334155] flex justify-between items-center">
-            <span className="text-xs text-slate-400 font-bold">الرصيد المستحق الحالي:</span>
-            <span className="text-lg font-black text-amber-400 font-mono">{formatCurrency(customer.currentBalance)}</span>
+            <span className="text-slate-400 font-bold">الرصيد المستحق الحالي للعميل:</span>
+            <span className="text-base font-black text-amber-400 font-mono">{formatCurrency(customer.currentBalance)}</span>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">المبلغ المحصّل (EGP) *</label>
+            <label className="block text-slate-400 font-bold mb-1.5">المبلغ المحصّل والمسدد (EGP) *</label>
             <input 
               required
               type="number" 
               step="0.01"
-              className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-emerald-500 text-lg font-bold font-mono"
+              className="w-full px-4 py-3 bg-[#1e293b] border border-[#334155] rounded-xl text-emerald-400 outline-none focus:border-emerald-500 text-base font-black font-mono"
               value={amount}
               onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">رقم الإيصال / المرجع</label>
+            <label className="block text-slate-400 font-bold mb-1.5">رقم سند القبض / المرجع المالي</label>
             <input 
               required
               type="text" 
-              className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-emerald-500 font-mono"
+              className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-emerald-500 font-mono font-bold"
               value={refNo}
               onChange={(e) => setRefNo(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ملاحظات</label>
+            <label className="block text-slate-400 font-bold mb-1.5">ملاحظات السند</label>
             <input 
               type="text" 
               className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-emerald-500"
@@ -402,17 +525,18 @@ const PaymentModal: React.FC<{ customer: Customer; onClose: () => void }> = ({ c
             />
           </div>
 
-          <div className="pt-4 flex gap-3">
+          <div className="pt-4 flex gap-3 border-t border-[#1e293b]">
             <button 
               type="submit"
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20"
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl font-black shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
-              تأكيد التحصيل والقيد
+              <Volume2 size={14} className="animate-bounce" />
+              <span>تأكيد التحصيل والقيد 🔊</span>
             </button>
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#1e293b] text-slate-300 py-3 rounded-xl font-bold hover:bg-[#334155]"
+              className="flex-1 bg-[#1e293b] text-slate-300 py-3 rounded-xl font-bold hover:bg-[#334155] transition-all"
             >
               إلغاء
             </button>
@@ -422,6 +546,7 @@ const PaymentModal: React.FC<{ customer: Customer; onClose: () => void }> = ({ c
     </div>
   );
 };
+
 
 const CustomerLedgerDrawer: React.FC<{ customer: Customer; onClose: () => void }> = ({ customer, onClose }) => {
   const [ledger, setLedger] = useState<CustomerLedger[]>([]);

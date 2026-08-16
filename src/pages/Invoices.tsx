@@ -1,3 +1,8 @@
+/**
+ * @file Invoices.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Invoices.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -26,6 +31,7 @@ import { USBScannerBadge, USBScannerModal } from '../components/USBBarcodeScanne
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
 import { exportToExcel } from '../lib/excel';
+import { printSalesInvoice } from '../lib/invoicePrinter';
 
 export const Invoices: React.FC = () => {
   const navigate = useNavigate();
@@ -175,8 +181,12 @@ export const Invoices: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => {
-                          const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(inv);
-                          WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                          const customer = CustomerRepository.getCustomerById(inv.customerId);
+                          const targetPhone = customer?.phone || prompt('أدخل رقم هاتف الواتساب الخاص بالعميل:', '') || '';
+                          if (targetPhone) {
+                            const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(inv);
+                            WhatsAppNotificationService.openWhatsAppDirectly(targetPhone, msg);
+                          }
                         }}
                         className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors flex items-center gap-1"
                         title="إرسال الفاتورة للعميل عبر الواتساب"
@@ -211,14 +221,32 @@ export const Invoices: React.FC = () => {
 const CreateInvoiceModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<ProductMaster[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'CREDIT' | 'SPLIT'>('CASH');
-  const [items, setItems] = useState<SalesInvoiceItem[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(() => {
+    return localStorage.getItem('maro_invoice_draft_customerId') || '';
+  });
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'CREDIT' | 'SPLIT'>(() => {
+    return (localStorage.getItem('maro_invoice_draft_paymentMethod') as any) || 'CASH';
+  });
+  const [items, setItems] = useState<SalesInvoiceItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('maro_invoice_draft_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     setCustomers(CustomerRepository.getCustomers());
     setProducts(ProductRepository.getProducts());
   }, []);
+
+  // Auto-save draft effect
+  useEffect(() => {
+    localStorage.setItem('maro_invoice_draft_customerId', selectedCustomerId);
+    localStorage.setItem('maro_invoice_draft_paymentMethod', paymentMethod);
+    localStorage.setItem('maro_invoice_draft_items', JSON.stringify(items));
+  }, [selectedCustomerId, paymentMethod, items]);
 
   useEffect(() => {
     const unsubUSB = usbScannerEngine.subscribe((parsedResult) => {
@@ -316,6 +344,9 @@ const CreateInvoiceModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       });
 
       await cmd.execute();
+      localStorage.removeItem('maro_invoice_draft_customerId');
+      localStorage.removeItem('maro_invoice_draft_paymentMethod');
+      localStorage.removeItem('maro_invoice_draft_items');
       onClose();
     } catch (e: any) {
       alert(e.message || 'حدث خطأ أثناء إصدار الفاتورة');
@@ -511,15 +542,19 @@ const InvoiceDetailModal: React.FC<{ invoice: SalesInvoice; onClose: () => void 
           <div className="flex items-center gap-2">
             <button 
               onClick={() => {
-                const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(invoice);
-                WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                const customer = CustomerRepository.getCustomerById(invoice.customerId);
+                const targetPhone = customer?.phone || prompt('أدخل رقم هاتف الواتساب الخاص بالعميل:', '') || '';
+                if (targetPhone) {
+                  const msg = WhatsAppNotificationService.formatSalesInvoiceWhatsApp(invoice);
+                  WhatsAppNotificationService.openWhatsAppDirectly(targetPhone, msg);
+                }
               }}
               className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5"
             >
               <Send size={16} />
               إرسال عبر الواتس
             </button>
-            <button onClick={() => window.print()} className="p-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-bold flex items-center gap-1">
+            <button onClick={() => printSalesInvoice(invoice)} className="p-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-bold flex items-center gap-1">
               <Printer size={16} />
               طباعة
             </button>

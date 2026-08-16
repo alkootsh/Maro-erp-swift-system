@@ -1,3 +1,8 @@
+/**
+ * @file DynamicFormsBuilder.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: DynamicFormsBuilder.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Settings, 

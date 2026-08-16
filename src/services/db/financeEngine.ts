@@ -1,3 +1,8 @@
+/**
+ * @file financeEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: financeEngine.ts.
+ */
 import { eq, or, and, gte, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { chartOfAccounts, journalEntries, journalLines } from '../../db/schema';

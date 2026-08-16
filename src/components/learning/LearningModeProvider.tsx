@@ -1,3 +1,8 @@
+/**
+ * @file LearningModeProvider.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: LearningModeProvider.tsx.
+ */
 import React, { createContext, useContext, useState } from 'react';
 import { BookOpen, X, Compass } from 'lucide-react';
 import { createPortal } from 'react-dom';

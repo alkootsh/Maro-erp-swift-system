@@ -1,3 +1,8 @@
+/**
+ * @file AIAgentOverlay.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AIAgentOverlay.tsx.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, Sparkles, Mic, Expand, Minimize2, Loader2, Settings, WifiOff } from 'lucide-react';
 import { AIEngine, AIMessage, AIContext } from './AIEngine';

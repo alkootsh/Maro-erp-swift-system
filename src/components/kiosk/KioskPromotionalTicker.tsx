@@ -1,3 +1,8 @@
+/**
+ * @file KioskPromotionalTicker.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: KioskPromotionalTicker.tsx.
+ */
 import React from 'react';
 import { Flame, Sparkles, Megaphone, Zap, Tag } from 'lucide-react';
 

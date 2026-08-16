@@ -1,3 +1,8 @@
+/**
+ * @file SmartTooltip.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SmartTooltip.tsx.
+ */
 import React, { useState, useRef, useEffect } from 'react';
 import { HelpCircle, Check, PlayCircle, FileText, BrainCircuit, ExternalLink, Lightbulb, AlertTriangle } from 'lucide-react';
 import { createPortal } from 'react-dom';

@@ -1,3 +1,8 @@
+/**
+ * @file AutoPartsPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AutoPartsPage.tsx.
+ */
 // MARO ERP - Auto Spare Parts & Fitment Compatibility Module
 import React, { useState } from 'react';
 import { 

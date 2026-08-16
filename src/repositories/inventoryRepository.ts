@@ -1,3 +1,8 @@
+/**
+ * @file inventoryRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: inventoryRepository.ts.
+ */
 // MARO ERP - Inventory Movement & Stock Transfer Repository
 import { InventoryMovement } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

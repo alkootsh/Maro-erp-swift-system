@@ -1,7 +1,14 @@
+/**
+ * @file InvoiceSettings.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: InvoiceSettings.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { Save, Settings, FileText, Hash, Layout, User, Warehouse, Building } from 'lucide-react';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
+import { toast } from 'react-hot-toast';
+import { soundAlerts } from '../lib/soundAlerts';
 
 interface InvoiceSettingsData {
   prefix: string;
@@ -11,6 +18,7 @@ interface InvoiceSettingsData {
   template: 'standard' | 'compact' | 'modern';
   showLogo: boolean;
   showTax: boolean;
+  isTaxEnabled: boolean;
   taxRate: number;
   terms: string;
   footer: string;
@@ -26,6 +34,7 @@ export const InvoiceSettings: React.FC = () => {
     template: 'standard',
     showLogo: true,
     showTax: true,
+    isTaxEnabled: true,
     taxRate: 15,
     terms: 'شكراً لتعاملكم معنا. الدفع خلال 15 يوماً.',
     footer: 'هذه فاتورة إلكترونية لا تحتاج لختم.',
@@ -50,9 +59,12 @@ export const InvoiceSettings: React.FC = () => {
     setSaving(true);
     try {
       await MaroSyncEngine.saveDocument('settings_invoices', { id: 'invoices', ...settings }, false);
-      alert('تم حفظ الإعدادات بنجاح');
+      toast.success('تم حفظ إعدادات الفواتير بنجاح وتوثيق التغييرات بالكامل');
+      soundAlerts.playSuccess();
     } catch (error) {
       console.error('Save failed:', error);
+      toast.error('فشل حفظ إعدادات الفواتير');
+      soundAlerts.playWarning();
     } finally {
       setSaving(false);
     }
@@ -142,7 +154,7 @@ export const InvoiceSettings: React.FC = () => {
             الشروط والضرائب
           </h3>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">نسبة الضريبة (%)</label>
                 <input 
@@ -152,7 +164,7 @@ export const InvoiceSettings: React.FC = () => {
                   className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
-              <div className="flex items-center pt-6">
+              <div className="flex flex-col gap-2 pt-6">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input 
                     type="checkbox"
@@ -161,6 +173,15 @@ export const InvoiceSettings: React.FC = () => {
                     className="w-5 h-5 rounded border-[#334155] bg-[#0b0f1a] text-blue-600 focus:ring-0"
                   />
                   <span className="text-sm font-bold text-white">إظهار الضريبة بالفاتورة</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={settings.isTaxEnabled}
+                    onChange={(e) => setSettings({ ...settings, isTaxEnabled: e.target.checked })}
+                    className="w-5 h-5 rounded border-[#334155] bg-[#0b0f1a] text-blue-600 focus:ring-0"
+                  />
+                  <span className="text-sm font-bold text-white">تفعيل حساب الضريبة</span>
                 </label>
               </div>
             </div>

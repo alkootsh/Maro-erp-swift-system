@@ -1,3 +1,8 @@
+/**
+ * @file SalonBarberPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SalonBarberPage.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Scissors, 

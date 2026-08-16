@@ -1,3 +1,8 @@
+/**
+ * @file ReportDesigner.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ReportDesigner.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 

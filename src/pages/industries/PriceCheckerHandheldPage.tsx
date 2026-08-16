@@ -1,3 +1,8 @@
+/**
+ * @file PriceCheckerHandheldPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: PriceCheckerHandheldPage.tsx.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ScanLine, 

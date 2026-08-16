@@ -1,3 +1,8 @@
+/**
+ * @file TeamWorkflowHub.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: TeamWorkflowHub.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Users, CheckSquare, Clock, Shield, GitBranch, Activity, 

@@ -1,3 +1,8 @@
+/**
+ * @file customerRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: customerRepository.ts.
+ */
 // MARO ERP - Customer & Customer Ledger Repository
 import { Customer, CustomerLedger } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

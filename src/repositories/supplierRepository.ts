@@ -1,3 +1,8 @@
+/**
+ * @file supplierRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: supplierRepository.ts.
+ */
 // MARO ERP - Supplier & Supplier Ledger Repository
 import { Supplier, SupplierLedger } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

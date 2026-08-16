@@ -1,3 +1,8 @@
+/**
+ * @file RolePermissions.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: RolePermissions.tsx.
+ */
 // MARO ERP - Granular Role & Permission Management (Layer 2 & Layer 3)
 import React, { useState } from 'react';
 import { 

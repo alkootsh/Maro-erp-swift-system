@@ -1,3 +1,8 @@
+/**
+ * @file AdaptiveERPHub.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AdaptiveERPHub.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Layers, 

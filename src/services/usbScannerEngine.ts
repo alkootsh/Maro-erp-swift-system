@@ -1,3 +1,8 @@
+/**
+ * @file usbScannerEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: usbScannerEngine.ts.
+ */
 // MARO ERP - Enterprise USB & Bluetooth Barcode Scanner Hardware Engine
 import { BarcodeEngine, ParsedBarcodeResult } from './barcodeEngine';
 

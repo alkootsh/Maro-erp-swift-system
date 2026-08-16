@@ -1,3 +1,8 @@
+/**
+ * @file securityEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: securityEngine.ts.
+ */
 // MARO ERP - Enterprise Security & Permission Engine
 import { 
   SystemLicense, 

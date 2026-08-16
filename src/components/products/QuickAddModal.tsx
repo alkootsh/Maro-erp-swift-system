@@ -1,3 +1,8 @@
+/**
+ * @file QuickAddModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: QuickAddModal.tsx.
+ */
 // MARO ERP - Quick Add Modal for Categories, Groups, Brands, etc.
 import React, { useState } from 'react';
 import { X, Save } from 'lucide-react';

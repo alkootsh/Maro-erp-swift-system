@@ -1,3 +1,8 @@
+/**
+ * @file manufacturing.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: manufacturing.ts.
+ */
 // MARO ERP - Enterprise Manufacturing & Production Module Types
 export type BOMStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
 export type WorkOrderStatus = 'DRAFT' | 'RELEASED' | 'IN_PROGRESS' | 'QUALITY_CHECK' | 'COMPLETED' | 'CANCELLED';

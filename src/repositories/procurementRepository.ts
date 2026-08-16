@@ -1,3 +1,8 @@
+/**
+ * @file procurementRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: procurementRepository.ts.
+ */
 // MARO ERP - Procurement Repository (PR, RFQ, GRN & Supplier Debit Notes)
 import {
   PurchaseRequest,

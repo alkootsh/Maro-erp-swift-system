@@ -1,3 +1,8 @@
+/**
+ * @file AIPaperScannerModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AIPaperScannerModal.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Sparkles, 

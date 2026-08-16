@@ -1,3 +1,8 @@
+/**
+ * @file anomalyDetectionEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: anomalyDetectionEngine.ts.
+ */
 import { SalesRepository } from '../repositories/salesRepository';
 import { SalesInvoice } from '../types/sprint8';
 import { RootCauseAnalysis } from '../types/businessIntelligence';

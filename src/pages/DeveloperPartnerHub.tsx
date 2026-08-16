@@ -1,3 +1,8 @@
+/**
+ * @file DeveloperPartnerHub.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: DeveloperPartnerHub.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Code2, Users, Lightbulb, Sparkles, CheckCircle2, ThumbsUp, 

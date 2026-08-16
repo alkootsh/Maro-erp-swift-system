@@ -1,3 +1,8 @@
+/**
+ * @file pharmacyAITriageEngine.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: pharmacyAITriageEngine.ts.
+ */
 // MARO ERP - Autonomous Clinical Pharmacy & OTC Triage AI Engine
 // Master Enterprise Medical & Pharmaceutical Protocol v4.0
 

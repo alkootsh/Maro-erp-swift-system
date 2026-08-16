@@ -1,3 +1,8 @@
+/**
+ * @file queries.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: queries.ts.
+ */
 // MARO ERP - CQRS Query Handlers (Product, Sales, Purchase, POS, Accounting)
 import { ProductRepository } from '../repositories/productRepository';
 import { ProductMaster, WarehouseData } from '../types/productMaster';

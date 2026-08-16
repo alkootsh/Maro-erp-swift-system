@@ -1,3 +1,8 @@
+/**
+ * @file accountingService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: accountingService.ts.
+ */
 // MARO ERP - Automated General Ledger & Double-Entry Accounting Service
 import { Account, JournalEntry, JournalLine } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -107,11 +112,19 @@ export class AccountingService {
     const assetAccount = isCashOrPos ? '11110' : '11200'; // POS Clearing or AR
     const revenueAccount = isCashOrPos ? '41200' : '41100'; // Retail or Wholesale
 
+    // Ensure total debit equals total credit (balancing any shipping costs or discounts)
+    const expectedCredit = untaxedTotal + vatAmount;
+    const diff = grandTotal - expectedCredit;
+
     const lines = [
       { accountCode: assetAccount, debit: grandTotal, credit: 0 },
-      { accountCode: revenueAccount, debit: 0, credit: untaxedTotal },
+      { accountCode: revenueAccount, debit: 0, credit: untaxedTotal + (diff > 0 ? diff : 0) },
       { accountCode: '21400', debit: 0, credit: vatAmount }
     ];
+
+    if (diff < 0) {
+      lines.push({ accountCode: '41300', debit: Math.abs(diff), credit: 0 }); // Sales Discount
+    }
 
     if (totalCostPrice > 0) {
       lines.push(

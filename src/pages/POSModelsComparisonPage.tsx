@@ -1,3 +1,8 @@
+/**
+ * @file POSModelsComparisonPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: POSModelsComparisonPage.tsx.
+ */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 

@@ -1,3 +1,8 @@
+/**
+ * @file digitalSignageAds.ts
+ * @module تعريفات الأنواع والبيانات (TypeScript Types)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: digitalSignageAds.ts.
+ */
 // MARO ERP - Digital Signage & Price Checker Media Hub Types
 // Master Enterprise Digital Signage & Media Advertising Protocol v4.0
 

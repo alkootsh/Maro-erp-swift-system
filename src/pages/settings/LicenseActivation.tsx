@@ -1,3 +1,8 @@
+/**
+ * @file LicenseActivation.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: LicenseActivation.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Key, 

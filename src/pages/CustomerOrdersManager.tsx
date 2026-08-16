@@ -1,4 +1,10 @@
+/**
+ * @file CustomerOrdersManager.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: CustomerOrdersManager.tsx.
+ */
 import React, { useState, useEffect, useMemo } from 'react';
+import { toast } from 'react-hot-toast';
 import { 
   ShoppingBag, 
   Search, 
@@ -10,6 +16,7 @@ import {
   QrCode, 
   Copy, 
   ExternalLink, 
+  Compass,
   Sparkles, 
   Send, 
   Receipt, 
@@ -26,7 +33,14 @@ import {
   ArrowRight,
   TrendingUp,
   Package,
-  Layers
+  Layers,
+  Edit,
+  Trash2,
+  Save,
+  MessageSquare,
+  Truck,
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { CustomerPortalService } from '../services/customerPortalService';
 import { 
@@ -37,6 +51,8 @@ import {
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { CustomerOrderPortalApp } from './portal/CustomerOrderPortalApp';
+import { CustomerRepository } from '../repositories/customerRepository';
+import { printSalesInvoice } from '../lib/invoicePrinter';
 
 export const CustomerOrdersManager: React.FC = () => {
   const [orders, setOrders] = useState<CustomerPortalOrder[]>([]);
@@ -53,6 +69,13 @@ export const CustomerOrdersManager: React.FC = () => {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [simulatorDevice, setSimulatorDevice] = useState<'MOBILE' | 'DESKTOP'>('MOBILE');
   const [isCopied, setIsCopied] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'CREDIT'>('CASH');
+
+  // Review & Editing State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedOrder, setEditedOrder] = useState<CustomerPortalOrder | null>(null);
+  const [isSavingEdits, setIsSavingEdits] = useState(false);
+  const [isDispatchingStorekeeper, setIsDispatchingStorekeeper] = useState(false);
 
   useEffect(() => {
     // Reactive subscription to customer_portal_orders
@@ -83,16 +106,148 @@ export const CustomerOrdersManager: React.FC = () => {
   const pendingCount = useMemo(() => orders.filter(o => o.status === 'PENDING_REVIEW').length, [orders]);
   const convertedCount = useMemo(() => orders.filter(o => o.status === 'CONVERTED_TO_INVOICE').length, [orders]);
 
+  const registeredCustomer = useMemo(() => {
+    if (!selectedOrder) return null;
+    return selectedOrder.customerId 
+      ? CustomerRepository.getCustomerById(selectedOrder.customerId) 
+      : CustomerRepository.getCustomers().find(c => 
+          (c.phone && selectedOrder.phone && c.phone.trim() === selectedOrder.phone.trim()) || 
+          (c.name && selectedOrder.customerName && c.name.toLowerCase().trim() === selectedOrder.customerName.toLowerCase().trim())
+        );
+  }, [selectedOrder, orders]);
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(portalUrl);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2500);
   };
 
-  const handleOpenDetail = (order: CustomerPortalOrder) => {
+  const handleOpenDetail = (order: CustomerPortalOrder, startInEditMode = false) => {
     setSelectedOrder(order);
+    setEditedOrder(JSON.parse(JSON.stringify(order)));
+    setIsEditMode(startInEditMode);
     setConvertSuccessInvoice(null);
     setIsDetailOpen(true);
+
+    const registered = order.customerId 
+      ? CustomerRepository.getCustomerById(order.customerId) 
+      : CustomerRepository.getCustomers().find(c => 
+          (c.phone && order.phone && c.phone.trim() === order.phone.trim()) || 
+          (c.name && order.customerName && c.name.toLowerCase().trim() === order.customerName.toLowerCase().trim())
+        );
+
+    if (registered && registered.creditLimit && registered.creditLimit > 0) {
+      setSelectedPaymentMethod(order.paymentMethod === 'CREDIT_ACCOUNT' ? 'CREDIT' : 'CASH');
+    } else {
+      setSelectedPaymentMethod('CASH');
+    }
+  };
+
+  const handleItemQuantityChange = (idx: number, newQty: number) => {
+    if (!editedOrder) return;
+    const items = [...editedOrder.items];
+    const qty = Math.max(1, newQty);
+    const item = { ...items[idx] };
+    item.quantity = qty;
+    item.totalPieces = qty * (item.unitMultiplier || 1);
+    item.lineTotal = +(qty * item.unitPrice).toFixed(2);
+    items[idx] = item;
+
+    const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+    const taxAmount = +(subtotal * 0.14).toFixed(2);
+    const grandTotal = +(subtotal + taxAmount + (editedOrder.shippingCost || 0) - (editedOrder.discountAmount || 0)).toFixed(2);
+
+    setEditedOrder({
+      ...editedOrder,
+      items,
+      subtotal,
+      taxAmount,
+      grandTotal
+    });
+  };
+
+  const handleItemUnitPriceChange = (idx: number, newPrice: number) => {
+    if (!editedOrder) return;
+    const items = [...editedOrder.items];
+    const price = Math.max(0, newPrice);
+    const item = { ...items[idx] };
+    item.unitPrice = price;
+    item.lineTotal = +(item.quantity * price).toFixed(2);
+    items[idx] = item;
+
+    const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+    const taxAmount = +(subtotal * 0.14).toFixed(2);
+    const grandTotal = +(subtotal + taxAmount + (editedOrder.shippingCost || 0) - (editedOrder.discountAmount || 0)).toFixed(2);
+
+    setEditedOrder({
+      ...editedOrder,
+      items,
+      subtotal,
+      taxAmount,
+      grandTotal
+    });
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    if (!editedOrder || editedOrder.items.length <= 1) {
+      toast.error('لا يمكن حذف جميع أصناف الطلب');
+      return;
+    }
+    const items = editedOrder.items.filter((_, index) => index !== idx);
+    const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+    const taxAmount = +(subtotal * 0.14).toFixed(2);
+    const grandTotal = +(subtotal + taxAmount + (editedOrder.shippingCost || 0) - (editedOrder.discountAmount || 0)).toFixed(2);
+
+    setEditedOrder({
+      ...editedOrder,
+      items,
+      subtotal,
+      taxAmount,
+      grandTotal
+    });
+  };
+
+  const handleSaveEditedOrder = async () => {
+    if (!editedOrder) return;
+    try {
+      setIsSavingEdits(true);
+      const updated = await CustomerPortalService.updateOrder(editedOrder);
+      setSelectedOrder(updated);
+      setEditedOrder(JSON.parse(JSON.stringify(updated)));
+      setIsEditMode(false);
+      setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+      toast.success('تم حفظ التعديلات والمراجعة بنجاح!');
+    } catch (e: any) {
+      toast.error(`خطأ أثناء الحفظ: ${e.message}`);
+    } finally {
+      setIsSavingEdits(false);
+    }
+  };
+
+  const handleDispatchToStorekeeperSystem = async (order: CustomerPortalOrder) => {
+    try {
+      setIsDispatchingStorekeeper(true);
+      const res = await CustomerPortalService.dispatchOrderToStorekeeperSystem(order);
+      setSelectedOrder(res.updatedOrder);
+      if (editedOrder) {
+        setEditedOrder(JSON.parse(JSON.stringify(res.updatedOrder)));
+      }
+      setOrders(prev => prev.map(o => o.id === res.updatedOrder.id ? res.updatedOrder : o));
+      toast.success(`تم إرسال إذن التجهيز والمطابقة لأمناء المخازن على السيستم آلياً للطلب (${order.orderNumber})`);
+    } catch (e: any) {
+      toast.error(`حدث خطأ أثناء إرسال الإذن للمخزن: ${e.message}`);
+    } finally {
+      setIsDispatchingStorekeeper(false);
+    }
+  };
+
+  const handleSendWhatsAppToStorekeeper = (order: CustomerPortalOrder) => {
+    const storekeeperPhone = settings.storekeeperWhatsappPhone || settings.whatsappPhone || '01050557853';
+
+    const msg = CustomerPortalService.generateStorekeeperWhatsAppMessage(order);
+    const link = CustomerPortalService.generateWhatsAppLink(storekeeperPhone, msg);
+    window.open(link, '_blank');
+    toast.success(`تم فتح الواتساب لإرسال بيان الأصناف لأمين المخزن (${storekeeperPhone})`);
   };
 
   const handleUpdateStatus = async (orderId: string, status: PortalOrderStatus) => {
@@ -107,20 +262,29 @@ export const CustomerOrdersManager: React.FC = () => {
   };
 
   const handleConvertToInvoice = async (order: CustomerPortalOrder) => {
-    if (!confirm(`هل أنت متأكد من تحويل طلب الشراء ${order.orderNumber} إلى فاتورة مبيعات معتمدة وخصم الأصناف من المخزن؟`)) {
-      return;
-    }
-
     try {
       setIsConverting(true);
       const result = await CustomerPortalService.convertOrderToSalesInvoice(order.id, {
-        warehouseId: 'wh_main'
+        warehouseId: 'wh_main',
+        paymentMethod: selectedPaymentMethod
       });
 
       setConvertSuccessInvoice(result.invoice);
       setSelectedOrder(result.order);
+      setIsDetailOpen(true);
+      
+      // Update local state immediately
+      setOrders(prev => prev.map(o => o.id === result.order.id ? result.order : o));
+      
+      toast.success(`تم تحويل طلب الشراء ${order.orderNumber} بنجاح إلى فاتورة مبيعات رقم ${result.invoice.invoiceNumber}`);
+      
+      // Auto-print immediately!
+      if (result.invoice) {
+        printSalesInvoice(result.invoice);
+      }
     } catch (e: any) {
-      alert(`خطأ: ${e.message}`);
+      console.error('Conversion error:', e);
+      toast.error(`حدث خطأ أثناء تحويل الطلب: ${e.message || 'يرجى المحاولة مرة أخرى'}`);
     } finally {
       setIsConverting(false);
     }
@@ -344,11 +508,24 @@ export const CustomerOrdersManager: React.FC = () => {
                         <span>{order.phone}</span>
                       </p>
                     </td>
-                    <td className="px-6 py-4 text-xs text-slate-300 max-w-[200px] truncate" title={order.deliveryAddress}>
-                      <span className="flex items-center gap-1">
-                        <MapPin size={12} className="text-slate-500 shrink-0" />
-                        <span>{order.deliveryAddress}</span>
-                      </span>
+                    <td className="px-6 py-4 text-xs text-slate-300 max-w-[220px]" title={order.deliveryAddress}>
+                      <div className="flex flex-col gap-1">
+                        <span className="flex items-center gap-1 truncate">
+                          <MapPin size={12} className="text-slate-500 shrink-0" />
+                          <span>{order.deliveryAddress}</span>
+                        </span>
+                        {order.deliveryLocationLink && (
+                          <a
+                            href={order.deliveryLocationLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-blue-400 hover:underline flex items-center gap-1 w-fit font-bold"
+                          >
+                            <Compass size={11} className="text-blue-400" />
+                            <span>موقع الـ GPS الخرائط ↗</span>
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-xs font-bold text-slate-300">
                       <span>{order.items.length} أصناف</span>
@@ -367,14 +544,26 @@ export const CustomerOrdersManager: React.FC = () => {
                       {getStatusBadge(order.status)}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         <button
-                          onClick={() => handleOpenDetail(order)}
-                          className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                          onClick={() => handleOpenDetail(order, false)}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                          title="معاينة تفاصيل الطلب"
                         >
                           <Eye size={13} />
                           <span>معاينة</span>
                         </button>
+
+                        {order.status !== 'CONVERTED_TO_INVOICE' && (
+                          <button
+                            onClick={() => handleOpenDetail(order, true)}
+                            className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                            title="مراجعة وتعديل الأصناف والكميات قبل الاعتماد"
+                          >
+                            <Edit size={13} />
+                            <span>مراجعة وتعديل</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleSendWhatsAppToCustomer(order)}
@@ -384,14 +573,21 @@ export const CustomerOrdersManager: React.FC = () => {
                           <Send size={15} />
                         </button>
 
-                        {order.status !== 'CONVERTED_TO_INVOICE' && (
+                        {order.status === 'CONVERTED_TO_INVOICE' ? (
+                          <span className="px-2.5 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold flex items-center gap-1">
+                            <CheckCircle size={13} />
+                            <span>محررة بفاتورة</span>
+                          </span>
+                        ) : (
                           <button
-                            onClick={() => handleConvertToInvoice(order)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1 active:scale-95"
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConvertToInvoice(order); }}
+                            disabled={isConverting}
+                            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-black shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50"
                             title="تحويل مباشر لفاتورة مبيعات معتمدة وخصم من المخزن"
                           >
                             <Receipt size={13} />
-                            <span>تحويل لفاتورة</span>
+                            <span>{isConverting && selectedOrder?.id === order.id ? 'جاري التحويل...' : 'تحويل لفاتورة'}</span>
                           </button>
                         )}
                       </div>
@@ -407,33 +603,113 @@ export const CustomerOrdersManager: React.FC = () => {
       {/* Order Detail & Conversion Modal */}
       {isDetailOpen && selectedOrder && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
             <div className="p-5 border-b border-[#1e293b] flex items-center justify-between bg-slate-900/60">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
                   <ShoppingBag size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base">تفاصيل طلب الشراء: {selectedOrder.orderNumber}</h3>
+                  <h3 className="font-black text-white text-base flex items-center gap-2">
+                    <span>تفاصيل طلب الشراء: {selectedOrder.orderNumber}</span>
+                    {selectedOrder.isDispatchedToStorekeeper && (
+                      <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full font-bold">
+                        مرسل للمخزن
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-xs text-slate-400">تاريخ التسجيل: {formatDate(selectedOrder.createdAt)}</p>
                 </div>
               </div>
-              <button onClick={() => setIsDetailOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
-                <X size={20} />
-              </button>
+
+              <div className="flex items-center gap-2">
+                {selectedOrder.status !== 'CONVERTED_TO_INVOICE' && (
+                  <button
+                    onClick={() => {
+                      if (!isEditMode && selectedOrder) {
+                        setEditedOrder(JSON.parse(JSON.stringify(selectedOrder)));
+                      }
+                      setIsEditMode(!isEditMode);
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border",
+                      isEditMode 
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40" 
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+                    )}
+                  >
+                    <Edit size={14} />
+                    <span>{isEditMode ? 'إلغاء وضع التعديل' : 'مراجعة وتعديل أصناف الطلب'}</span>
+                  </button>
+                )}
+                <button onClick={() => setIsDetailOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Dispatch Notification to Storekeeper Banner */}
+              {selectedOrder.isDispatchedToStorekeeper && (
+                <div className="p-3.5 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-300 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <Package size={18} className="text-purple-400 shrink-0" />
+                    <div>
+                      <p className="font-bold">تم إرسال إذن التجهيز والصرف لأمناء المخازن على السيستم ✅</p>
+                      <p className="text-[11px] text-purple-400/80">تاريخ التوجيه: {new Date(selectedOrder.storekeeperDispatchedAt || selectedOrder.updatedAt).toLocaleString('ar-EG')}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSendWhatsAppToStorekeeper(selectedOrder)}
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[11px] font-bold transition-all shrink-0"
+                  >
+                    إعادة إرسال واتساب للمخزن
+                  </button>
+                </div>
+              )}
+
               {/* Success Notification if converted */}
               {convertSuccessInvoice && (
-                <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 space-y-1">
-                  <p className="font-black text-sm flex items-center gap-2">
-                    <CheckCircle size={18} />
-                    <span>تم تحويل الطلب بنجاح إلى فاتورة مبيعات رقم ({convertSuccessInvoice.invoiceNumber})</span>
-                  </p>
-                  <p className="text-xs text-emerald-400/80">
-                    تم خصم الكميات من المستودع وقيد القيد المحاسبي وحساب العميل بنجاح.
-                  </p>
+                <div className="p-4 rounded-2xl bg-slate-900 border border-emerald-500/40 text-emerald-300 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="font-black text-sm flex items-center gap-2">
+                        <CheckCircle2 size={18} className="text-emerald-400" />
+                        <span>تم تحويل الطلب بنجاح إلى فاتورة مبيعات رقم ({convertSuccessInvoice.invoiceNumber})</span>
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        تم ترحيل الفاتورة وحساب ضريبة القيمة المضافة ZATCA بنجاح وتحديث الأستاذ العام والمخازن.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => printSalesInvoice(convertSuccessInvoice)}
+                      className="px-4.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer self-start sm:self-center shrink-0"
+                    >
+                      <Printer size={15} />
+                      <span>طباعة الفاتورة الضريبية</span>
+                    </button>
+                  </div>
+
+                  {/* Financial Audit for Customer Balance inside printed/rendered invoice */}
+                  <div className="bg-[#151b2b] p-3.5 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-right">
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">الرصيد السابق للعميل:</span>
+                      <span className="font-bold text-slate-200">{(convertSuccessInvoice.previousBalance || 0).toLocaleString()} ج.م</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">الرصيد بعد الفاتورة:</span>
+                      <span className="font-bold text-blue-400">{(convertSuccessInvoice.currentBalance || 0).toLocaleString()} ج.م</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">حد الائتمان بالسيستم:</span>
+                      <span className="font-bold text-amber-400">{(convertSuccessInvoice.customerCreditLimit || 0).toLocaleString()} ج.م</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">حالة الائتمان:</span>
+                      <span className="font-black text-emerald-400">{convertSuccessInvoice.creditStatus || 'عميل معتمد'}</span>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -449,7 +725,20 @@ export const CustomerOrdersManager: React.FC = () => {
                 </div>
                 <div className="sm:col-span-2">
                   <span className="text-slate-400 block mb-0.5">عنوان وموقع التسليم:</span>
-                  <span className="font-bold text-slate-200">{selectedOrder.deliveryAddress} - {selectedOrder.city}</span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-bold text-slate-200">{selectedOrder.deliveryAddress} - {selectedOrder.city}</span>
+                    {selectedOrder.deliveryLocationLink && (
+                      <a
+                        href={selectedOrder.deliveryLocationLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-fit flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 rounded-lg text-xs font-bold text-blue-400 hover:text-white transition-all mt-1"
+                      >
+                        <Compass size={13} className="text-blue-400 shrink-0" />
+                        <span>فتح تتبع الموقع على خرائط جوجل (GPS Location) ↗</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-slate-400 block mb-0.5">تاريخ ووقت التوريد المفضل:</span>
@@ -461,9 +750,130 @@ export const CustomerOrdersManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Items List Table */}
+              {/* Customer ERP Financial Card */}
+              <div className="bg-[#1e293b]/50 border border-[#334155]/60 rounded-2xl p-4 text-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                  <h5 className="font-black text-white flex items-center gap-1.5">
+                    <TrendingUp size={14} className="text-blue-400" />
+                    <span>الحساب المالي والائتمان بالسيستم (ERP Credit Ledger)</span>
+                  </h5>
+                  {registeredCustomer ? (
+                    <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 rounded-full font-bold text-[10px] border border-blue-500/20">
+                      عميل مسجل بالسيستم
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 rounded-full font-bold text-[10px] border border-rose-500/20 animate-pulse">
+                      عميل غير مسجل بالنظام
+                    </span>
+                  )}
+                </div>
+
+                {registeredCustomer ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="bg-[#151b2b] p-2.5 rounded-xl border border-slate-800 text-right">
+                      <span className="text-slate-400 block text-[10px] mb-0.5">الرصيد المستحق الحالي:</span>
+                      <span className={cn("font-black text-xs", (registeredCustomer.currentBalance || 0) > 0 ? "text-amber-400" : "text-emerald-400")}>
+                        {formatCurrency(registeredCustomer.currentBalance || 0)}
+                      </span>
+                    </div>
+                    <div className="bg-[#151b2b] p-2.5 rounded-xl border border-slate-800 text-right">
+                      <span className="text-slate-400 block text-[10px] mb-0.5">حد الائتمان المسموح:</span>
+                      <span className="font-black text-xs text-white">
+                        {registeredCustomer.creditLimit && registeredCustomer.creditLimit > 0 
+                          ? formatCurrency(registeredCustomer.creditLimit) 
+                          : "بدون حد (نقدي فقط)"}
+                      </span>
+                    </div>
+                    <div className="bg-[#151b2b] p-2.5 rounded-xl border border-slate-800 text-right">
+                      <span className="text-slate-400 block text-[10px] mb-0.5">حالة الائتمان:</span>
+                      <span className={cn("font-bold text-[10px] block mt-0.5", (registeredCustomer.creditLimit && registeredCustomer.creditLimit > 0) ? "text-emerald-400" : "text-rose-400")}>
+                        {(registeredCustomer.creditLimit && registeredCustomer.creditLimit > 0) ? "متاح شراء آجل بالائتمان" : "مغلق (كاش فقط)"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 text-rose-300 text-[11px] leading-relaxed">
+                    تنبيه: هذا العميل غير مسجل بالنظام. طبقاً لتعليمات الإدارة، 
+                    سيتم ترحيل المعاملة كـ <strong>تحويل نقدي كاش مسبق فقط</strong> لإتمام الفاتورة ولا يسمح بالشراء الآجل لغير المسجلين.
+                  </div>
+                )}
+
+                {/* APPROVED PAYMENT METHOD SELECTOR */}
+                {selectedOrder.status !== 'CONVERTED_TO_INVOICE' && (
+                  <div className="pt-2 border-t border-slate-700/60 flex flex-col gap-1.5 text-right">
+                    <label className="font-bold text-slate-300 block">طريقة سداد الفاتورة المعتمدة:</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPaymentMethod('CASH')}
+                        className={cn(
+                          "py-2 px-3 rounded-xl font-bold text-xs transition-all border text-center flex flex-col items-center justify-center gap-1 cursor-pointer",
+                          selectedPaymentMethod === 'CASH'
+                            ? "bg-emerald-600/20 text-emerald-400 border-emerald-500 font-black shadow-md"
+                            : "bg-[#151b2b] text-slate-400 border-slate-800 hover:bg-slate-800"
+                        )}
+                      >
+                        <span>نقدي / كاش</span>
+                        <span className="text-[9px] font-medium text-slate-500">CASH</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPaymentMethod('CARD')}
+                        className={cn(
+                          "py-2 px-3 rounded-xl font-bold text-xs transition-all border text-center flex flex-col items-center justify-center gap-1 cursor-pointer",
+                          selectedPaymentMethod === 'CARD'
+                            ? "bg-blue-600/20 text-blue-400 border-blue-500 font-black shadow-md"
+                            : "bg-[#151b2b] text-slate-400 border-slate-800 hover:bg-slate-800"
+                        )}
+                      >
+                        <span>شبكة / بطاقة</span>
+                        <span className="text-[9px] font-medium text-slate-500">CARD</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!registeredCustomer || !registeredCustomer.creditLimit || registeredCustomer.creditLimit <= 0}
+                        onClick={() => setSelectedPaymentMethod('CREDIT')}
+                        className={cn(
+                          "py-2 px-3 rounded-xl font-bold text-xs transition-all border text-center flex flex-col items-center justify-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
+                          selectedPaymentMethod === 'CREDIT'
+                            ? "bg-amber-600/20 text-amber-400 border-amber-500 font-black shadow-md"
+                            : "bg-[#151b2b] text-slate-400 border-slate-800 hover:bg-slate-800"
+                        )}
+                        title={(!registeredCustomer || !registeredCustomer.creditLimit || registeredCustomer.creditLimit <= 0) ? "الآجل متاح فقط للعملاء المسجلين ولديهم حد ائتماني مسموح" : "ترحيل على الحساب الآجل للعميل"}
+                      >
+                        <span>آجل بالسيستم</span>
+                        <span className="text-[9px] font-medium text-slate-500 font-mono">CREDIT</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Items List Table (View or Edit Mode) */}
               <div className="space-y-2">
-                <h4 className="text-xs font-black text-slate-300">الأصناف والكميات المطلوبة ({selectedOrder.items.length})</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-300 flex items-center gap-2">
+                    <span>الأصناف والكميات المطلوبة ({isEditMode && editedOrder ? editedOrder.items.length : selectedOrder.items.length})</span>
+                    {isEditMode && (
+                      <span className="px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-300 rounded font-bold">
+                        وضع التعديل نشط
+                      </span>
+                    )}
+                  </h4>
+                  {isEditMode && editedOrder && (
+                    <button
+                      onClick={handleSaveEditedOrder}
+                      disabled={isSavingEdits}
+                      className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-amber-600/20"
+                    >
+                      <Save size={13} />
+                      <span>{isSavingEdits ? 'جاري الحفظ...' : 'حفظ التعديلات والمراجعة'}</span>
+                    </button>
+                  )}
+                </div>
+
                 <div className="bg-[#182032] border border-[#1e293b] rounded-2xl overflow-hidden">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-900/50 text-slate-400 text-[10px] font-bold uppercase">
@@ -473,19 +883,56 @@ export const CustomerOrdersManager: React.FC = () => {
                         <th className="p-3">الكمية</th>
                         <th className="p-3">سعر الوحدة</th>
                         <th className="p-3">الإجمالي</th>
+                        {isEditMode && <th className="p-3 text-center">حذف</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#1e293b]">
-                      {selectedOrder.items.map((item, idx) => (
-                        <tr key={idx}>
+                      {(isEditMode && editedOrder ? editedOrder.items : selectedOrder.items).map((item, idx) => (
+                        <tr key={idx} className={isEditMode ? "bg-amber-500/5" : ""}>
                           <td className="p-3 font-bold text-white">
                             {item.productName}
                             <span className="text-[10px] text-slate-500 font-mono block">{item.sku}</span>
                           </td>
                           <td className="p-3 text-blue-400 font-bold">{item.unitName}</td>
-                          <td className="p-3 font-black text-white">{item.quantity}</td>
-                          <td className="p-3 text-slate-300">{formatCurrency(item.unitPrice)}</td>
+                          <td className="p-3 font-black text-white">
+                            {isEditMode ? (
+                              <input 
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleItemQuantityChange(idx, parseInt(e.target.value) || 1)}
+                                className="w-20 px-2 py-1 bg-[#151b2b] border border-amber-500/40 rounded-lg text-white font-bold text-xs text-center focus:outline-none focus:border-amber-400"
+                              />
+                            ) : (
+                              item.quantity
+                            )}
+                          </td>
+                          <td className="p-3 text-slate-300">
+                            {isEditMode ? (
+                              <input 
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                value={item.unitPrice}
+                                onChange={(e) => handleItemUnitPriceChange(idx, parseFloat(e.target.value) || 0)}
+                                className="w-24 px-2 py-1 bg-[#151b2b] border border-amber-500/40 rounded-lg text-white font-bold text-xs text-center focus:outline-none focus:border-amber-400"
+                              />
+                            ) : (
+                              formatCurrency(item.unitPrice)
+                            )}
+                          </td>
                           <td className="p-3 font-black text-emerald-400">{formatCurrency(item.lineTotal)}</td>
+                          {isEditMode && (
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => handleRemoveItem(idx)}
+                                className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-colors"
+                                title="حذف الصنف"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -497,44 +944,87 @@ export const CustomerOrdersManager: React.FC = () => {
               <div className="bg-[#182032] border border-[#1e293b] rounded-2xl p-4 space-y-2 text-xs">
                 <div className="flex justify-between text-slate-400">
                   <span>المجموع قبل الضريبة:</span>
-                  <span className="font-bold text-white">{formatCurrency(selectedOrder.subtotal)}</span>
+                  <span className="font-bold text-white">
+                    {formatCurrency(isEditMode && editedOrder ? editedOrder.subtotal : selectedOrder.subtotal)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>ضريبة القيمة المضافة (14%):</span>
-                  <span className="font-bold text-emerald-400">{formatCurrency(selectedOrder.taxAmount)}</span>
+                  <span className="font-bold text-emerald-400">
+                    {formatCurrency(isEditMode && editedOrder ? editedOrder.taxAmount : selectedOrder.taxAmount)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>رسوم التوصيل:</span>
-                  <span className="font-bold text-white">{selectedOrder.shippingCost === 0 ? 'مجاناً' : formatCurrency(selectedOrder.shippingCost)}</span>
+                  <span className="font-bold text-white">
+                    {selectedOrder.shippingCost === 0 ? 'مجاناً' : formatCurrency(selectedOrder.shippingCost)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-base font-black text-white pt-2 border-t border-slate-700">
                   <span>الإجمالي النهائي:</span>
-                  <span className="text-blue-400">{formatCurrency(selectedOrder.grandTotal)}</span>
+                  <span className="text-blue-400">
+                    {formatCurrency(isEditMode && editedOrder ? editedOrder.grandTotal : selectedOrder.grandTotal)}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Modal Actions */}
             <div className="p-5 border-t border-[#1e293b] bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
-              <button
-                onClick={() => handleSendWhatsAppToCustomer(selectedOrder)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-black rounded-xl text-xs transition-all"
-              >
-                <Send size={15} />
-                <span>إرسال تفاصيل للعميل عبر الواتساب</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleSendWhatsAppToCustomer(selectedOrder)}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-black rounded-xl text-xs transition-all shadow-md"
+                  title="إرسال تأكيد وتفاصيل للعميل عبر الواتساب"
+                >
+                  <Send size={15} />
+                  <span>إرسال للعميل (واتساب)</span>
+                </button>
+
+                <button
+                  onClick={() => handleDispatchToStorekeeperSystem(selectedOrder)}
+                  disabled={isDispatchingStorekeeper}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-purple-600/20 disabled:opacity-50"
+                  title="توجيه أذن تجهيز وصرف طلبية لأمناء المخازن في السيستم"
+                >
+                  <Package size={15} />
+                  <span>إرسال للتجهيز المخزني (السيستم)</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendWhatsAppToStorekeeper(selectedOrder)}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs transition-all shadow-md"
+                  title="إرسال قائمة الأصناف والتجهيز لأمين المخزن على الواتساب"
+                >
+                  <MessageSquare size={15} />
+                  <span>إرسال للتجهيز (واتساب أمين المخزن)</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
-                {selectedOrder.status !== 'CONVERTED_TO_INVOICE' && (
+                {isEditMode && editedOrder && (
                   <button
-                    onClick={() => handleConvertToInvoice(selectedOrder)}
-                    disabled={isConverting}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
+                    onClick={handleSaveEditedOrder}
+                    disabled={isSavingEdits}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black shadow-lg shadow-amber-600/30 transition-all active:scale-95"
                   >
-                    <Receipt size={16} />
-                    <span>{isConverting ? 'جاري التحويل...' : 'تحويل لفاتورة مبيعات رسمية'}</span>
+                    <Save size={16} />
+                    <span>{isSavingEdits ? 'جاري الحفظ...' : 'حفظ التعديلات والمراجعة'}</span>
                   </button>
                 )}
+
+                {selectedOrder.status !== 'CONVERTED_TO_INVOICE' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConvertToInvoice(isEditMode && editedOrder ? editedOrder : selectedOrder); }}
+                    disabled={isConverting}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <Receipt size={16} />
+                    <span>{isConverting ? 'جاري التحويل...' : 'الاعتماد النهائي والتحويل لفاتورة'}</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setIsDetailOpen(false)}
                   className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
@@ -602,6 +1092,17 @@ export const CustomerOrdersManager: React.FC = () => {
                     className="w-full px-3.5 py-2 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-bold">رقم واتساب أمين المخزن (لتجهيز الشحنات)</label>
+                <input 
+                  type="tel"
+                  placeholder="01050557853"
+                  value={settings.storekeeperWhatsappPhone || ''}
+                  onChange={(e) => setSettings({ ...settings, storekeeperWhatsappPhone: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-[#182032] border border-[#1e293b] rounded-xl text-white text-xs focus:outline-none focus:border-blue-500"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

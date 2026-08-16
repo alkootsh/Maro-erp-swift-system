@@ -1,3 +1,8 @@
+/**
+ * @file whatsappNotificationService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: whatsappNotificationService.ts.
+ */
 // MARO ERP - WhatsApp Communication & Inbound Order Automation Engine
 import { 
   PeriodicAlertRule, 
@@ -37,11 +42,20 @@ export class WhatsAppNotificationService {
     const defaultSettings: WhatsAppGatewaySettings = {
       provider: 'WHATSAPP_WEB_DIRECT',
       senderPhoneNumber: '+201000000000',
+      managerPhoneNumber: '01050557853',
+      managerName: 'المدير العام',
+      managerEmail: 'manager@maro-enterprise.com',
+      notifyOnCashierLogin: true,
+      notifyOnShiftOpen: true,
+      notifyOnShiftClose: true,
       autoReplyConfirmation: true,
       defaultSalesTemplate: `🧾 *فاتورة مبيعات معتمدة من {{companyName}}*\n\n🔢 رقم الفاتورة: {{invoiceNumber}}\n📅 التاريخ: {{date}}\n👤 العميل: {{customerName}}\n\n📦 *تفاصيل الأصناف:*\n{{itemsList}}\n\n💵 الإجمالي الخاضع للضريبة: {{totalUntaxed}}\n📊 ضريبة القيمة المضافة (14%): {{totalTax}}\n💰 *الإجمالي النهائي:* {{grandTotal}}\n✅ المسدد: {{paidAmount}}\n⏳ المتبقي: {{dueAmount}}\n\n🙏 شكراً لتعاملكم معنا!`,
       defaultPurchaseTemplate: `📋 *أمر شراء / توريد معتمد من {{companyName}}*\n\n🔢 رقم الإذن: {{billNumber}}\n📅 التاريخ: {{date}}\n🏢 المورد: {{supplierName}}\n\n📦 *الأصناف والكميات المطلوبة:*\n{{itemsList}}\n\n💰 *الإجمالي المتفق عليه:* {{grandTotal}}\n📍 الاستلام في: {{warehouseName}}\n\nيرجى تأكيد موعد التوريد.`,
       defaultDebtReminderTemplate: `⚠️ *تذكير بموعد استحقاق مديونية - {{companyName}}*\n\nعزيزنا العميل / {{customerName}},\nنحيطكم علماً بأن الرصيد المستحق على حسابكم طرفنا هو:\n💰 *{{currentBalance}}*\n\nيرجى التكرم بسداد المبلغ في الموعد المحدد لضمان استمرار التوريد.\nشاكرين تعاونكم الدائم.`,
       defaultDailyReportTemplate: `📊 *تقرير الأعمال والعمليات اليومي - {{companyName}}*\n📅 {{date}}\n\n💰 *المبيعات والتحصيلات:*\n• إجمالي المبيعات: {{todaySales}}\n• عدد الفواتير: {{invoicesCount}}\n• المحصل نقداً: {{cashCollected}}\n• المبيعات الآجلة: {{creditSales}}\n\n📦 *المخزون والرقابة:*\n• عدد الأصناف تحت حد الأمان: {{lowStockCount}}\n• أذون الصرف والمشتريات: {{purchasesToday}}\n\n📈 *صافي الربح التقديري:* {{estimatedProfit}}\n\n👑 تنبيه مخصص للمدير العام.`,
+      defaultCashierLoginTemplate: `🔔 *تنبيه تسجيل دخول كاشير - {{companyName}}*\n👤 *الكاشير:* {{cashierName}}\n📱 *رقم الهاتف:* {{cashierPhone}}\n🏢 *الفرع:* {{branchName}}\n📍 *نقطة البيع:* {{terminalId}}\n⏰ *الوقت:* {{time}}\n📅 *التاريخ:* {{date}}`,
+      defaultShiftOpenTemplate: `🟢 *تنبيه فتح وردية جديدة - {{companyName}}*\n👤 *الكاشير:* {{cashierName}}\n📱 *رقم الهاتف:* {{cashierPhone}}\n🏢 *الفرع:* {{branchName}}\n📍 *نقطة البيع:* {{terminalId}}\n💵 *رصيد الافتتاح النقدى:* {{openingFloat}}\n🏦 *الخزينة:* {{treasuryName}}\n⏰ *وقت الفتح:* {{time}}`,
+      defaultShiftCloseTemplate: `🔴 *تقرير إغلاق وردية كاشير (Z-Report) - {{companyName}}*\n👤 *الكاشير:* {{cashierName}}\n🏢 *الفرع:* {{branchName}}\n⏰ *فترة الوردية:* من {{openedAt}} إلى {{closedAt}}\n━━━━━━━━━━━━━━━━━━━━━\n💵 *رصيد الافتتاح:* {{openingFloat}}\n🛒 *إجمالي المبيعات:* {{totalSales}}\n🔢 *عدد الفواتير:* {{totalTransactions}}\n━━━━━━━━━━━━━━━━━━━━━\n🎯 *المتوقع بالدرج:* {{expectedCash}}\n📥 *الفعلي المورد:* {{closingCash}}\n⚖️ *الفارق (عجز/زيادة):* {{variance}}\n━━━━━━━━━━━━━━━━━━━━━\n✅ تم اعتماد التقفيل وترحيل اليومية.`,
       emailSenderAddress: 'erp-notifications@maro-enterprise.com'
     };
 
@@ -76,6 +90,34 @@ export class WhatsAppNotificationService {
     if (typeof window !== 'undefined') {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
+  }
+
+  // Dispatch background notification to Manager without opening popup on cashier/requester screen
+  static async dispatchManagerAlert(
+    categoryOrDoc: string,
+    messageText: string,
+    customTargetPhone?: string
+  ): Promise<NotificationDispatchLog> {
+    const settings = this.getSettings();
+    const targetPhone = customTargetPhone || settings.managerPhoneNumber || '01050557853';
+    const waUrl = this.generateWhatsAppLink(targetPhone, messageText);
+
+    const log: NotificationDispatchLog = {
+      id: `disp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      channel: 'WHATSAPP',
+      recipientName: settings.managerName || 'المدير العام',
+      recipientContact: targetPhone,
+      categoryOrDoc,
+      title: `تنبيه إداري تلقائي: ${categoryOrDoc}`,
+      messagePreview: messageText.substring(0, 120) + '...',
+      status: 'SENT',
+      directWhatsAppUrl: waUrl
+    };
+
+    await MaroSyncEngine.saveDocument(DISPATCH_LOGS_KEY, log, true);
+    await MaroEventBus.publish('NOTIFICATION_DISPATCHED', { categoryOrDoc, targetPhone });
+    return log;
   }
 
   // ==========================================

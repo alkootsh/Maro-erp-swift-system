@@ -1,3 +1,8 @@
+/**
+ * @file creditValidationEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: creditValidationEngine.ts.
+ */
 // MARO ERP - Customer & Supplier Credit Validation Engine
 import { Customer, Supplier, CreditCheckResult } from '../types/sprint8';
 import { CustomerRepository } from '../repositories/customerRepository';

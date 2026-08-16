@@ -1,3 +1,8 @@
+/**
+ * @file ColumnManagerModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ColumnManagerModal.tsx.
+ */
 import React, { useState } from 'react';
 import { X, Check, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
 import { TableColumn } from '../lib/columns';

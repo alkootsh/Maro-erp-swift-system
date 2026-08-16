@@ -1,3 +1,8 @@
+/**
+ * @file VisualBarcodeRenderer.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: VisualBarcodeRenderer.tsx.
+ */
 import React from 'react';
 
 interface VisualBarcodeRendererProps {

@@ -1,3 +1,8 @@
+/**
+ * @file TickerControlPanel.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: TickerControlPanel.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Megaphone, 

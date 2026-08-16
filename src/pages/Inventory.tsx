@@ -1,3 +1,8 @@
+/**
+ * @file Inventory.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Inventory.tsx.
+ */
 import React, { useEffect, useState, useMemo } from 'react';
 import { InventoryIntelligenceDashboard } from '../components/Inventory/InventoryIntelligenceDashboard';
 import { InventoryAlertsList } from '../components/Inventory/InventoryAlertsList';

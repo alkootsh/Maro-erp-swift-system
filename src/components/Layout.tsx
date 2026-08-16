@@ -1,3 +1,8 @@
+/**
+ * @file Layout.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Layout.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
@@ -83,10 +88,21 @@ export const Layout: React.FC = () => {
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isAIScannerOpen, setIsAIScannerOpen] = useState(false);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(localStorage.getItem('maro_module_delivery_enabled') === 'true');
+  const [aiEnabled, setAiEnabled] = useState(localStorage.getItem('maro_module_ai_enabled') !== 'false');
   const { user, logout } = useAuth();
   const profile = { role: 'admin', displayName: user?.displayName || 'مدير النظام' };
   const navigate = useNavigate();
   const { isLearningModeEnabled, toggleLearningMode } = useLearningMode();
+
+  useEffect(() => {
+    const handleModulesChange = () => {
+      setDeliveryEnabled(localStorage.getItem('maro_module_delivery_enabled') === 'true');
+      setAiEnabled(localStorage.getItem('maro_module_ai_enabled') !== 'false');
+    };
+    window.addEventListener('maro_modules_changed', handleModulesChange);
+    return () => window.removeEventListener('maro_modules_changed', handleModulesChange);
+  }, []);
 
   useEffect(() => {
     const unsub = MaroSyncEngine.subscribe<CustomerPortalOrder>('customer_portal_orders', (orders) => {
@@ -163,13 +179,17 @@ export const Layout: React.FC = () => {
       items: [
         { name: 'نقطة البيع السريعة (POS)', path: '/pos', icon: ShoppingCart },
         { name: 'استديو ومقارنة نماذج نقاط البيع (POS Models)', path: '/pos-models', icon: LayoutTemplate },
-        { name: 'فواتير بيع الجملة والموزعين (Wholesale)', path: '/wholesale-invoices', icon: Layers },
-        { name: 'كشك فحص الأسعار وهاند تيرمينال (PDA)', path: '/industries/price-checker', icon: ScanLine },
+        { 
+          name: 'فواتير الجملة وطلبات العملاء (B2B)', 
+          path: '/wholesale-invoices', 
+          icon: Layers,
+          badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined
+        },
         { name: 'نظام Smart Cashier المصغر', path: '/smart-cashier', icon: ShoppingCart },
         { name: 'إدارة الورديات وتغطية الكاميرات (CCTV)', path: '/cashier-sessions', icon: ShieldAlert },
         { name: 'إدارة المبيعات المتقدمة والعروض', path: '/advanced-sales', icon: Percent },
         { name: 'فواتير المبيعات وعروض الأسعار', path: '/invoices', icon: FileText },
-        { name: 'مرتجعات المبيعات والمشتريات', path: '/returns', icon: RotateCcw },
+        { name: 'مرتجعات المبيعات', path: '/returns', icon: RotateCcw },
       ]
     },
     {
@@ -178,20 +198,15 @@ export const Layout: React.FC = () => {
         { name: 'حسابات العملاء والمديونيات', path: '/customers', icon: UsersIcon },
         { name: 'إدارة علاقات العملاء والمشاريع', path: '/crm-projects', icon: Briefcase },
         { name: 'التجارة الإلكترونية والربط', path: '/ecommerce', icon: Globe },
-        { 
-          name: 'طلبات العملاء والمتجر (B2B)', 
-          path: '/b2b-portal', 
-          icon: Store,
-          badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined
-        },
       ]
     },
     {
       title: 'المشتريات والموردين',
       items: [
+        { name: 'إدارة الموردين', path: '/suppliers', icon: Truck },
         { name: 'إدارة المشتريات والعقود', path: '/procurement', icon: FileSignature },
         { name: 'المشتريات وفواتير الموردين', path: '/bills', icon: Receipt },
-        { name: 'حسابات الموردين والأرصدة', path: '/suppliers', icon: Truck },
+        { name: 'مرتجعات المشتريات', path: '/purchase-returns', icon: RotateCcw },
       ]
     },
     {
@@ -201,7 +216,9 @@ export const Layout: React.FC = () => {
         { name: 'طباعة الباركود والموازين والطابعات', path: '/hardware-thermal-barcode', icon: Printer },
         { name: 'المخازن والمستودعات', path: '/warehouses', icon: Warehouse },
         { name: 'حركة وتتبع المخزون', path: '/inventory', icon: History },
-        { name: 'المناديب وخطوط السير والعمولات', path: '/reps', icon: Truck, adminOnly: true },
+        ...(!deliveryEnabled ? [
+          { name: 'المناديب وخطوط السير والعمولات', path: '/reps', icon: Truck, adminOnly: true }
+        ] : []),
         { name: 'إدارة الأصول والأسطول', path: '/assets-fleet', icon: Truck },
       ]
     },
@@ -229,13 +246,21 @@ export const Layout: React.FC = () => {
       ]
     },
     {
-      title: 'الأتمتة والذكاء الاصطناعي',
+      title: 'المديولات المساعدة والذكية',
       items: [
-        { name: 'وكلاء الذكاء الاصطناعي (AI Agents)', path: '/ai-agents', icon: Bot },
-        { name: 'محرك سير العمل (Workflow Engine)', path: '/workflow-engine', icon: Activity },
-        { name: 'إدارة الوثائق والتعرف الضوئي (OCR)', path: '/documents-ocr', icon: ScanLine },
-        { name: 'تكوين النماذج الديناميكية (Dynamic Forms)', path: '/dynamic-forms', icon: Database },
-        { name: 'تنبيهات وطلبيات الواتساب', path: '/notifications/whatsapp', icon: MessageSquare },
+        { name: 'لوحة تفعيل المديولات المساعدة', path: '/assistant-modules', icon: Sparkles },
+        { name: 'كشك فحص الأسعار وهاند تيرمينال (PDA)', path: '/industries/price-checker', icon: ScanLine },
+        { name: 'لوحة تحكم البنر المتحرك', path: '/settings/ticker', icon: Megaphone, adminOnly: true },
+        { name: 'مركز التنبيهات', path: '/alerts', icon: Bell, adminOnly: true },
+        ...(aiEnabled ? [
+          { name: 'وكلاء الذكاء الاصطناعي (AI Agents)', path: '/ai-agents', icon: Bot },
+          { name: 'محرك سير العمل الذكي', path: '/workflow-engine', icon: Activity },
+          { name: 'مسح وإدارة الوثائق والـ OCR', path: '/documents-ocr', icon: ScanLine }
+        ] : []),
+        ...(deliveryEnabled ? [
+          { name: 'الدليفري وطيارين التوصيل', path: '/reps', icon: Truck }
+        ] : []),
+        { name: 'تنبيهات وطلبيات الواتساب', path: '/notifications/whatsapp', icon: MessageSquare }
       ]
     },
     {
@@ -245,8 +270,6 @@ export const Layout: React.FC = () => {
         { name: 'إعدادات الفواتير والضرائب', path: '/settings/invoices', icon: FileText, adminOnly: true },
         { name: 'أنظمة وطرق البيع والدفع', path: '/settings/payment-methods', icon: CreditCard, adminOnly: true },
         { name: 'مخططات الشاشة (POS Layout)', path: '/settings/pos/layout', icon: LayoutTemplate, adminOnly: true },
-        { name: 'لوحة تحكم البنر المتحرك', path: '/settings/ticker', icon: Megaphone, adminOnly: true },
-        { name: 'مركز التنبيهات', path: '/alerts', icon: Bell, adminOnly: true },
         { name: 'تفعيل وترخيص المنظومة', path: '/settings/license', icon: Key, adminOnly: true },
       ]
     },
@@ -262,7 +285,6 @@ export const Layout: React.FC = () => {
       title: 'بيئة المطورين والـ DevOps',
       items: [
         { name: 'حزمة الذكاء الاصطناعي العالمية', path: '/next-gen-suite', icon: Brain, adminOnly: true },
-        { name: 'مركز بايثون وهندسة Dexef', path: '/dexef-python-hub', icon: Terminal, adminOnly: true },
         { name: 'لوحة المطور (Developer Console)', path: '/developer/console', icon: Terminal, adminOnly: true },
         { name: 'متجر ومجتمع المطورين والشركاء (Odoo Hub)', path: '/developer/hub', icon: Code2, adminOnly: true },
         { name: 'الدعم الفني الذكي وبوت الواتساب (Support Center)', path: '/support/center', icon: Headphones, adminOnly: true },

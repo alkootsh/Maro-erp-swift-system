@@ -1,3 +1,8 @@
+/**
+ * @file IndustryModulesHub.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: IndustryModulesHub.tsx.
+ */
 // MARO ERP - Commercial Industry Modules Central Hub
 import React from 'react';
 import { useNavigate } from 'react-router-dom';

@@ -1,3 +1,8 @@
+/**
+ * @file SupportCenter.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SupportCenter.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Headphones, MessageSquare, Bot, Sparkles, Send, CheckCircle2, 

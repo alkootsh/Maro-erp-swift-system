@@ -1,3 +1,8 @@
+/**
+ * @file SmartTransportShippingPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SmartTransportShippingPage.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   Truck, Navigation, MapPin, Package, Users, DollarSign, 

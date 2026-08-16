@@ -1,3 +1,8 @@
+/**
+ * @file InventoryIntelligenceDashboard.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: InventoryIntelligenceDashboard.tsx.
+ */
 import React, { useMemo } from 'react';
 import { ShieldCheck, AlertTriangle, TrendingUp, Package } from 'lucide-react';
 import { ProductMaster } from '../../types/productMaster';

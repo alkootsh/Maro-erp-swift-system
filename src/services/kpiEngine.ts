@@ -1,3 +1,8 @@
+/**
+ * @file kpiEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: kpiEngine.ts.
+ */
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { KPI } from '../types/businessIntelligence';
 

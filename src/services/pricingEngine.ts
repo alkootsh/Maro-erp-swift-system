@@ -1,3 +1,8 @@
+/**
+ * @file pricingEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: pricingEngine.ts.
+ */
 // MARO ERP - Enterprise Pricing & Promotions Engine
 import { PriceList, PromotionRule, PriceListItem, CreditCheckResult } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

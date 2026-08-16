@@ -1,3 +1,8 @@
+/**
+ * @file digitalSignageEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: digitalSignageEngine.ts.
+ */
 // MARO ERP - Digital Signage & Price Checker Media Advertising Engine
 // Master Enterprise Digital Signage & Media Advertising Protocol v4.0
 

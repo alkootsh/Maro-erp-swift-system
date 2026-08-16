@@ -1,3 +1,8 @@
+/**
+ * @file Settings.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Settings.tsx.
+ */
 import React, { useState, useRef } from 'react';
 import { 
   Building2, 

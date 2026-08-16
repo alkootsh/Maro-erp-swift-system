@@ -1,3 +1,8 @@
+/**
+ * @file FunctionKeyBar.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FunctionKeyBar.tsx.
+ */
 // MARO ERP - Global POS & ERP Function Key Toolbar & Keyboard Mode Bar
 // Sprint 8.2 Usability Architecture
 

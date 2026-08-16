@@ -1,3 +1,8 @@
+/**
+ * @file AIAgents.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: AIAgents.tsx.
+ */
 // MARO ERP - Autonomous Enterprise AI Agent Suite & Clinical Pharmacy Triage Engine
 // Master Enterprise Modular Protocol v4.0
 

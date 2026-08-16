@@ -1,3 +1,8 @@
+/**
+ * @file lowStockReplenishmentService.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: lowStockReplenishmentService.ts.
+ */
 // MARO ERP - Low Stock Replenishment & Purchase Automation Service
 import { ProductMaster } from '../types/productMaster';
 import { Supplier, PurchaseOrder, PurchaseBill, PurchaseOrderItem, PurchaseBillItem } from '../types/sprint8';

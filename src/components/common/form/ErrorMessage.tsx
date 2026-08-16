@@ -1,3 +1,8 @@
+/**
+ * @file ErrorMessage.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ErrorMessage.tsx.
+ */
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import { FieldError } from 'react-hook-form';

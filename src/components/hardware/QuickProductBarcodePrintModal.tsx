@@ -1,3 +1,8 @@
+/**
+ * @file QuickProductBarcodePrintModal.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: QuickProductBarcodePrintModal.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { 
   Printer, 

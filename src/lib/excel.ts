@@ -1,3 +1,8 @@
+/**
+ * @file excel.ts
+ * @module المكتبات والمحركات الأساسية (Core Libraries)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: excel.ts.
+ */
 import * as XLSX from 'xlsx';
 
 export const exportToExcel = (data: any[], fileName: string) => {

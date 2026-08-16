@@ -1,3 +1,8 @@
+/**
+ * @file ValidationSummary.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: ValidationSummary.tsx.
+ */
 import React from 'react';
 import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import { FieldErrors } from 'react-hook-form';

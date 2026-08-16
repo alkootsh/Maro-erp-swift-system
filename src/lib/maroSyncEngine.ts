@@ -1,4 +1,8 @@
-// MARO ERP - MARO Sync Engine (Offline-First PostgreSQL Synchronization Engine)
+/**
+ * @file maroSyncEngine.ts
+ * @module Core Infrastructure
+ * @description محرك التزامن (Synchronization Engine) لـ MARO ERP. مسؤول عن دعم خاصية العمل بدون إنترنت (Offline-First) والمزامنة مع قاعدة بيانات PostgreSQL.
+ */
 
 export type SyncStatusState = 'IDLE' | 'SYNCING' | 'OFFLINE' | 'ERROR' | 'COMPLETED';
 

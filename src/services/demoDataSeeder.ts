@@ -1,3 +1,8 @@
+/**
+ * @file demoDataSeeder.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: demoDataSeeder.ts.
+ */
 // MARO ERP - Enterprise Demo Data Seeder & First Run Manager
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 

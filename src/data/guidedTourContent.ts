@@ -1,3 +1,8 @@
+/**
+ * @file guidedTourContent.ts
+ * @module ملف إضافي في النظام
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: guidedTourContent.ts.
+ */
 export interface TourStep {
   title: string;
   description: string;

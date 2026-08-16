@@ -1,3 +1,8 @@
+/**
+ * @file thermalBarcodeScaleEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: thermalBarcodeScaleEngine.ts.
+ */
 // MARO ERP - Enterprise Thermal Printer, Barcode Label Designer & Scale PLU Engine
 import { 
   BarcodeLabelTemplate, 

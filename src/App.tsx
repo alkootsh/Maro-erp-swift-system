@@ -1,5 +1,11 @@
+/**
+ * @file App.tsx
+ * @module Core
+ * @description نقطة الدخول الرئيسية (Main Entry Point) لبرنامج MARO ERP. يقوم بإدارة المسارات (Routing)، حالة المصادقة (Auth)، ومزودات التعلم.
+ */
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './components/AuthProvider';
 import { LearningModeProvider } from './components/learning/LearningModeProvider';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -26,6 +32,7 @@ import { Manufacturing } from './pages/Manufacturing';
 import { Users } from './pages/Users';
 import { Inventory } from './pages/Inventory';
 import { Returns } from './pages/Returns';
+import { PurchaseReturns } from './pages/PurchaseReturns';
 import { AlertSettings } from './pages/AlertSettings';
 import { Reps } from './pages/Reps';
 import { StockAlerts } from './components/StockAlerts';
@@ -38,9 +45,9 @@ import { FirstRunWizard } from './components/FirstRunWizard';
 import { initBusinessIntelligence } from './services/biInitializer';
 import { WhatsAppNotificationsCenter } from './pages/WhatsAppNotificationsCenter';
 import { CustomerOrdersManager } from './pages/CustomerOrdersManager';
+import { AssistantModulesHub } from './pages/AssistantModulesHub';
 import { CustomerOrderPortalApp } from './pages/portal/CustomerOrderPortalApp';
 import { AdvancedSalesManagement } from './pages/AdvancedSalesManagement';
-import { DexefPythonHub } from './pages/DexefPythonHub';
 import { NextGenEnterpriseSuite } from './pages/NextGenEnterpriseSuite';
 import { SmartCashier } from './pages/SmartCashier';
 import CashierSessionView from './pages/CashierSessionView';
@@ -100,6 +107,7 @@ export default function App() {
   return (
     <AuthProvider>
       <LearningModeProvider>
+        <Toaster position="top-left" toastOptions={{ duration: 4000 }} />
         <StockAlerts />
         {showFirstRun && <FirstRunWizard onComplete={() => setShowFirstRun(false)} />}
         <BrowserRouter>
@@ -119,8 +127,8 @@ export default function App() {
                 <Route path="/wholesale-invoices" element={<WholesaleInvoicesPage />} />
                 
                 {/* B2B Customer Orders & Web Store Management */}
-                <Route path="/b2b-portal" element={<CustomerOrdersManager />} />
-                <Route path="/customer-orders" element={<CustomerOrdersManager />} />
+                <Route path="/b2b-portal" element={<WholesaleInvoicesPage />} />
+                <Route path="/customer-orders" element={<WholesaleInvoicesPage />} />
                 
                 {/* Core Commercial Industry Modules */}
                 <Route path="/industries/hub" element={<IndustryModulesHub />} />
@@ -162,6 +170,7 @@ export default function App() {
                 <Route path="/invoices" element={<Invoices />} />
                 <Route path="/advanced-sales" element={<AdvancedSalesManagement />} />
                 <Route path="/returns" element={<Returns />} />
+                <Route path="/purchase-returns" element={<PurchaseReturns />} />
                 <Route path="/manufacturing" element={<Manufacturing />} />
                 <Route path="/bills" element={<Bills />} />
                 
@@ -169,7 +178,6 @@ export default function App() {
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/designer" element={<ReportDesigner />} />
-                <Route path="/dexef-python-hub" element={<DexefPythonHub />} />
                 <Route path="/next-gen-suite" element={<NextGenEnterpriseSuite />} />
                 <Route path="/smart-cashier" element={<SmartCashier />} />
                 <Route path="/cashier-sessions" element={<CashierSessionView />} />
@@ -188,6 +196,7 @@ export default function App() {
                 <Route path="/procurement" element={<ProcurementContracts />} />
                 <Route path="/branches" element={<BranchManagement />} />
                 <Route path="/zatca" element={<ZatcaEInvoicing />} />
+                <Route path="/assistant-modules" element={<AssistantModulesHub />} />
                 
                 {/* Administration, Security & Developer Console */}
                 <Route path="/users" element={<Users />} />

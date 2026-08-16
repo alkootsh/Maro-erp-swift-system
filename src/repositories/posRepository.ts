@@ -1,3 +1,8 @@
+/**
+ * @file posRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posRepository.ts.
+ */
 // MARO ERP - POS Terminal Session & Barcode Scale Decoding Engine
 import { POSSession } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

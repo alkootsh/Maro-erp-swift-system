@@ -1,3 +1,8 @@
+/**
+ * @file SystemTickerBanner.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: SystemTickerBanner.tsx.
+ */
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Bell, AlertTriangle, CheckCircle2, Info, X, ChevronRight, Settings } from 'lucide-react';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

@@ -1,3 +1,8 @@
+/**
+ * @file Bills.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: Bills.tsx.
+ */
 import React, { useEffect, useState } from 'react';
 import { 
   Plus, 
@@ -155,8 +160,12 @@ export const Bills: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => {
-                          const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(b);
-                          WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                          const supplier = SupplierRepository.getSupplierById(b.supplierId);
+                          const targetPhone = supplier?.phone || prompt('أدخل رقم هاتف الواتساب الخاص بالمورد:', '') || '';
+                          if (targetPhone) {
+                            const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(b);
+                            WhatsAppNotificationService.openWhatsAppDirectly(targetPhone, msg);
+                          }
                         }}
                         className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors flex items-center gap-1"
                         title="إرسال أمر الشراء للمورد عبر الواتساب"
@@ -204,14 +213,32 @@ export const Bills: React.FC = () => {
 const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<ProductMaster[]>([]);
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
-  const [isPaidCash, setIsPaidCash] = useState<boolean>(false);
-  const [items, setItems] = useState<PurchaseBillItem[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>(() => {
+    return localStorage.getItem('maro_bill_draft_supplierId') || '';
+  });
+  const [isPaidCash, setIsPaidCash] = useState<boolean>(() => {
+    return localStorage.getItem('maro_bill_draft_isPaidCash') === 'true';
+  });
+  const [items, setItems] = useState<PurchaseBillItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('maro_bill_draft_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     setSuppliers(SupplierRepository.getSuppliers());
     setProducts(ProductRepository.getProducts());
   }, []);
+
+  // Auto-save draft effect
+  useEffect(() => {
+    localStorage.setItem('maro_bill_draft_supplierId', selectedSupplierId);
+    localStorage.setItem('maro_bill_draft_isPaidCash', isPaidCash ? 'true' : 'false');
+    localStorage.setItem('maro_bill_draft_items', JSON.stringify(items));
+  }, [selectedSupplierId, isPaidCash, items]);
 
   const handleAddItem = (prod: ProductMaster) => {
     const existingIndex = items.findIndex(i => i.productId === prod.id);
@@ -293,6 +320,9 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       });
 
       await cmd.execute();
+      localStorage.removeItem('maro_bill_draft_supplierId');
+      localStorage.removeItem('maro_bill_draft_isPaidCash');
+      localStorage.removeItem('maro_bill_draft_items');
       onClose();
     } catch (e: any) {
       alert(e.message || 'حدث خطأ أثناء تسجيل فاتورة الشراء');
@@ -467,8 +497,12 @@ const BillDetailModal: React.FC<{ bill: PurchaseBill; onClose: () => void }> = (
           <div className="flex items-center gap-2">
             <button 
               onClick={() => {
-                const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(bill);
-                WhatsAppNotificationService.openWhatsAppDirectly('01000000000', msg);
+                const supplier = SupplierRepository.getSupplierById(bill.supplierId);
+                const targetPhone = supplier?.phone || prompt('أدخل رقم هاتف الواتساب الخاص بالمورد:', '') || '';
+                if (targetPhone) {
+                  const msg = WhatsAppNotificationService.formatPurchaseBillWhatsApp(bill);
+                  WhatsAppNotificationService.openWhatsAppDirectly(targetPhone, msg);
+                }
               }}
               className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5"
             >

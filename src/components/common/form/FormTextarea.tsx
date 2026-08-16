@@ -1,3 +1,8 @@
+/**
+ * @file FormTextarea.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: FormTextarea.tsx.
+ */
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
 import { FormField } from './FormField';

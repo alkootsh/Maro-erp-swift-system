@@ -1,3 +1,8 @@
+/**
+ * @file LoadingButton.tsx
+ * @module المكونات القابلة لإعادة الاستخدام (Reusable Components)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: LoadingButton.tsx.
+ */
 import React from 'react';
 import { Loader2, Save } from 'lucide-react';
 

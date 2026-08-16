@@ -1,3 +1,8 @@
+/**
+ * @file salesOrderRepository.ts
+ * @module طبقة التعامل مع البيانات (Data Repositories)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: salesOrderRepository.ts.
+ */
 // MARO ERP - Sales Orders & Delivery Repository
 import { SalesOrder, SalesOrderItem } from '../types/sprint8';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';

@@ -1,3 +1,8 @@
+/**
+ * @file posEngine.ts
+ * @module خدمات النظام (Services)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: posEngine.ts.
+ */
 import { eq, desc, and } from 'drizzle-orm';
 import { db } from '../../db';
 import { posSessions } from '../../db/schema';

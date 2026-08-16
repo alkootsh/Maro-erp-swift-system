@@ -1,3 +1,8 @@
+/**
+ * @file EducationCenterPage.tsx
+ * @module واجهات وصفحات النظام (UI Pages)
+ * @description ملف جزء من نظام MARO ERP. الوظيفة: EducationCenterPage.tsx.
+ */
 import React, { useState } from 'react';
 import { 
   GraduationCap, 
