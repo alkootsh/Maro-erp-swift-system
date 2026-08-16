@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { 
   TrendingUp, DollarSign, Package, ShoppingCart, 
-  Activity, ArrowUpRight, ArrowDownRight, ShieldCheck, FileText, Users, Plus, BarChart3, Calendar, AlertTriangle
+  Activity, ArrowUpRight, ArrowDownRight, ShieldCheck, FileText, Users, Plus, BarChart3, Calendar, AlertTriangle, Wallet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency, cn } from '../lib/utils';
@@ -70,21 +70,29 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="p-6 space-y-6 bg-[#0f172a] min-h-screen text-right" dir="rtl">
+    <div className="p-4 md:p-6 space-y-6 bg-[#0b0f1a] min-h-screen text-right" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-white">لوحة القيادة التنفيذية</h1>
+        <h1 className="text-xl font-black text-white">لوحة القيادة التنفيذية</h1>
         <div className="bg-[#1e293b] px-4 py-2 rounded-xl text-xs font-bold text-slate-300">
           آخر تحديث: الآن
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="إجمالي المبيعات" value="1,250,000" change="+12.5%" trend="up" icon={DollarSign} color="green" />
-        <StatCard title="إجمالي المشتريات" value="850,000" change="-2.4%" trend="down" icon={ShoppingCart} color="blue" />
-        <StatCard title="الأصناف منخفضة المخزون" value="42" change="تنبيه" trend="down" icon={Package} color="amber" />
-        <StatCard title="النشاط اللحظي" value="158" change="عملية/ساعة" trend="up" icon={Activity} color="purple" />
+      {/* Row 1: KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard title="إجمالي المبيعات" value="1,250,000 ج.م" change="+12.5%" trend="up" icon={DollarSign} color="green" />
+        <StatCard title="صافي الربح" value="450,000 ج.م" change="+5.2%" trend="up" icon={TrendingUp} color="purple" />
+        <StatCard title="المقبوضات" value="980,000 ج.م" change="+8.1%" trend="up" icon={ArrowUpRight} color="blue" />
+        <StatCard title="المستحقات" value="270,000 ج.م" change="-1.2%" trend="down" icon={FileText} color="red" />
+      </div>
+
+      {/* Row 2: Secondary KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard title="مبيعات اليوم" value="45,000 ج.م" change="+2.0%" trend="up" icon={ShoppingCart} color="green" />
+        <StatCard title="مشتريات اليوم" value="30,000 ج.م" change="+0.5%" trend="up" icon={Package} color="blue" />
+        <StatCard title="رصيد الخزائن" value="150,000 ج.م" change="ثابت" trend="up" icon={Wallet} color="amber" />
+        <StatCard title="قيمة المخزون" value="1,250,000 ج.م" change="+0.1%" trend="up" icon={Package} color="purple" />
       </div>
 
       {/* BI Charts */}

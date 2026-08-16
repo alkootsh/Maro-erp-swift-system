@@ -267,3 +267,57 @@ export const posSessions = pgTable('pos_sessions', {
   closedAt: timestamp('closed_at'),
   metadata: jsonb('metadata').default({}),
 });
+
+// ==========================================
+// SECURITY & LICENSING (NEW)
+// ==========================================
+
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  branchId: uuid('branch_id').references(() => branches.id),
+  deviceInfo: jsonb('device_info'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  lastActivity: timestamp('last_activity').defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at'),
+});
+
+export const licenses = pgTable('licenses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  plan: varchar('plan', { length: 50 }).notNull(), // Trial, Basic, Pro, Enterprise
+  status: varchar('status', { length: 50 }).notNull(), // Active, GracePeriod, Expired, Suspended, Cancelled
+  startDate: timestamp('start_date').notNull(),
+  expiryDate: timestamp('expiry_date').notNull(),
+  gracePeriodEndsAt: timestamp('grace_period_ends_at'),
+  maxUsers: integer('max_users').notNull(),
+  maxBranches: integer('max_branches').notNull(),
+  maxWarehouses: integer('max_warehouses').notNull(),
+  maxPosDevices: integer('max_pos_devices').notNull(),
+  enabledModules: jsonb('enabled_modules').default([]), // List of allowed module IDs
+  metadata: jsonb('metadata').default({}),
+});
+
+export const devices = pgTable('devices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  branchId: uuid('branch_id').references(() => branches.id),
+  deviceId: varchar('device_id', { length: 255 }).notNull().unique(), // Hardware ID / UUID
+  terminalName: varchar('terminal_name', { length: 255 }).notNull(),
+  isActive: boolean('is_active').default(true),
+  lastConnectedAt: timestamp('last_connected_at'),
+  metadata: jsonb('metadata').default({}),
+});
+
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id),
+  action: varchar('action', { length: 255 }).notNull(), // LOGIN_SUCCESS, etc.
+  entityType: varchar('entity_type', { length: 100 }), // User, Company, Invoice...
+  entityId: uuid('entity_id'),
+  metadata: jsonb('metadata'), // Before/After, IP, Device, etc.
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

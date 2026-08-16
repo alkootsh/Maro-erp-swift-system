@@ -22,7 +22,8 @@ import {
   Building2, 
   CheckCircle2,
   Printer,
-  Scale
+  Scale,
+  MoreHorizontal
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { BarcodeScanner } from '../components/BarcodeScanner';
@@ -322,14 +323,14 @@ export const Products: React.FC = () => {
           <div className="bg-[#151b2b] rounded-2xl border border-[#1e293b] shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-right">
-                <thead className="bg-[#0b0f17] text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-[#1e293b]">
+                <thead className="bg-[#0b0f17] text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-[#1e293b] sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-4">تفاصيل المنتج</th>
                     <th className="px-6 py-4">الرمز (SKU)</th>
-                    <th className="px-6 py-4">الفئة والتصنيف</th>
+                    <th className="px-6 py-4">الفئة</th>
                     <th className="px-6 py-4">سعر البيع</th>
-                    <th className="px-6 py-4">الكمية المخزنية</th>
-                    <th className="px-6 py-4">حالة المخزون</th>
+                    <th className="px-6 py-4">الكمية</th>
+                    <th className="px-6 py-4">الحالة</th>
                     <th className="px-6 py-4 text-left">الإجراءات</th>
                   </tr>
                 </thead>
@@ -386,27 +387,16 @@ export const Products: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-left">
                           <div className="flex items-center gap-2 justify-end">
-                            <button 
-                              onClick={() => setBarcodePrintProduct(product)}
-                              className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors"
-                              title="طباعة استيكر وباركود للمنتج"
-                            >
-                              <Printer size={16} />
-                            </button>
-                            <button 
-                              onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
-                              className="p-2 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors"
-                              title="تعديل المنتج"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(product.id, product.name)}
-                              className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
-                              title="حذف المنتج"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            <div className="relative group/actions">
+                              <button className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+                                <MoreHorizontal size={18} className="text-slate-400" />
+                              </button>
+                              <div className="absolute left-0 mt-2 w-40 bg-[#1e293b] rounded-xl shadow-xl border border-slate-700 py-1 hidden group-hover/actions:block z-20">
+                                <button onClick={() => setBarcodePrintProduct(product)} className="w-full text-right px-4 py-2 text-xs text-emerald-400 hover:bg-slate-800">طباعة باركود</button>
+                                <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="w-full text-right px-4 py-2 text-xs text-blue-400 hover:bg-slate-800">تعديل</button>
+                                <button onClick={() => handleDelete(product.id, product.name)} className="w-full text-right px-4 py-2 text-xs text-red-400 hover:bg-slate-800">حذف</button>
+                              </div>
+                            </div>
                           </div>
                         </td>
                       </tr>

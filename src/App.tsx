@@ -19,6 +19,7 @@ import { Suppliers } from './pages/Suppliers';
 import { Invoices } from './pages/Invoices';
 import { Bills } from './pages/Bills';
 import { Transactions } from './pages/Transactions';
+import { TreasuryBankDashboard } from './pages/accounting/treasury-banks/TreasuryBankDashboard';
 import { POS } from './pages/POS';
 import { Settings } from './pages/Settings';
 import { InvoiceSettings } from './pages/InvoiceSettings';
@@ -175,6 +176,7 @@ export default function App() {
                 <Route path="/bills" element={<Bills />} />
                 
                 {/* General Accounting Core & Financial Reports */}
+                <Route path="/accounting/treasury-banks" element={<TreasuryBankDashboard />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/designer" element={<ReportDesigner />} />

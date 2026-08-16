@@ -232,6 +232,7 @@ export const Layout: React.FC = () => {
     {
       title: 'المالية والحسابات',
       items: [
+        { name: 'الخزائن والبنوك', path: '/accounting/treasury-banks', icon: Wallet },
         { name: 'الحسابات وقيود اليومية العامة', path: '/transactions', icon: Wallet },
         { name: 'الفوترة الإلكترونية (ZATCA)', path: '/zatca', icon: ShieldCheck },
         { name: 'التقارير المالية والتحليلات', path: '/reports', icon: BarChart3 },
