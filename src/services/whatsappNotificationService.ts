@@ -284,7 +284,7 @@ export class WhatsAppNotificationService {
     const suppliers = SupplierRepository.getSuppliers();
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const todayInvoices = invoices.filter(inv => inv.createdAt.startsWith(todayStr));
+    const todayInvoices = invoices.filter(inv => (inv.createdAt || '').startsWith(todayStr));
     const todaySales = todayInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0);
     const todayCash = todayInvoices.filter(inv => inv.paymentMethod === 'CASH').reduce((s, inv) => s + (inv.paidAmount || 0), 0);
     const todayCredit = todayInvoices.reduce((s, inv) => s + (inv.dueAmount || 0), 0);

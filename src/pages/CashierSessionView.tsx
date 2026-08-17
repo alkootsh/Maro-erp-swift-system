@@ -647,9 +647,9 @@ export default function CashierSessionView() {
                       value={cashierId}
                       onChange={e => handleCashierSelect(e.target.value)}
                     >
-                      {users.map(u => (
-                        <option key={u.uid} value={u.uid}>
-                          {u.displayName} (@{u.email.split('@')[0]})
+                      {users.map((u, uIdx) => (
+                        <option key={u.uid || u.id || `usr-opt-${uIdx}`} value={u.uid || u.id}>
+                          {u.displayName} (@{u.email ? u.email.split('@')[0] : 'user'})
                         </option>
                       ))}
                     </select>
@@ -768,7 +768,9 @@ export default function CashierSessionView() {
                     className="bg-card2 border border-border rounded-xl px-2 py-1 text-[10px] outline-none focus:border-gold text-white"
                   >
                     <option value="all">الكل</option>
-                    {uniqueCashiers.map(name => <option key={name} value={name}>{name}</option>)}
+                    {uniqueCashiers.map((name, nameIdx) => (
+                      <option key={`csh-filter-${name}-${nameIdx}`} value={name}>{name}</option>
+                    ))}
                   </select>
                 </div>
                 <button 
@@ -835,11 +837,11 @@ export default function CashierSessionView() {
               <table className="w-full text-right text-xs">
                 <thead className="bg-card2 text-text-dim font-bold border-b border-border">
                   <tr>
-                    {orderedKeys.map(colKey => {
+                    {orderedKeys.map((colKey, headIdx) => {
                       if (!visibleKeys.includes(colKey)) return null;
                       const colDef = SHIFTS_COLUMNS.find(c => c.key === colKey);
                       return (
-                        <th key={colKey} className={`p-3 ${colKey !== 'id' && colKey !== 'cashierName' && colKey !== 'openedAt' && colKey !== 'closedAt' ? 'text-center' : ''}`}>
+                        <th key={`shift-th-${colKey}-${headIdx}`} className={`p-3 ${colKey !== 'id' && colKey !== 'cashierName' && colKey !== 'openedAt' && colKey !== 'closedAt' ? 'text-center' : ''}`}>
                           {colDef?.label}
                         </th>
                       );
@@ -847,82 +849,84 @@ export default function CashierSessionView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border font-mono text-white">
-                  {filteredSessions.length > 0 ? filteredSessions.map(s => {
+                  {filteredSessions.length > 0 ? filteredSessions.map((s, sIdx) => {
                     const diff = s.variance || 0;
+                    const rowKey = s.id || `shift-row-${sIdx}`;
                     return (
-                      <tr key={s.id} className="hover:bg-card2/50 transition-colors">
-                        {orderedKeys.map(colKey => {
+                      <tr key={rowKey} className="hover:bg-card2/50 transition-colors">
+                        {orderedKeys.map((colKey, cellIdx) => {
                           if (!visibleKeys.includes(colKey)) return null;
+                          const cellKey = `cell-${rowKey}-${colKey}-${cellIdx}`;
                           switch (colKey) {
                             case 'id':
                               return (
-                                <td key={colKey} className="p-3 font-mono text-[11px] text-gold font-bold">
-                                  #{s.id.slice(0, 8)}
+                                <td key={cellKey} className="p-3 font-mono text-[11px] text-gold font-bold">
+                                  #{s.id ? s.id.slice(0, 8) : `SESS-${sIdx}`}
                                 </td>
                               );
                             case 'cashierName':
                               return (
-                                <td key={colKey} className="p-3 font-bold font-sans text-text-main">
+                                <td key={cellKey} className="p-3 font-bold font-sans text-text-main">
                                   {s.cashierName}
                                 </td>
                               );
                             case 'openedAt':
                               return (
-                                <td key={colKey} className="p-3 text-[11px] text-text-dim font-sans">
+                                <td key={cellKey} className="p-3 text-[11px] text-text-dim font-sans">
                                   {new Date(s.openedAt).toLocaleString('ar-EG')}
                                 </td>
                               );
                             case 'closedAt':
                               return (
-                                <td key={colKey} className="p-3 text-[11px] text-text-dim font-sans">
+                                <td key={cellKey} className="p-3 text-[11px] text-text-dim font-sans">
                                   {s.closedAt ? new Date(s.closedAt).toLocaleString('ar-EG') : '-'}
                                 </td>
                               );
                             case 'openingBalance':
                               return (
-                                <td key={colKey} className="p-3 text-center text-text-main">
+                                <td key={cellKey} className="p-3 text-center text-text-main">
                                   {(s.openingFloat || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalSales':
                               return (
-                                <td key={colKey} className="p-3 text-center font-bold text-gold">
+                                <td key={cellKey} className="p-3 text-center font-bold text-gold">
                                   {(s.totalSales || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalCash':
                               return (
-                                <td key={colKey} className="p-3 text-center text-emerald-400 font-bold">
+                                <td key={cellKey} className="p-3 text-center text-emerald-400 font-bold">
                                   {(s.totalSales || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalCard':
                               return (
-                                <td key={colKey} className="p-3 text-center text-blue-400 font-bold">
+                                <td key={cellKey} className="p-3 text-center text-blue-400 font-bold">
                                   0 ج.م
                                 </td>
                               );
                             case 'totalExpenses':
                               return (
-                                <td key={colKey} className="p-3 text-center text-rose-400 font-bold">
+                                <td key={cellKey} className="p-3 text-center text-rose-400 font-bold">
                                   0 ج.م
                                 </td>
                               );
                             case 'closingBalance':
                               return (
-                                <td key={colKey} className="p-3 text-center font-bold text-text-main">
+                                <td key={cellKey} className="p-3 text-center font-bold text-text-main">
                                   {(s.closingCash ?? s.expectedCash ?? 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'difference':
                               return (
-                                <td key={colKey} className={`p-3 text-center font-bold font-sans ${diff < 0 ? 'text-danger' : diff > 0 ? 'text-emerald-400' : 'text-text-dim'}`}>
+                                <td key={cellKey} className={`p-3 text-center font-bold font-sans ${diff < 0 ? 'text-danger' : diff > 0 ? 'text-emerald-400' : 'text-text-dim'}`}>
                                   {diff === 0 ? 'مطابق 0 ج' : diff > 0 ? `+${(diff || 0).toLocaleString()} ج (زيادة)` : `${(diff || 0).toLocaleString()} ج (عجز)`}
                                 </td>
                               );
                             case 'status':
                               return (
-                                <td key={colKey} className="p-3 text-center font-sans">
+                                <td key={cellKey} className="p-3 text-center font-sans">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     s.status === 'CLOSED'
                                       ? 'bg-card2 text-text-dim border border-border'
@@ -934,7 +938,7 @@ export default function CashierSessionView() {
                               );
                             case 'actions':
                               return (
-                                <td key={colKey} className="p-3 text-center font-sans">
+                                <td key={cellKey} className="p-3 text-center font-sans">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
@@ -1007,8 +1011,8 @@ export default function CashierSessionView() {
                   className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-gold"
                 >
                   <option value="all">كل الورديات (تاريخي ومفتوح)</option>
-                  {sessionsData.map(s => (
-                    <option key={s.id} value={s.id}>
+                  {sessionsData.map((s, sessIdx) => (
+                    <option key={s.id || `filter-sess-${sessIdx}`} value={s.id}>
                       {s.cashierName} - {new Date(s.openedAt).toLocaleDateString('ar-EG')} ({s.status === 'CLOSED' ? 'مغلقة' : 'نشطة'})
                     </option>
                   ))}
@@ -1023,8 +1027,8 @@ export default function CashierSessionView() {
                   className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-gold"
                 >
                   <option value="all">كل الموظفين</option>
-                  {txCashiers.map(name => (
-                    <option key={name} value={name}>{name}</option>
+                  {txCashiers.map((name, cshIdx) => (
+                    <option key={`tx-cashier-${name}-${cshIdx}`} value={name}>{name}</option>
                   ))}
                 </select>
               </div>
@@ -1037,8 +1041,8 @@ export default function CashierSessionView() {
                   className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none"
                 >
                   <option value="all">كل العملاء</option>
-                  {txCustomers.map(custName => (
-                    <option key={custName} value={custName}>{custName}</option>
+                  {txCustomers.map((custName, custIdx) => (
+                    <option key={`tx-customer-${custName}-${custIdx}`} value={custName}>{custName}</option>
                   ))}
                 </select>
               </div>
@@ -1090,7 +1094,7 @@ export default function CashierSessionView() {
                 </thead>
                 <tbody className="divide-y divide-border font-mono text-white">
                   {filteredSales.length > 0 ? (
-                    filteredSales.map(sale => {
+                    filteredSales.map((sale, saleIdx) => {
                       const isPartial = (sale.paidAmount || 0) > 0 && (sale.dueAmount || 0) > 0;
                       let payBadge = <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-emerald-500/30">كاش نقدي</span>;
                       let cameraLabel = "كاميرا 01 (الدرج)";
@@ -1114,9 +1118,11 @@ export default function CashierSessionView() {
                         printSalesInvoice(s);
                       };
 
+                      const saleKey = sale.id || sale.invoiceNumber || `sale-item-${saleIdx}`;
+
                       return (
-                        <tr key={sale.id} className="hover:bg-card2/50 transition-colors">
-                          <td className="p-3 font-bold text-text-main">#{sale.invoiceNumber || sale.id.substring(0, 8)}</td>
+                        <tr key={saleKey} className="hover:bg-card2/50 transition-colors">
+                          <td className="p-3 font-bold text-text-main">#{sale.invoiceNumber || (sale.id ? sale.id.substring(0, 8) : `INV-${saleIdx}`)}</td>
                           <td className="p-3 font-bold font-sans text-text-main">{sale.customerName || 'عميل نقدي'}</td>
                           <td className="p-3 text-text-dim text-[11px]">{new Date(sale.createdAt).toLocaleString('ar-EG')}</td>
                           <td className="p-3 text-center font-sans">{payBadge}</td>
@@ -1254,7 +1260,7 @@ export default function CashierSessionView() {
 
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-xs text-white">
                   {securityLog.map((log, idx) => (
-                    <div key={idx} className="bg-card2 p-2.5 rounded-2xl border border-border space-y-1">
+                    <div key={`sec-log-${log.time}-${idx}`} className="bg-card2 p-2.5 rounded-2xl border border-border space-y-1">
                       <div className="flex justify-between items-center text-[10px] text-text-dim font-mono">
                         <span className="text-gold font-bold">{log.cam}</span>
                         <span>{log.time}</span>
@@ -1270,7 +1276,7 @@ export default function CashierSessionView() {
                   <h4 className="font-bold text-emerald-400">اللقطات الملتقطة:</h4>
                   <ul className="space-y-1 text-text-dim font-mono text-[11px]">
                     {snapshots.map((s, i) => (
-                      <li key={i} className="bg-card2 p-2 rounded-xl border border-border text-white">{s}</li>
+                      <li key={`snapshot-item-${i}-${s.substring(0, 10)}`} className="bg-card2 p-2 rounded-xl border border-border text-white">{s}</li>
                     ))}
                   </ul>
                 </div>

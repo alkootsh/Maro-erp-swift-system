@@ -13,11 +13,16 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+export const isDatabaseConfigured = (): boolean => {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) return false;
+  return url.startsWith('postgres://') || url.startsWith('postgresql://');
+};
+
 export const createPool = () => {
   if (!global._postgresPool) {
-    if (!process.env.DATABASE_URL) {
-      console.warn("DATABASE_URL is not set. Database connection will fail if queried.");
-      return new Pool(); // Return empty pool to avoid immediate crash at startup
+    if (!isDatabaseConfigured()) {
+      return new Pool(); // Return dummy pool for offline / standalone mode
     }
     
     global._postgresPool = new Pool({
@@ -27,7 +32,7 @@ export const createPool = () => {
     });
 
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      // Ignore idle client disconnect errors in preview environment
     });
   }
   return global._postgresPool;

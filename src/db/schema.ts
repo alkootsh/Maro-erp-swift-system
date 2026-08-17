@@ -48,9 +48,26 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash'),
   role: varchar('role', { length: 100 }).notNull(), // RBAC role identifier
   permissions: jsonb('permissions').default({}), // Granular overrides
-  isActive: boolean('is_active').default(true),
+  failedAttempts: integer('failed_attempts').default(0).notNull(),
+  lockedUntil: timestamp('locked_until'),
+  lastLoginAt: timestamp('last_login_at'),
+  isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  tenantIdx: index('users_tenant_idx').on(table.tenantId),
+  emailIdx: index('users_email_idx').on(table.email),
+}));
+
+export const userBranches = pgTable('user_branches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  branchId: uuid('branch_id').references(() => branches.id, { onDelete: 'cascade' }).notNull(),
+  isDefault: boolean('is_default').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userTenantBranchIdx: index('user_branches_user_branch_idx').on(table.userId, table.branchId),
+}));
 
 // ==========================================
 // CORE 1: FINANCE & ACCOUNTING
@@ -277,28 +294,41 @@ export const sessions = pgTable('sessions', {
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
   branchId: uuid('branch_id').references(() => branches.id),
-  deviceInfo: jsonb('device_info'),
+  refreshTokenHash: text('refresh_token_hash'),
+  ipAddress: varchar('ip_address', { length: 100 }),
+  userAgent: text('user_agent'),
+  deviceInfo: jsonb('device_info').default({}),
+  replacedBySessionId: uuid('replaced_by_session_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   lastActivity: timestamp('last_activity').defaultNow().notNull(),
   revokedAt: timestamp('revoked_at'),
-});
+}, (table) => ({
+  userIdx: index('sessions_user_idx').on(table.userId),
+  tenantIdx: index('sessions_tenant_idx').on(table.tenantId),
+  refreshTokenHashIdx: index('sessions_refresh_hash_idx').on(table.refreshTokenHash),
+}));
 
 export const licenses = pgTable('licenses', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  plan: varchar('plan', { length: 50 }).notNull(), // Trial, Basic, Pro, Enterprise
-  status: varchar('status', { length: 50 }).notNull(), // Active, GracePeriod, Expired, Suspended, Cancelled
-  startDate: timestamp('start_date').notNull(),
+  licenseKey: varchar('license_key', { length: 255 }),
+  plan: varchar('plan', { length: 50 }).default('TRIAL').notNull(), // TRIAL, BASIC, PRO, ENTERPRISE
+  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(), // TRIAL, ACTIVE, GRACE_PERIOD, SUSPENDED, EXPIRED, CANCELLED
+  startDate: timestamp('start_date').defaultNow().notNull(),
   expiryDate: timestamp('expiry_date').notNull(),
   gracePeriodEndsAt: timestamp('grace_period_ends_at'),
-  maxUsers: integer('max_users').notNull(),
-  maxBranches: integer('max_branches').notNull(),
-  maxWarehouses: integer('max_warehouses').notNull(),
-  maxPosDevices: integer('max_pos_devices').notNull(),
-  enabledModules: jsonb('enabled_modules').default([]), // List of allowed module IDs
+  maxUsers: integer('max_users').default(10).notNull(),
+  maxBranches: integer('max_branches').default(3).notNull(),
+  maxWarehouses: integer('max_warehouses').default(5).notNull(),
+  maxPosDevices: integer('max_pos_devices').default(5).notNull(),
+  enabledModules: jsonb('enabled_modules').default([]), // List of allowed module IDs e.g. ["POS", "SALES", "PURCHASES", "INVENTORY", "ACCOUNTING", "REPORTS", "AI", "CRM", "MANUFACTURING"]
   metadata: jsonb('metadata').default({}),
-});
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('licenses_tenant_idx').on(table.tenantId),
+  statusIdx: index('licenses_status_idx').on(table.status),
+}));
 
 export const devices = pgTable('devices', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -306,18 +336,25 @@ export const devices = pgTable('devices', {
   branchId: uuid('branch_id').references(() => branches.id),
   deviceId: varchar('device_id', { length: 255 }).notNull().unique(), // Hardware ID / UUID
   terminalName: varchar('terminal_name', { length: 255 }).notNull(),
-  isActive: boolean('is_active').default(true),
+  isActive: boolean('is_active').default(true).notNull(),
   lastConnectedAt: timestamp('last_connected_at'),
   metadata: jsonb('metadata').default({}),
-});
+}, (table) => ({
+  tenantDeviceIdx: index('devices_tenant_device_idx').on(table.tenantId, table.deviceId),
+}));
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').references(() => users.id),
-  action: varchar('action', { length: 255 }).notNull(), // LOGIN_SUCCESS, etc.
-  entityType: varchar('entity_type', { length: 100 }), // User, Company, Invoice...
-  entityId: uuid('entity_id'),
-  metadata: jsonb('metadata'), // Before/After, IP, Device, etc.
+  action: varchar('action', { length: 255 }).notNull(), // LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT, LOGOUT_ALL, BRUTE_FORCE_LOCK, LICENSE_EXPIRED_ACCESS, etc.
+  entityType: varchar('entity_type', { length: 100 }), // User, Session, License, Tenant, Branch, Document
+  entityId: varchar('entity_id', { length: 255 }),
+  ipAddress: varchar('ip_address', { length: 100 }),
+  userAgent: text('user_agent'),
+  metadata: jsonb('metadata'), // Details, before/after, reason, failed credentials info (without password)
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  tenantActionIdx: index('audit_logs_tenant_action_idx').on(table.tenantId, table.action),
+  createdAtIdx: index('audit_logs_created_at_idx').on(table.createdAt),
+}));

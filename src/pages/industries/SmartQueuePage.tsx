@@ -914,7 +914,7 @@ export const SmartQueuePage: React.FC = () => {
                       <Printer size={14} />
                     </button>
                     <a
-                      href={`https://wa.me/2${lastIssuedTicketAlert.clientPhone.startsWith('0') ? lastIssuedTicketAlert.clientPhone.substring(1) : lastIssuedTicketAlert.clientPhone}?text=${encodeURIComponent(lastIssuedTicketAlert.whatsAppNotificationsSent[0]?.messageText || '')}`}
+                      href={`https://wa.me/2${(lastIssuedTicketAlert.clientPhone || '').startsWith('0') ? lastIssuedTicketAlert.clientPhone.substring(1) : (lastIssuedTicketAlert.clientPhone || '')}?text=${encodeURIComponent(lastIssuedTicketAlert.whatsAppNotificationsSent[0]?.messageText || '')}`}
                       target="_blank"
                       rel="noreferrer"
                       className="p-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs flex items-center gap-1"
@@ -1229,7 +1229,7 @@ export const SmartQueuePage: React.FC = () => {
                   </div>
 
                   <a
-                    href={`https://wa.me/2${t.clientPhone.startsWith('0') ? t.clientPhone.substring(1) : t.clientPhone}`}
+                    href={`https://wa.me/2${(t.clientPhone || '').startsWith('0') ? t.clientPhone.substring(1) : (t.clientPhone || '')}`}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto"

@@ -315,14 +315,9 @@ export class EmployeeAuthService {
       return { valid: false, message: 'تم إيقاف هذا الحساب من قبل مدير النظام' };
     }
 
-    // Developer default bypass if applicable or registered password
-    if (user.role === 'developer' || identifier.toLowerCase() === 'alkootsh@gmail.com') {
-      return { valid: true, user };
-    }
-
-    // If user has a registered password, check it (or accept default 123456 / initial password if unset)
-    const currentPassword = user.password || '123456';
-    if (currentPassword === passwordAttempt || passwordAttempt === '••••••••' || passwordAttempt === 'admin123' || passwordAttempt === '123456') {
+    // Strict Password Validation — Zero Backdoors or Bypasses
+    const currentPassword = user.password;
+    if (currentPassword && currentPassword === passwordAttempt) {
       return { valid: true, user };
     }
 

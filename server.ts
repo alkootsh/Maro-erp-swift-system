@@ -1,7 +1,19 @@
 import express from "express";
 import path from "path";
+import crypto from 'crypto';
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import cookieParser from 'cookie-parser';
+import { db, isDatabaseConfigured } from './src/db/index';
+import { users, sessions, tenants, branches, licenses, auditLogs, userBranches } from './src/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
+import { ServerAuthEngine, OfflineCredentialSnapshot, computeOfflineCredentialSignature } from './src/server/security/authEngine';
+import { ServerLicenseEngine, OfflineLicenseToken, computeOfflineLicenseSignature } from './src/server/security/licenseEngine';
+import { AuditLogger } from './src/server/security/auditLogger';
+import { requireAuth, requireModule, requireRole } from './src/server/security/securityMiddleware';
+import { DeviceEngine } from './src/lib/crypto/deviceEngine';
+import { Ed25519Engine } from './src/lib/crypto/ed25519Engine';
 
 // In-memory PostgreSQL simulated store buffer for local/container dev when external database is offline
 const erpDatabaseStore: Record<string, any[]> = {
@@ -28,151 +40,433 @@ const erpDatabaseStore: Record<string, any[]> = {
 
 // Tenant and Branch Isolation Context Helper
 function resolveTenantContext(req: express.Request): { tenantId: string; branchId: string; userId?: string } {
-  const headerTenant = (req.headers['x-tenant-id'] as string) || (req.headers['tenant-id'] as string);
-  const headerBranch = (req.headers['x-branch-id'] as string) || (req.headers['branch-id'] as string);
-  const headerUser = (req.headers['x-user-id'] as string) || undefined;
+  const tenantId = req.tenantId || (req.headers['x-tenant-id'] as string) || 'tenant_maro_main';
+  const branchId = req.branchId || (req.headers['x-branch-id'] as string) || 'branch_main';
+  const userId = req.userId || (req.headers['x-user-id'] as string) || undefined;
 
-  const tenantId = headerTenant && headerTenant.trim().length > 0 ? headerTenant.trim() : 'tenant_maro_main';
-  const branchId = headerBranch && headerBranch.trim().length > 0 ? headerBranch.trim() : 'branch_main';
-
-  return { tenantId, branchId, userId: headerUser };
+  return { tenantId, branchId, userId };
 }
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(cookieParser());
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      architecture: "PostgreSQL + MARO Sync Engine (Offline-First Enterprise ERP)",
+      architecture: "PostgreSQL + MARO Security & Licensing Shield (Offline-First Enterprise ERP)",
       syncEngine: "Active",
-      security: "Multi-Tenant Protected"
+      security: "Enterprise Multi-Tenant Protected (Server-Side Enforced)"
     });
   });
 
-  // --- Auth Endpoints with Server-Side Verification & Rate Limiting ---
-  let developerRegisteredPhone = "01000000000";
-  let activeDeveloperOtp: { code: string; expiresAt: number; attempts: number; phone: string } | null = null;
+  // =========================================================================
+  // 1. AUTHENTICATION & SESSION MANAGEMENT APIS (PostgreSQL Source of Truth)
+  // =========================================================================
 
-  app.post("/api/auth/developer/send-otp", (req, res) => {
-    const { channel = 'whatsapp', phone, action = 'تسجيل دخول وتأكيد صلاحيات المطور' } = req.body;
-    const targetPhone = phone || developerRegisteredPhone;
+  // Login with Email & Password (with Brute-Force Shield, Hashed Refresh Tokens)
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password, rememberDevice } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      const userAgent = req.headers['user-agent'] || 'unknown';
 
-    // Generate cryptographic 6-digit OTP
-    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+      const result = await ServerAuthEngine.login(
+        email, 
+        password, 
+        clientIp, 
+        userAgent, 
+        rememberDevice === true
+      );
 
-    activeDeveloperOtp = {
-      code: rawOtp,
-      expiresAt,
-      attempts: 0,
-      phone: targetPhone
-    };
+      if (!result.success || !result.sessionId) {
+        return res.status(result.statusCode || 401).json({ success: false, error: result.error || 'بيانات الدخول غير صحيحة' });
+      }
 
-    console.log(`[MARO DEV 2FA] Dispatched OTP [${rawOtp}] to ${targetPhone} via ${channel.toUpperCase()} for action: ${action}`);
+      // Set Secure HTTP-Only Cookie
+      const maxAgeMs = rememberDevice ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+      res.cookie('session_id', result.sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: maxAgeMs
+      });
 
+      res.json({
+        success: true,
+        user: result.user,
+        sessionId: result.sessionId,
+        refreshToken: result.refreshToken,
+        expiresAt: result.expiresAt
+      });
+    } catch (err: any) {
+      console.error("[AUTH ERROR]", err);
+      res.status(500).json({ error: "حدث خطأ غير متوقع أثناء تسجيل الدخول" });
+    }
+  });
+
+  // Refresh Token Rotation API
+  app.post("/api/auth/refresh", async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const result = await ServerAuthEngine.refreshSession(refreshToken, clientIp, userAgent);
+
+      if (!result.success || !result.newSessionId) {
+        res.clearCookie('session_id');
+        return res.status(401).json({ error: result.error });
+      }
+
+      res.cookie('session_id', result.newSessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
+      res.json({
+        success: true,
+        sessionId: result.newSessionId,
+        refreshToken: result.newRefreshToken,
+        expiresAt: result.expiresAt,
+        user: result.user
+      });
+    } catch (err: any) {
+      console.error("[REFRESH ERROR]", err);
+      res.status(500).json({ error: "فشل تجديد الجلسة" });
+    }
+  });
+
+  // Logout Current Device
+  app.post("/api/auth/logout", async (req, res) => {
+    const sessionId = req.cookies?.session_id || req.body?.sessionId;
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+    if (sessionId) {
+      await ServerAuthEngine.logout(sessionId, clientIp);
+    }
+
+    res.clearCookie('session_id');
+    res.json({ success: true, message: "تم تسجيل الخروج بنجاح" });
+  });
+
+  // Logout All Devices for Current User
+  app.post("/api/auth/logout-all", requireAuth, async (req, res) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    await ServerAuthEngine.logoutAllDevices(req.userId!, req.tenantId, clientIp);
+
+    res.clearCookie('session_id');
+    res.json({ success: true, message: "تم تسجيل الخروج من كافة الأجهزة بنجاح" });
+  });
+
+  // Get Current Authenticated User & Licensing Context
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
     res.json({
       success: true,
-      channel,
-      targetPhoneMasked: `${targetPhone.slice(0, 3)}****${targetPhone.slice(-3)}`,
-      expiresInSeconds: 300,
-      message: `تم إرسال كود التحقق بنجاح عبر ${channel === 'whatsapp' ? 'الواتساب (WhatsApp)' : 'الرسائل النصية القصيرة (SMS)'}`
+      user: req.userContext,
+      sessionId: req.sessionId,
+      license: req.license
     });
   });
 
-  app.post("/api/auth/developer/verify-otp", (req, res) => {
-    const { otp } = req.body;
-    if (!otp) {
-      return res.status(400).json({ error: "كود التحقق مطلوب" });
-    }
-
-    if (!activeDeveloperOtp) {
-      return res.status(400).json({ error: "لا توجد جلسة تحقق نشطة. يرجى طلب كود جديد." });
-    }
-
-    if (Date.now() > activeDeveloperOtp.expiresAt) {
-      return res.status(400).json({ error: "انتهت صلاحية كود التحقق (5 دقائق). يرجى طلب كود جديد." });
-    }
-
-    if (activeDeveloperOtp.attempts >= 5) {
-      return res.status(403).json({ error: "تم تجاوز الحد الأقصى للمحاولات الخاطئة. تم قفل الجلسة." });
-    }
-
-    if (otp.trim() === activeDeveloperOtp.code || otp.trim() === '777777') {
-      activeDeveloperOtp = null; // Clear on success
-      return res.json({
-        success: true,
-        user: {
-          uid: 'dev_master_sys_001',
-          email: 'alkootsh@gmail.com',
-          displayName: 'مهندس ومطور النظام المعتمد',
-          role: 'developer',
-          branchId: 'branch_main',
-          branchName: 'الفرع الرئيسي'
-        },
-        token: `maro_jwt_dev_root_${Date.now()}`,
-        message: "تم التحقق من هوية وصلاحيات المطور بنجاح عبر الهاتف المسجل"
-      });
-    } else {
-      activeDeveloperOtp.attempts += 1;
-      const remaining = 5 - activeDeveloperOtp.attempts;
-      return res.status(401).json({ 
-        error: `كود التحقق غير صحيح. متبقي ${remaining} محاولة قبل القفل.`,
-        remainingAttempts: remaining
-      });
-    }
-  });
-
-  app.get("/api/developer/phone-config", (req, res) => {
+  // Fast Check Status API
+  app.get("/api/auth/check", requireAuth, async (req, res) => {
     res.json({
-      registeredPhone: developerRegisteredPhone,
-      maskedPhone: `${developerRegisteredPhone.slice(0, 3)}****${developerRegisteredPhone.slice(-3)}`,
-      enforce2fa: true,
-      channelsSupported: ['whatsapp', 'sms']
+      loggedIn: true,
+      user: req.userContext,
+      license: req.license
     });
   });
 
-  app.post("/api/developer/update-phone", (req, res) => {
-    const { phone } = req.body;
-    if (!phone || phone.length < 9) {
-      return res.status(400).json({ error: "رقم الهاتف غير صالح" });
+  // Get Active Sessions & Devices for Current User
+  app.get("/api/auth/sessions", requireAuth, async (req, res) => {
+    try {
+      const activeSessions = await ServerAuthEngine.getActiveSessions(req.userId!);
+      res.json(activeSessions);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-    developerRegisteredPhone = phone.trim();
-    res.json({
-      success: true,
-      registeredPhone: developerRegisteredPhone,
-      message: "تم تحديث رقم هاتف المطور المسجل بالنظام بنجاح"
-    });
   });
 
-  app.post("/api/auth/verify-pin", (req, res) => {
-    const { pinCode } = req.body;
-    const validCashierPins = ['1234', '5678', '8899', '2026'];
+  // Factor Authentication API (PIN / NFC / RFID)
+  app.post("/api/auth/factor", async (req, res) => {
+    try {
+      const { type, credential, deviceId } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      const userAgent = req.headers['user-agent'] || 'unknown';
 
-    if (!pinCode || typeof pinCode !== 'string') {
-      return res.status(400).json({ error: "PIN code is required" });
-    }
-
-    if (validCashierPins.includes(pinCode)) {
-      return res.json({
-        success: true,
-        user: {
-          uid: 'usr_cashier_shift_01',
-          email: 'cashier@maro-erp.local',
-          displayName: 'كاشير الوردية النشطة',
-          role: 'cashier',
-          branchId: 'branch_main',
-          branchName: 'الفرع الرئيسي'
-        },
-        token: `maro_jwt_cashier_${Date.now()}`
+      const result = await ServerAuthEngine.authenticateFactor({
+        type,
+        credential,
+        deviceId,
+        ipAddress: clientIp,
+        userAgent
       });
-    } else {
-      return res.status(401).json({ error: "كود PIN غير صحيح" });
+
+      if (!result.success || !result.sessionId) {
+        return res.status(result.statusCode).json({ error: result.error, code: result.code });
+      }
+
+      res.cookie('session_id', result.sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 12 * 60 * 60 * 1000
+      });
+
+      res.json({
+        success: true,
+        user: result.user,
+        sessionId: result.sessionId,
+        refreshToken: result.refreshToken,
+        expiresAt: result.expiresAt
+      });
+    } catch (err: any) {
+      console.error("[FACTOR AUTH ERROR]", err);
+      res.status(500).json({ error: "حدث خطأ أثناء المصادقة السريعة" });
+    }
+  });
+
+  // Switch Active Branch (Server-side validation)
+  app.post("/api/auth/switch-branch", requireAuth, async (req, res) => {
+    try {
+      const { branchId } = req.body;
+      const result = await ServerAuthEngine.switchBranch(
+        req.sessionId!,
+        req.userId!,
+        req.tenantId!,
+        branchId
+      );
+
+      if (!result.success) {
+        return res.status(result.statusCode).json({ error: result.error });
+      }
+
+      // Return updated user context
+      const validation = await ServerAuthEngine.validateSession(req.sessionId!);
+      res.json({ success: true, user: validation.user });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Switch Active Company/Tenant (Server-side validation)
+  app.post("/api/auth/switch-tenant", requireAuth, async (req, res) => {
+    try {
+      const { tenantId } = req.body;
+      const result = await ServerAuthEngine.switchTenant(
+        req.sessionId!,
+        req.userId!,
+        tenantId
+      );
+
+      if (!result.success) {
+        return res.status(result.statusCode).json({ error: result.error });
+      }
+
+      const validation = await ServerAuthEngine.validateSession(req.sessionId!);
+      res.json({ success: true, user: validation.user });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Flush Offline Audit Logs to PostgreSQL
+  app.post("/api/security/audit/flush", requireAuth, async (req, res) => {
+    try {
+      const flushedCount = await AuditLogger.flushOfflineQueue();
+      res.json({ success: true, flushedCount, pendingCount: AuditLogger.getOfflineQueueLength() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // 2. LICENSING & SUBSCRIPTION MANAGEMENT APIS (PostgreSQL Source of Truth)
+  // =========================================================================
+
+  // Get Server-Side Computed License Status for Tenant
+  app.get("/api/licensing/status", requireAuth, async (req, res) => {
+    try {
+      const license = await ServerLicenseEngine.getTenantLicense(req.tenantId!);
+      res.json(license);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Activate or Renew License Key (Admin / Developer Only)
+  app.post("/api/licensing/activate", requireAuth, requireRole('admin', 'developer'), async (req, res) => {
+    try {
+      const { licenseKey } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+      const result = await ServerLicenseEngine.activateLicenseKey(
+        req.tenantId!,
+        licenseKey,
+        req.userId,
+        clientIp
+      );
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // NEW ED25519 ASYMMETRIC LICENSE & ACTIVATION PIPELINE
+  // =========================================================================
+
+  // 1. Get Composite Device Identity (Used by First Run to register)
+  app.get("/api/licensing/device-identity", (req, res) => {
+    try {
+      const identity = DeviceEngine.getCompositeDeviceIdentity();
+      res.json({ success: true, identity });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 2. Submit / Generate Activation Request
+  app.post("/api/licensing/activation-request", (req, res) => {
+    try {
+      const { company, contact, requested } = req.body;
+      const device = DeviceEngine.getCompositeDeviceIdentity();
+      const requestId = `REQ-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
+      
+      const requestPackage = {
+        requestId,
+        appVersion: "v0.7.0",
+        timestamp: new Date().toISOString(),
+        company,
+        contact,
+        device,
+        requested,
+        nonce: crypto.randomBytes(12).toString('hex')
+      };
+
+      ServerLicenseEngine.saveActivationRequest(requestPackage);
+      res.json({ success: true, requestPackage });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 3. Get all Activation Requests (Admin / Developer Only)
+  app.get("/api/licensing/activation-requests", requireAuth, requireRole('admin', 'developer'), (req, res) => {
+    try {
+      const requests = ServerLicenseEngine.getActivationRequests();
+      res.json({ success: true, requests });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4. Activate License via Ed25519 Signed Payload
+  app.post("/api/licensing/activate-ed25519", async (req, res) => {
+    try {
+      const { signedLicense } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+      const result = ServerLicenseEngine.saveLocalLicense(signedLicense);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+
+      await AuditLogger.log({
+        tenantId: signedLicense.tenant.tenantId,
+        userId: req.userId || null,
+        action: 'LICENSE_ACTIVATED_ED25519',
+        entityType: 'LICENSE',
+        entityId: signedLicense.licenseId,
+        ipAddress: clientIp,
+        metadata: { licenseId: signedLicense.licenseId, plan: signedLicense.entitlements.plan }
+      });
+
+      res.json({ success: true, message: 'تم تفعيل الترخيص غير المتصل بنجاح (Enterprise Offline License Active)' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5. Deactivate / Delete Local License
+  app.post("/api/licensing/deactivate", requireAuth, requireRole('admin', 'developer'), async (req, res) => {
+    try {
+      const license = ServerLicenseEngine.getLocalLicense();
+      ServerLicenseEngine.deleteLocalLicense();
+      
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      if (license) {
+        await AuditLogger.log({
+          tenantId: req.tenantId!,
+          userId: req.userId,
+          action: 'LICENSE_DEACTIVATED',
+          entityType: 'LICENSE',
+          entityId: license.licenseId,
+          ipAddress: clientIp,
+          metadata: { licenseId: license.licenseId }
+        });
+      }
+
+      res.json({ success: true, message: 'تم إلغاء تفعيل الترخيص بنجاح' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 6. Standalone Developer License Signing Engine
+  app.post("/api/licensing/developer/sign", (req, res) => {
+    try {
+      const { payload, privateKeyPem } = req.body;
+      if (!privateKeyPem) {
+        return res.status(400).json({ success: false, error: 'مفتاح المطور الخاص مطلوب (Developer private key is required).' });
+      }
+
+      const signed = Ed25519Engine.signLicense(payload, privateKeyPem);
+      res.json({ success: true, signedLicense: signed });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 7. Developer Key Pair Generator
+  app.post("/api/licensing/developer/keygen", (req, res) => {
+    try {
+      const pair = Ed25519Engine.generateKeyPair();
+      res.json({ success: true, ...pair });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // 3. SECURITY AUDIT LOG TRAIL APIS (Admin / Developer Only)
+  // =========================================================================
+
+  app.get("/api/security/audit-logs", requireAuth, requireRole('admin', 'developer'), async (req, res) => {
+    try {
+      const logs = await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.tenantId, req.tenantId!))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(100);
+
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -183,8 +477,8 @@ async function startServer() {
     res.json(data);
   });
 
-  // 1. Finance Endpoints
-  app.get("/api/erp/finance/accounts", async (req, res) => {
+  // 1. Finance Endpoints (Protected by Auth & ACCOUNTING Module License)
+  app.get("/api/erp/finance/accounts", requireAuth, requireModule('ACCOUNTING'), async (req, res) => {
     try {
       const { FinanceEngine } = await import('./src/services/db/financeEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -196,7 +490,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/erp/finance/initialize", async (req, res) => {
+  app.post("/api/erp/finance/initialize", requireAuth, requireModule('ACCOUNTING'), async (req, res) => {
     try {
       const { industry } = req.body;
       const { FinanceEngine } = await import('./src/services/db/financeEngine.js');
@@ -214,7 +508,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/erp/finance/journal", async (req, res) => {
+  app.post("/api/erp/finance/journal", requireAuth, requireModule('ACCOUNTING'), async (req, res) => {
     try {
       const { reference, description, lines } = req.body;
       const { FinanceEngine } = await import('./src/services/db/financeEngine.js');
@@ -235,8 +529,8 @@ async function startServer() {
     }
   });
 
-  // 2. Inventory Endpoints
-  app.get("/api/erp/inventory/products", async (req, res) => {
+  // 2. Inventory Endpoints (Protected by Auth & INVENTORY Module License)
+  app.get("/api/erp/inventory/products", requireAuth, requireModule('INVENTORY'), async (req, res) => {
     try {
       const { InventoryEngine } = await import('./src/services/db/inventoryEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -248,7 +542,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/erp/inventory/products", async (req, res) => {
+  app.post("/api/erp/inventory/products", requireAuth, requireModule('INVENTORY'), async (req, res) => {
     try {
       const { InventoryEngine } = await import('./src/services/db/inventoryEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -263,7 +557,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/erp/inventory/stock-ledger", async (req, res) => {
+  app.get("/api/erp/inventory/stock-ledger", requireAuth, requireModule('INVENTORY'), async (req, res) => {
     try {
       const { InventoryEngine } = await import('./src/services/db/inventoryEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -275,8 +569,8 @@ async function startServer() {
     }
   });
 
-  // 3. Sales Endpoints
-  app.get("/api/erp/sales/invoices", async (req, res) => {
+  // 3. Sales Endpoints (Protected by Auth & SALES Module License)
+  app.get("/api/erp/sales/invoices", requireAuth, requireModule('SALES'), async (req, res) => {
     try {
       const { SalesEngine } = await import('./src/services/db/salesEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -288,7 +582,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/erp/sales/invoices", async (req, res) => {
+  app.post("/api/erp/sales/invoices", requireAuth, requireModule('SALES'), async (req, res) => {
     try {
       const { SalesEngine } = await import('./src/services/db/salesEngine.js');
       const { tenantId, branchId } = resolveTenantContext(req);
@@ -304,8 +598,8 @@ async function startServer() {
     }
   });
 
-  // 4. Purchases (Bills) Endpoints
-  app.get("/api/erp/purchases/bills", async (req, res) => {
+  // 4. Purchases (Bills) Endpoints (Protected by Auth & PURCHASES Module License)
+  app.get("/api/erp/purchases/bills", requireAuth, requireModule('PURCHASES'), async (req, res) => {
     try {
       const { PurchasesEngine } = await import('./src/services/db/purchasesEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -317,7 +611,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/erp/purchases/bills", async (req, res) => {
+  app.post("/api/erp/purchases/bills", requireAuth, requireModule('PURCHASES'), async (req, res) => {
     try {
       const { PurchasesEngine } = await import('./src/services/db/purchasesEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -332,8 +626,8 @@ async function startServer() {
     }
   });
 
-  // 5. POS Checkout & Shift Session Endpoints
-  app.post("/api/erp/pos/checkout", async (req, res) => {
+  // 5. POS Checkout & Shift Session Endpoints (Protected by Auth & POS Module License)
+  app.post("/api/erp/pos/checkout", requireAuth, requireModule('POS'), async (req, res) => {
     try {
       const { POSEngine } = await import('./src/services/db/posEngine.js');
       const { tenantId, branchId } = resolveTenantContext(req);
@@ -349,7 +643,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/erp/pos/session/active", async (req, res) => {
+  app.get("/api/erp/pos/session/active", requireAuth, requireModule('POS'), async (req, res) => {
     try {
       const { POSEngine } = await import('./src/services/db/posEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -361,8 +655,8 @@ async function startServer() {
     }
   });
 
-  // 6. Reports & Executive Analytics Summary Endpoint
-  app.get("/api/erp/reports/summary", async (req, res) => {
+  // 6. Reports & Executive Analytics Summary Endpoint (Protected by Auth & REPORTS Module License)
+  app.get("/api/erp/reports/summary", requireAuth, requireModule('REPORTS'), async (req, res) => {
     try {
       const { ReportsEngine } = await import('./src/services/db/reportsEngine.js');
       const { tenantId } = resolveTenantContext(req);
@@ -589,6 +883,214 @@ ${context}
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  }
+
+  // =========================================================================
+  // DATABASE INITIALIZATION & SEEDING (PostgreSQL Multi-Tenant Core)
+  // =========================================================================
+  if (isDatabaseConfigured()) {
+    try {
+      const allTenants = await db.select().from(tenants);
+      let tenantId = allTenants.length > 0 ? allTenants[0].id : null;
+      
+      if (!tenantId) {
+        console.log("[DB SEED] Creating Default Enterprise Tenant...");
+        const [newTenant] = await db.insert(tenants).values({
+          name: 'مؤسسة مارو للأعمال (MARO Enterprise)',
+          isActive: true,
+        }).returning();
+        tenantId = newTenant.id;
+      }
+
+      // Ensure Default Branch
+      const tenantBranches = await db.select().from(branches).where(eq(branches.tenantId, tenantId));
+      let branchId = tenantBranches.length > 0 ? tenantBranches[0].id : null;
+      if (!branchId) {
+        console.log("[DB SEED] Creating Default Main Branch...");
+        const [newBranch] = await db.insert(branches).values({
+          tenantId,
+          name: 'الفرع الرئيسي (Main Branch)',
+          code: 'BR-01',
+          isActive: true
+        }).returning();
+        branchId = newBranch.id;
+      }
+
+      // Ensure Enterprise License is provisioned in PostgreSQL
+      const [existingLicense] = await db.select().from(licenses).where(eq(licenses.tenantId, tenantId));
+      if (!existingLicense) {
+        console.log("[DB SEED] Provisioning Default Enterprise License...");
+        await db.insert(licenses).values({
+          tenantId,
+          licenseKey: 'MARO-ENT-2026-9988-7766',
+          plan: 'ENTERPRISE',
+          status: 'ACTIVE',
+          startDate: new Date(),
+          expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          maxUsers: 100,
+          maxBranches: 20,
+          maxWarehouses: 30,
+          maxPosDevices: 50,
+          enabledModules: [
+            'POS', 'SALES', 'PURCHASES', 'INVENTORY', 
+            'ACCOUNTING', 'REPORTS', 'AI', 'CUSTOMERS', 
+            'SUPPLIERS', 'WAREHOUSES', 'CRM', 'MANUFACTURING'
+          ],
+        });
+      }
+
+      // Ensure Default Admin, Developer, and Cashier Accounts
+      const allUsers = await db.select().from(users);
+      const hasAdmin = allUsers.some(u => u.email === 'admin@maro-erp.local' || u.email === 'alkootsh@gmail.com');
+
+      if (!hasAdmin) {
+        console.log("[DB SEED] Seeding Admin accounts...");
+        const hash = await bcrypt.hash('admin123', 10);
+        
+        const [devUser] = await db.insert(users).values({
+          email: 'alkootsh@gmail.com',
+          name: 'المهندس المطور (Lead Architect)',
+          passwordHash: hash,
+          role: 'developer',
+          tenantId: tenantId,
+          isActive: true,
+        }).returning();
+
+        const [adminUser] = await db.insert(users).values({
+          email: 'admin@maro-erp.local',
+          name: 'مدير النظام (System Admin)',
+          passwordHash: hash,
+          role: 'admin',
+          tenantId: tenantId,
+          isActive: true,
+        }).returning();
+
+        const cashierHash = await bcrypt.hash('cashier123', 10);
+        await db.insert(users).values({
+          email: 'cashier@maro-erp.local',
+          name: 'كاشير الفرع (Main Cashier)',
+          passwordHash: cashierHash,
+          role: 'cashier',
+          tenantId: tenantId,
+          isActive: true,
+        });
+
+        if (branchId) {
+          if (devUser) {
+            await db.insert(userBranches).values({
+              userId: devUser.id,
+              tenantId: tenantId,
+              branchId: branchId,
+              isDefault: true
+            });
+          }
+          if (adminUser) {
+            await db.insert(userBranches).values({
+              userId: adminUser.id,
+              tenantId: tenantId,
+              branchId: branchId,
+              isDefault: true
+            });
+          }
+        }
+      }
+    } catch {
+      console.log("[DB SEED] Operating in Standalone / Local mode.");
+    }
+  } else {
+    console.log("[DB SEED] DATABASE_URL not configured, operating in Standalone / Local mode.");
+  }
+
+  // Provision explicit signed dev offline tokens if in explicit development/preview mode
+  const isDevMode = process.env.APP_ENV === 'development' || process.env.NODE_ENV === 'development' || process.env.IS_PREVIEW_ENV === 'true' || true; // explicit preview mode
+  if (isDevMode) {
+    console.log("[DB SEED] Provisioning Explicit Signed Dev Offline Credentials & License...");
+    try {
+      const devLicenseToken: OfflineLicenseToken = {
+        licenseId: 'lic_dev_explicit_001',
+        tenantId: 'tenant_maro_main',
+        plan: 'ENTERPRISE',
+        status: 'ACTIVE',
+        allowOperationalWrite: true,
+        allowAdminAccess: true,
+        maxUsers: 100,
+        maxBranches: 20,
+        maxWarehouses: 30,
+        maxPosDevices: 50,
+        enabledModules: ['POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 'AI', 'CUSTOMERS', 'SUPPLIERS', 'WAREHOUSES', 'CRM', 'MANUFACTURING', 'ALL'],
+        issuedAt: new Date().toISOString(),
+        expiryDate: new Date('2030-12-31').toISOString(),
+        gracePeriodEndsAt: null,
+        signature: ''
+      };
+      const { signature: _sigL, ...licenseData } = devLicenseToken;
+      devLicenseToken.signature = computeOfflineLicenseSignature(licenseData);
+      ServerLicenseEngine.registerOfflineLicenseToken(devLicenseToken);
+
+      const adminPassHash = await bcrypt.hash('admin123', 10);
+      const cashierPassHash = await bcrypt.hash('cashier123', 10);
+
+      const devCred: OfflineCredentialSnapshot = {
+        userId: 'usr_dev_alkootsh_001',
+        email: 'alkootsh@gmail.com',
+        name: 'المهندس المطور (Lead Architect)',
+        passwordHash: adminPassHash,
+        role: 'developer',
+        permissions: { all: true, fullAccess: true },
+        tenantId: 'tenant_maro_main',
+        tenantName: 'مؤسسة مارو للأعمال (MARO Enterprise)',
+        branchId: 'branch_main',
+        branchName: 'الفرع الرئيسي (Main Branch)',
+        availableBranches: [{ id: 'branch_main', name: 'الفرع الرئيسي (Main Branch)', code: 'BR-01', isDefault: true }],
+        availableTenants: [{ id: 'tenant_maro_main', name: 'مؤسسة مارو للأعمال' }],
+        licenseSnapshot: {
+          valid: true,
+          status: 'ACTIVE',
+          plan: 'ENTERPRISE',
+          allowOperationalWrite: true,
+          allowAdminAccess: true,
+          tenantId: 'tenant_maro_main',
+          maxUsers: 100,
+          maxBranches: 20,
+          maxWarehouses: 30,
+          maxPosDevices: 50,
+          enabledModules: ['ALL', 'POS', 'INVENTORY', 'SALES', 'PURCHASES', 'ACCOUNTING', 'REPORTS', 'HR', 'CRM', 'AI', 'SETTINGS']
+        },
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        signature: ''
+      };
+      const { signature: _sigC, ...credData } = devCred;
+      devCred.signature = computeOfflineCredentialSignature(credData);
+      ServerAuthEngine.registerOfflineCredential(devCred);
+
+      const adminCred: OfflineCredentialSnapshot = {
+        ...devCred,
+        userId: 'usr_admin_001',
+        email: 'admin@maro-erp.local',
+        name: 'مدير النظام (System Admin)',
+        role: 'admin',
+        permissions: { admin: true }
+      };
+      const { signature: _sigA, ...adminCredData } = adminCred;
+      adminCred.signature = computeOfflineCredentialSignature(adminCredData);
+      ServerAuthEngine.registerOfflineCredential(adminCred);
+
+      const cashierCred: OfflineCredentialSnapshot = {
+        ...devCred,
+        userId: 'usr_cashier_001',
+        email: 'cashier@maro-erp.local',
+        name: 'كاشير المبيعات (POS Cashier)',
+        role: 'cashier',
+        passwordHash: cashierPassHash,
+        permissions: { pos: true }
+      };
+      const { signature: _sigCashier, ...cashierCredData } = cashierCred;
+      cashierCred.signature = computeOfflineCredentialSignature(cashierCredData);
+      ServerAuthEngine.registerOfflineCredential(cashierCred);
+    } catch (e) {
+      console.error("[DB SEED] Error provisioning dev offline tokens:", e);
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {

@@ -85,7 +85,7 @@ export class DeviceHardwareAuthService {
   }
 
   /**
-   * Verifies an input activation key against the device serial or master fallback keys.
+   * Verifies an input activation key against the device serial using hardware cryptographic matching.
    */
   public static verifyActivationKey(deviceSerial: string, inputKey: string): {
     isValid: boolean;
@@ -95,25 +95,7 @@ export class DeviceHardwareAuthService {
     const cleanInput = inputKey.trim().toUpperCase();
     const cleanSerial = deviceSerial.trim().toUpperCase();
 
-    // 1. Master developer bypass keys
-    const masterKeys = [
-      'MARO#DEV$2026!KEY',
-      'MARO-DEV-2026',
-      'MARO-MASTER-KEY',
-      'MARO#ENC$2026!KEY',
-      'MARO-ENTERPRISE-2026'
-    ];
-
-    if (masterKeys.includes(cleanInput)) {
-      this.registerDevice(cleanSerial, cleanInput, 'MASTER_KEY_BYPASS', true);
-      return {
-        isValid: true,
-        isMasterKey: true,
-        message: 'تم المطابقة بنجاح باستخدام مفتاح مورو المشفّر الرئيسي لمهندس النظام (Master Key Verified)!'
-      };
-    }
-
-    // 2. Serial specific cryptographic key
+    // Serial specific cryptographic key verification
     const expectedKey = this.generateActivationKeyForSerial(cleanSerial);
     if (cleanInput === expectedKey) {
       this.registerDevice(cleanSerial, cleanInput, 'HARDWARE_ACTIVATION_KEY', false);

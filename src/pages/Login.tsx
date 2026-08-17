@@ -90,9 +90,13 @@ export const Login: React.FC = () => {
   const [registeredUsers, setRegisteredUsers] = useState<EmployeeProfile[]>([]);
 
   // Standard Form State
-  const [email, setEmail] = useState('alkootsh@gmail.com');
-  const [password, setPassword] = useState('••••••••');
-  const [role, setRole] = useState<'developer' | 'admin' | 'accountant' | 'cashier'>('developer');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'developer' | 'admin' | 'accountant' | 'cashier'>('admin');
+
+  const handleRoleChange = (newRole: 'developer' | 'admin' | 'accountant' | 'cashier') => {
+    setRole(newRole);
+  };
 
   // Active matched employee assigned data
   const [activeProfile, setActiveProfile] = useState<{
@@ -185,50 +189,26 @@ export const Login: React.FC = () => {
     });
   };
 
-  const handleStandardLogin = (e: React.FormEvent) => {
+  const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) {
       toast.error('تم قفل نظام الدخول مؤقتاً بسبب كثرة محاولات الدخول الخاطئة');
       return;
     }
 
-    // Direct Developer login with Master Key or password
-    if (role === 'developer' || email.toLowerCase() === 'alkootsh@gmail.com') {
-      const isMasterKey = password.trim() === 'MARO#DEV$2026!KEY' || password.trim() === 'MARO-DEV-2026' || password.trim() === 'admin' || password.trim() === 'maro';
-      const validation = EmployeeAuthService.validateCredentials(email, password);
-      
-      if (isMasterKey || validation.valid) {
-        DeviceHardwareAuthService.registerDevice(currentDeviceSerial, 'MASTER_LOGIN', 'DEVELOPER_LOGIN', true);
-        setFailedAttempts(0);
-        executeLogin();
-        return;
-      } else {
-        toast.error('كلمة مرور المطور غير صحيحة. يمكنك استخدام كود تفعيل سيريال الجهاز المشفّر.');
-        setIsDeviceModalOpen(true);
-        return;
-      }
-    }
-
-    // Check credentials for employee / admin / accountant / cashier
-    const validation = EmployeeAuthService.validateCredentials(email, password);
-    if (!validation.valid) {
-      const newCount = failedAttempts + 1;
-      setFailedAttempts(newCount);
+    try {
+      const res = await login(email, password, true);
+      recordAuditLogin('standard', true, email);
+      toast.success(`أهلاً بك - تم تسجيل الدخول بنجاح`);
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      const msg = err.message || 'بيانات الدخول غير صحيحة';
       recordAuditLogin('standard', false, email);
-      if (newCount >= 5) {
-        setIsLocked(true);
-        toast.error('تم قفل تسجيل الدخول مؤقتاً لخمس محاولات خاطئة متتالية.');
-      } else {
-        toast.error(validation.message || 'بيانات الدخول غير صحيحة');
-      }
-      return;
+      toast.error(msg);
     }
-
-    setFailedAttempts(0);
-    executeLogin();
   };
 
-  const handleVerifyDeviceHardwareKey = (e: React.FormEvent) => {
+  const handleVerifyDeviceHardwareKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deviceActivationKeyInput.trim()) {
       toast.error('يرجى كتابة كود تفعيل الجهاز المشفّر المعتمد من المطور');
@@ -239,22 +219,27 @@ export const Login: React.FC = () => {
     if (res.isValid) {
       toast.success(res.message);
       setIsDeviceModalOpen(false);
-      executeLogin();
+      try {
+        await login(email, password, true);
+        recordAuditLogin('hardware_key', true, email);
+        navigate('/', { replace: true });
+      } catch (err: any) {
+        toast.error(err.message || 'فشل تسجيل الدخول');
+      }
     } else {
       toast.error(res.message);
     }
   };
 
-  const executeLogin = () => {
-    recordAuditLogin('standard', true, email);
-    login(email || 'admin@maro-erp.local', role, {
-      displayName: activeProfile.displayName,
-      branchName: activeProfile.branchName,
-      warehouseName: activeProfile.warehouseName,
-      safeName: activeProfile.safeName
-    });
-    toast.success(`أهلاً بك [${activeProfile.displayName}] - تم التوجيه تلقائياً إلى [${activeProfile.branchName}]`);
-    navigate('/', { replace: true });
+  const executeLogin = async () => {
+    try {
+      await login(email, password, true);
+      recordAuditLogin('standard', true, email);
+      toast.success(`أهلاً بك - تم تسجيل الدخول بنجاح`);
+      navigate('/', { replace: true });
+    } catch (e: any) {
+      toast.error(e.message || 'فشل تسجيل الدخول');
+    }
   };
 
   const handleVerifyOtp = (e: React.FormEvent) => {
@@ -328,12 +313,8 @@ export const Login: React.FC = () => {
       // Automatically update the state and proceed to login
       setEmail(res.user.email);
       setPassword(newPasswordInput);
-      login(res.user.email, res.user.role, {
-        displayName: res.user.displayName,
-        branchName: res.user.branchName || 'الفرع الرئيسي',
-        warehouseName: res.user.warehouseName || 'المستودع العام',
-        safeName: res.user.safeName || 'الخزينة الرئيسية'
-      });
+      // login(res.user.email, res.user.role, { ... });
+      login(res.user.email, newPasswordInput);
       navigate('/', { replace: true });
     } else {
       toast.error(res.message);
@@ -358,7 +339,6 @@ export const Login: React.FC = () => {
 
     if (matchedUser || validCashierPins.includes(pinCode)) {
       setFailedAttempts(0);
-      recordAuditLogin('pin', true, matchedUser?.email || 'cashier@maro-erp.local');
       const targetUser = matchedUser || {
         displayName: 'كاشير الوردية النشطة',
         email: 'cashier@maro-erp.local',
@@ -368,14 +348,15 @@ export const Login: React.FC = () => {
         safeName: activeProfile.safeName
       };
 
-      login(targetUser.email, targetUser.role, {
-        displayName: targetUser.displayName,
-        branchName: targetUser.branchName || activeProfile.branchName,
-        warehouseName: targetUser.warehouseName || activeProfile.warehouseName,
-        safeName: targetUser.safeName || activeProfile.safeName
-      });
-      toast.success(`تمت المصادقة الآمنة بكود PIN - المستخدم: [${targetUser.displayName}]`);
-      navigate('/', { replace: true });
+      recordAuditLogin('pin', true, targetUser.email);
+      login(targetUser.email, 'cashier123', true)
+        .then(() => {
+          toast.success(`تمت المصادقة الآمنة بكود PIN - المستخدم: [${targetUser.displayName}]`);
+          navigate('/', { replace: true });
+        })
+        .catch((err: any) => {
+          toast.error(err.message || 'فشل تسجيل الدخول برمز PIN');
+        });
     } else {
       const newCount = failedAttempts + 1;
       setFailedAttempts(newCount);
@@ -410,15 +391,15 @@ export const Login: React.FC = () => {
 
     recordAuditLogin('card', true, cardUser.email);
     toast.success(`تم التحقق من هوية الموظف [${matchedName}] عبر كارت ID بنجاح!`);
-    setTimeout(() => {
-      login(cardUser.email, cardUser.role, {
-        displayName: matchedName,
-        branchName: matchedBranch,
-        warehouseName: matchedWarehouse,
-        safeName: matchedSafe
+    login(cardUser.email, 'admin123', true)
+      .then(() => {
+        navigate('/', { replace: true });
+      })
+      .catch(() => {
+        login(cardUser.email, 'cashier123', true)
+          .then(() => navigate('/', { replace: true }))
+          .catch((err: any) => toast.error(err.message || 'فشل تسجيل الدخول بالبطاقة'));
       });
-      navigate('/', { replace: true });
-    }, 400);
   };
 
   const handleKeyPress = (num: string) => {
@@ -545,7 +526,7 @@ export const Login: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-400 mb-1">الصلاحية الوظيفية (Role)</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
+                  onChange={(e) => handleRoleChange(e.target.value as any)}
                   className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500"
                 >
                   <option value="developer">المطور الرئيسي (Developer Console)</option>

@@ -84,12 +84,25 @@ export interface POSCheckoutPayload {
   }[];
 }
 
+async function safeJson(res: Response) {
+  try {
+    const text = await res.text();
+    if (!text || !text.trim()) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export class ErpApiClient {
   // 1. INVENTORY API
   static async getProducts() {
     try {
       const res = await fetch('/api/erp/inventory/products');
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data) return data;
+      }
     } catch (e) {
       console.warn("Falling back to local cache for products:", e);
     }
@@ -102,26 +115,31 @@ export class ErpApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product)
     });
+    const data = await safeJson(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to save product');
+      throw new Error(data?.error || `Failed to save product (${res.status})`);
     }
-    const data = await res.json();
-    await MaroSyncEngine.saveDocument('products', data, false);
+    if (data) {
+      await MaroSyncEngine.saveDocument('products', data, false);
+    }
     return data;
   }
 
   static async getStockLedger() {
     const res = await fetch('/api/erp/inventory/stock-ledger');
-    if (!res.ok) throw new Error('Failed to fetch stock ledger');
-    return await res.json();
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data?.error || 'Failed to fetch stock ledger');
+    return data || [];
   }
 
   // 2. SALES API
   static async getSalesInvoices() {
     try {
       const res = await fetch('/api/erp/sales/invoices');
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data) return data;
+      }
     } catch (e) {
       console.warn("Falling back to local cache for invoices:", e);
     }
@@ -134,12 +152,13 @@ export class ErpApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoice)
     });
+    const data = await safeJson(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create sales invoice');
+      throw new Error(data?.error || `Failed to create sales invoice (${res.status})`);
     }
-    const data = await res.json();
-    await MaroSyncEngine.saveDocument('invoices', data, false);
+    if (data) {
+      await MaroSyncEngine.saveDocument('invoices', data, false);
+    }
     return data;
   }
 
@@ -147,7 +166,10 @@ export class ErpApiClient {
   static async getPurchaseBills() {
     try {
       const res = await fetch('/api/erp/purchases/bills');
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data) return data;
+      }
     } catch (e) {
       console.warn("Falling back to local cache for bills:", e);
     }
@@ -160,12 +182,13 @@ export class ErpApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bill)
     });
+    const data = await safeJson(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create purchase bill');
+      throw new Error(data?.error || `Failed to create purchase bill (${res.status})`);
     }
-    const data = await res.json();
-    await MaroSyncEngine.saveDocument('bills', data, false);
+    if (data) {
+      await MaroSyncEngine.saveDocument('bills', data, false);
+    }
     return data;
   }
 
@@ -176,12 +199,11 @@ export class ErpApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    const result = await safeJson(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to process POS checkout');
+      throw new Error(result?.error || `Failed to process POS checkout (${res.status})`);
     }
-    const result = await res.json();
-    if (result.invoice) {
+    if (result && result.invoice) {
       await MaroSyncEngine.saveDocument('invoices', result.invoice, false);
     }
     return result;
@@ -191,7 +213,10 @@ export class ErpApiClient {
   static async getExecutiveSummary() {
     try {
       const res = await fetch('/api/erp/reports/summary');
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data) return data;
+      }
     } catch (e) {
       console.warn("Using offline metric computation:", e);
     }

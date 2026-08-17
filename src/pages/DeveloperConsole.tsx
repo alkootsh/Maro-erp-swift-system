@@ -55,6 +55,7 @@ import { DemoDataSeeder } from '../services/demoDataSeeder';
 import { DeveloperPhoneAuthService, DeveloperPhoneAuthConfig } from '../services/developerPhoneAuthService';
 import { toast } from 'react-hot-toast';
 import { DexefPythonHub } from './DexefPythonHub';
+import { MaroSyncEngine } from '../lib/maroSyncEngine';
 
 export const DeveloperConsole: React.FC = () => {
   const [devKeyInput, setDevKeyInput] = useState('');
@@ -1134,8 +1135,9 @@ export const DeveloperConsole: React.FC = () => {
               </h4>
               <p className="text-[11px] text-slate-400">إعادة فحص طابور العمليات المعلقة وتفريغ الذاكرة المؤقتة بأمان.</p>
               <button
-                onClick={() => {
-                  setActionSuccess('تمت إعادة مزامنة المحرك وقاعدة البيانات');
+                onClick={async () => {
+                  const res = await MaroSyncEngine.forceSyncNow();
+                  setActionSuccess(res.message || 'تمت إعادة مزامنة المحرك وقاعدة البيانات بنجاح');
                   setTimeout(() => setActionSuccess(null), 3000);
                 }}
                 className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20"
