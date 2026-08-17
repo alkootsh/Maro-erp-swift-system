@@ -58,6 +58,7 @@ export class LicenseEngine {
    * Valid structure: MARO-2026-ENT-XXXX-YYYY or MARO-PRO-XXXX-YYYY
    */
   public static validateLicenseKeyFormat(key: string): boolean {
+    if (!key || typeof key !== 'string') return false;
     const cleanKey = key.trim().toUpperCase();
     const regex = /^MARO-(ENT|PRO|STD|DEV)-\d{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
     return regex.test(cleanKey) || cleanKey.startsWith('MARO-ENT-2026') || cleanKey.startsWith('MARO-MASTER');

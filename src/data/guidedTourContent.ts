@@ -1324,8 +1324,11 @@ export const COMPREHENSIVE_TOUR_REGISTRY: Record<string, ScreenTourData> = {
  * Checks for exact route match, then prefix matches, and falls back to dynamic contextual synthesis
  */
 export function getTourForRoute(pathname: string): ScreenTourData {
+  if (!pathname || typeof pathname !== 'string') {
+    pathname = '/';
+  }
   // 1. Clean path (remove trailing slashes, query params)
-  const cleanPath = pathname.split('?')[0].replace(/\/$/, '') || '/';
+  const cleanPath = pathname.split('?')[0]?.replace(/\/$/, '') || '/';
 
   // 2. Direct match
   if (COMPREHENSIVE_TOUR_REGISTRY[cleanPath]) {

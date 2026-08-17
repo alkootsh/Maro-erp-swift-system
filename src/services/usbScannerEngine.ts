@@ -155,7 +155,7 @@ class USBScannerEngine {
       this.lastKeyTime = now;
 
       // Ignore modifiers and function keys
-      if (e.ctrlKey || e.altKey || e.metaKey || e.key.startsWith('F')) {
+      if (e.ctrlKey || e.altKey || e.metaKey || !e.key || e.key.startsWith('F')) {
         return;
       }
 

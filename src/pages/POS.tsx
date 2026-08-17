@@ -262,7 +262,7 @@ export const POS: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Catch F1 through F12 function keys
-      if (e.key.startsWith('F') && /^F(1[0-2]|[1-9])$/.test(e.key)) {
+      if (e.key && e.key.startsWith('F') && /^F(1[0-2]|[1-9])$/.test(e.key)) {
         e.preventDefault(); // Prevent browser default F-key behaviors (F1 help, F3 find, F5 refresh, etc.)
         const funcKey = e.key as FunctionKey;
         const actionId = keyMappings[funcKey];

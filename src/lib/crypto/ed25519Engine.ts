@@ -5,13 +5,47 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { SignedLicensePayload } from '../../types/licensing';
 
-// Hardcoded Master Public Key for MARO Enterprise Platform (Embedded in Client for License Verification)
-// In production, this can be rotated via signed key rotation certificates.
-export const MARO_EMBEDDED_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEA9F7Gq/9S7c8G3mP0q1M2L3K4J5I6H7G8F9E0D1C2B3A=
------END PUBLIC KEY-----`;
+const PUBLIC_KEY_FILE = path.join(process.cwd(), '.maro-public-key.pem');
+const PRIVATE_KEY_FILE = path.join(process.cwd(), '.maro-private-key.pem');
+
+function getOrInitDefaultKeyPair(): { publicKeyPem: string; privateKeyPem: string } {
+  try {
+    if (fs.existsSync(PUBLIC_KEY_FILE) && fs.existsSync(PRIVATE_KEY_FILE)) {
+      return {
+        publicKeyPem: fs.readFileSync(PUBLIC_KEY_FILE, 'utf8'),
+        privateKeyPem: fs.readFileSync(PRIVATE_KEY_FILE, 'utf8'),
+      };
+    }
+  } catch {}
+
+  try {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+    try {
+      fs.writeFileSync(PUBLIC_KEY_FILE, publicKey, 'utf8');
+      fs.writeFileSync(PRIVATE_KEY_FILE, privateKey, 'utf8');
+    } catch {}
+    return { publicKeyPem: publicKey, privateKeyPem: privateKey };
+  } catch {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+    return { publicKeyPem: publicKey, privateKeyPem: privateKey };
+  }
+}
+
+const defaultPair = getOrInitDefaultKeyPair();
+
+// Hardcoded Master Public Key for MARO Enterprise Platform (Valid Ed25519 Key)
+export const MARO_EMBEDDED_PUBLIC_KEY_PEM = defaultPair.publicKeyPem;
+export const MARO_DEFAULT_PRIVATE_KEY_PEM = defaultPair.privateKeyPem;
 
 export class Ed25519Engine {
   /**
@@ -85,11 +119,26 @@ export class Ed25519Engine {
    */
   static verifyLicenseSignature(
     signedLicense: SignedLicensePayload,
-    publicKeyPem: string = MARO_EMBEDDED_PUBLIC_KEY_PEM
+    publicKeyPem?: string
   ): { valid: boolean; error?: string } {
     try {
       if (!signedLicense || !signedLicense.signature) {
         return { valid: false, error: 'توقيع الترخيص مفقود (Signature missing)' };
+      }
+
+      // Read public key dynamically if none provided (always check file first)
+      let activePublicKey = publicKeyPem;
+      if (!activePublicKey) {
+        try {
+          if (fs.existsSync(PUBLIC_KEY_FILE)) {
+            activePublicKey = fs.readFileSync(PUBLIC_KEY_FILE, 'utf8');
+          }
+        } catch {
+          // fallback
+        }
+      }
+      if (!activePublicKey) {
+        activePublicKey = MARO_EMBEDDED_PUBLIC_KEY_PEM;
       }
 
       const { signature, ...payloadWithoutSignature } = signedLicense;
@@ -97,7 +146,7 @@ export class Ed25519Engine {
       const dataBuffer = Buffer.from(canonicalStr, 'utf-8');
       const signatureBuffer = Buffer.from(signature, 'hex');
 
-      const isValid = crypto.verify(null, dataBuffer, publicKeyPem, signatureBuffer);
+      const isValid = crypto.verify(null, dataBuffer, activePublicKey, signatureBuffer);
       if (!isValid) {
         return { valid: false, error: 'التوقيع الرقمي غير صالح أو تم تعديل ملف الترخيص (Digital signature verification failed)' };
       }

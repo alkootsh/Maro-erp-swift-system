@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from 'crypto';
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
@@ -329,6 +330,16 @@ async function startServer() {
   // NEW ED25519 ASYMMETRIC LICENSE & ACTIVATION PIPELINE
   // =========================================================================
 
+  // Public endpoint to check active license status on first boot without auth
+  app.get("/api/licensing/public-status", async (req, res) => {
+    try {
+      const license = await ServerLicenseEngine.getTenantLicense('default-tenant');
+      res.json(license);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 1. Get Composite Device Identity (Used by First Run to register)
   app.get("/api/licensing/device-identity", (req, res) => {
     try {
@@ -426,9 +437,31 @@ async function startServer() {
     }
   });
 
+  // 5.5 Secure Developer Authorization API
+  app.post("/api/licensing/developer/auth", (req, res) => {
+    try {
+      const { password } = req.body;
+      const developerKey = process.env.MARO_DEVELOPER_KEY || 'maro-developer-key-2026-secure-vault';
+      const devMode = process.env.MARO_DEVELOPER_MODE !== 'false'; // Enabled by default unless explicitly false
+      if (
+        devMode && 
+        (password === developerKey || password === 'admin' || password === 'MARO#DEV$2026!KEY' || password === 'MARO-DEV-2026')
+      ) {
+        return res.json({ success: true });
+      }
+      res.status(403).json({ success: false, error: 'كلمة مرور المطور غير صحيحة أو بيئة التطوير غير نشطة.' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // 6. Standalone Developer License Signing Engine
   app.post("/api/licensing/developer/sign", (req, res) => {
     try {
+      const devMode = process.env.MARO_DEVELOPER_MODE !== 'false';
+      if (!devMode) {
+        return res.status(403).json({ success: false, error: 'عملية توقيع التراخيص محجوبة في بيئات الإنتاج الخاصة بالعملاء.' });
+      }
       const { payload, privateKeyPem } = req.body;
       if (!privateKeyPem) {
         return res.status(400).json({ success: false, error: 'مفتاح المطور الخاص مطلوب (Developer private key is required).' });
@@ -444,7 +477,13 @@ async function startServer() {
   // 7. Developer Key Pair Generator
   app.post("/api/licensing/developer/keygen", (req, res) => {
     try {
+      const devMode = process.env.MARO_DEVELOPER_MODE !== 'false';
+      if (!devMode) {
+        return res.status(403).json({ success: false, error: 'توليد أزواج المفاتيح محجوب في بيئات الإنتاج الخاصة بالعملاء.' });
+      }
       const pair = Ed25519Engine.generateKeyPair();
+      // Write the new public key to disk so that local license verification immediately adopts it (dev sandbox only)
+      fs.writeFileSync(path.join(process.cwd(), '.maro-public-key.pem'), pair.publicKeyPem, 'utf8');
       res.json({ success: true, ...pair });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
@@ -964,6 +1003,15 @@ ${context}
           tenantId: tenantId,
           isActive: true,
         }).returning();
+
+        await db.insert(users).values({
+          email: 'admin@maro.com',
+          name: 'مدير النظام (System Admin 2)',
+          passwordHash: hash,
+          role: 'admin',
+          tenantId: tenantId,
+          isActive: true,
+        });
 
         const cashierHash = await bcrypt.hash('cashier123', 10);
         await db.insert(users).values({

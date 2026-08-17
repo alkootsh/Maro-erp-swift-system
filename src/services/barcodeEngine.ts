@@ -29,7 +29,7 @@ export class BarcodeEngine {
 
   // Parse any scanned input barcode
   static parseBarcode(scannedCode: string, scaleConfig?: Partial<ScaleBarcodeConfig>): ParsedBarcodeResult {
-    const code = scannedCode.trim();
+    const code = (scannedCode || '').trim();
     const config = { ...this.defaultScaleConfig, ...scaleConfig };
 
     // 1. Check if Code matches Scale Embedded Barcode Pattern (e.g. 13 digits starting with 21 or 27)

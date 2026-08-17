@@ -61,6 +61,7 @@ export interface UserSession {
 interface AuthContextType {
   user: UserProfile | null;
   license: LicenseInfo | null;
+  serverLicense: any | null;
   loading: boolean;
   activeSessions: UserSession[];
   login: (email: string, password: string, rememberDevice?: boolean) => Promise<any>;
@@ -69,6 +70,7 @@ interface AuthContextType {
   switchBranch: (branchId: string) => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   refreshAuth: () => Promise<void>;
+  checkServerLicense: () => Promise<void>;
   fetchSessions: () => Promise<UserSession[]>;
   revokeSession: (sessionId: string) => Promise<void>;
   hasModule: (moduleName: string) => boolean;
@@ -77,6 +79,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   license: null,
+  serverLicense: null,
   loading: true,
   activeSessions: [],
   login: async () => {},
@@ -85,6 +88,7 @@ const AuthContext = createContext<AuthContextType>({
   switchBranch: async () => {},
   switchTenant: async () => {},
   refreshAuth: async () => {},
+  checkServerLicense: async () => {},
   fetchSessions: async () => [],
   revokeSession: async () => {},
   hasModule: () => false,
@@ -95,6 +99,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [license, setLicense] = useState<LicenseInfo | null>(null);
+  const [serverLicense, setServerLicense] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeSessions, setActiveSessions] = useState<UserSession[]>([]);
 
@@ -129,6 +134,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const checkServerLicense = useCallback(async () => {
+    try {
+      const response = await fetch('/api/licensing/public-status');
+      if (response.ok) {
+        const data = await response.json();
+        setServerLicense(data);
+      }
+    } catch (e) {
+      console.warn("Failed to check server license:", e);
+    }
+  }, []);
+
   const refreshAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/me', {
@@ -154,13 +171,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("Auth check error:", e);
       setUser(null);
     } finally {
-      setLoading(false);
+      // Don't stop loading until both endpoints have been queried
     }
   }, []);
 
   useEffect(() => {
-    refreshAuth();
-  }, [refreshAuth]);
+    const initAuth = async () => {
+      setLoading(true);
+      await Promise.all([refreshAuth(), checkServerLicense()]);
+      setLoading(false);
+    };
+    initAuth();
+  }, [refreshAuth, checkServerLicense]);
 
   const login = async (
     email: string, 
@@ -304,6 +326,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       user, 
       license,
+      serverLicense,
       loading, 
       activeSessions,
       login, 
@@ -312,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       switchBranch,
       switchTenant,
       refreshAuth,
+      checkServerLicense,
       fetchSessions,
       revokeSession,
       hasModule

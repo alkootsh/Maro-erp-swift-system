@@ -98,9 +98,152 @@ import { SmartQueuePage } from './pages/industries/SmartQueuePage';
 import { PriceCheckerHandheldPage } from './pages/industries/PriceCheckerHandheldPage';
 import { HardwareThermalBarcodeHub } from './pages/HardwareThermalBarcodeHub';
 
-export default function App() {
+import { FirstRunActivationWizard } from './components/licensing/FirstRunActivationWizard';
+import { useAuth } from './components/AuthProvider';
+
+function AppContent() {
+  const { serverLicense, loading } = useAuth();
   const [showFirstRun, setShowFirstRun] = useState(DemoDataSeeder.isFirstRun());
 
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#070b13]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+          <span className="text-xs text-slate-400 font-sans font-bold" dir="rtl">جاري التحقق من أمن السيرفر والترخيص...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // If there is no valid license on the server, show the beautiful, full-screen FirstRunActivationWizard!
+  if (!serverLicense || !serverLicense.valid) {
+    return <FirstRunActivationWizard />;
+  }
+
+  return (
+    <>
+      <StockAlerts />
+      {showFirstRun && <FirstRunWizard onComplete={() => setShowFirstRun(false)} />}
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          {/* Standalone Public Customer B2B Ordering Portal (Direct Customer Access) */}
+          <Route path="/portal/order" element={<CustomerOrderPortalApp />} />
+          <Route path="/b2b-store" element={<CustomerOrderPortalApp />} />
+          <Route path="/catalog" element={<CustomerOrderPortalApp />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/pos" element={<POS />} />
+              <Route path="/pos-models" element={<POSModelsComparisonPage />} />
+              <Route path="/wholesale-invoices" element={<WholesaleInvoicesPage />} />
+              
+              {/* B2B Customer Orders & Web Store Management */}
+              <Route path="/b2b-portal" element={<WholesaleInvoicesPage />} />
+              <Route path="/customer-orders" element={<WholesaleInvoicesPage />} />
+              
+              {/* Core Commercial Industry Modules */}
+              <Route path="/industries/hub" element={<IndustryModulesHub />} />
+              <Route path="/industries/fashion" element={<FashionFootwearPage />} />
+              <Route path="/industries/maintenance" element={<ElectronicsRepairPage />} />
+              <Route path="/industries/food-retail" element={<FoodSupermarketPage />} />
+              <Route path="/industries/restaurants" element={<RestaurantCafePage />} />
+              <Route path="/industries/pharmacy" element={<PharmacyPage />} />
+              <Route path="/industries/auto-parts" element={<AutoPartsPage />} />
+              <Route path="/industries/auto-showroom" element={<AutoShowroomPage />} />
+              <Route path="/industries/agri-export" element={<AgriExportPage />} />
+              <Route path="/industries/car-wash" element={<CarWashPage />} />
+              <Route path="/industries/education" element={<EducationCenterPage />} />
+              <Route path="/industries/clinics" element={<MedicalClinicPage />} />
+              <Route path="/industries/salon-barber" element={<SalonBarberPage />} />
+              <Route path="/industries/gym-fitness" element={<GymFitnessPage />} />
+              <Route path="/industries/nursery" element={<NurseryPreschoolPage />} />
+              <Route path="/industries/parking-garage" element={<ParkingGaragePage />} />
+              <Route path="/industries/tourism-travel" element={<TourismTravelPage />} />
+              <Route path="/industries/import-export" element={<ImportExportPage />} />
+              <Route path="/industries/queue-system" element={<SmartQueuePage />} />
+              <Route path="/industries/price-checker" element={<PriceCheckerHandheldPage />} />
+              <Route path="/industries/transport-shipping" element={<SmartTransportShippingPage />} />
+              <Route path="/industries/ceramics-sanitary" element={<CeramicsSanitaryPage />} />
+              <Route path="/industries/fuel-station" element={<FuelStationPage />} />
+              <Route path="/price-checker" element={<PriceCheckerHandheldPage />} />
+              <Route path="/handheld-pda" element={<PriceCheckerHandheldPage />} />
+              <Route path="/hardware-thermal-barcode" element={<HardwareThermalBarcodeHub />} />
+              <Route path="/thermal-printers" element={<HardwareThermalBarcodeHub />} />
+              <Route path="/barcode-designer" element={<HardwareThermalBarcodeHub />} />
+              <Route path="/barcode-scales" element={<HardwareThermalBarcodeHub />} />
+
+              {/* Core Supply Chain, Inventory & Sales */}
+              <Route path="/products" element={<Products />} />
+              <Route path="/warehouses" element={<Warehouses />} />
+              <Route path="/inventory" element={<Inventory />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/suppliers" element={<Suppliers />} />
+              <Route path="/invoices" element={<Invoices />} />
+              <Route path="/advanced-sales" element={<AdvancedSalesManagement />} />
+              <Route path="/returns" element={<Returns />} />
+              <Route path="/purchase-returns" element={<PurchaseReturns />} />
+              <Route path="/manufacturing" element={<Manufacturing />} />
+              <Route path="/bills" element={<Bills />} />
+              
+              {/* General Accounting Core & Financial Reports */}
+              <Route path="/accounting/treasury-banks" element={<TreasuryBankDashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/designer" element={<ReportDesigner />} />
+              <Route path="/next-gen-suite" element={<NextGenEnterpriseSuite />} />
+              <Route path="/smart-cashier" element={<SmartCashier />} />
+              <Route path="/cashier-sessions" element={<CashierSessionView />} />
+              <Route path="/sessions" element={<CashierSessionView />} />
+              <Route path="/adaptive-erp" element={<AdaptiveERPHub />} />
+              <Route path="/workflow-engine" element={<WorkflowEngine />} />
+              <Route path="/dynamic-forms" element={<DynamicFormsBuilder />} />
+              <Route path="/advanced-reporting" element={<AdvancedReportingBI />} />
+              <Route path="/crm-projects" element={<CRMAndProjects />} />
+              <Route path="/ai-agents" element={<AIAgents />} />
+              <Route path="/documents-ocr" element={<DocumentManagement />} />
+              <Route path="/production-mrp" element={<ProductionMRP />} />
+              <Route path="/hr-payroll" element={<HRAndPayroll />} />
+              <Route path="/assets-fleet" element={<AssetsAndFleet />} />
+              <Route path="/ecommerce" element={<EcommerceIntegrations />} />
+              <Route path="/procurement" element={<ProcurementContracts />} />
+              <Route path="/branches" element={<BranchManagement />} />
+              <Route path="/zatca" element={<ZatcaEInvoicing />} />
+              <Route path="/assistant-modules" element={<AssistantModulesHub />} />
+              
+              {/* Administration, Security & Developer Console */}
+              <Route path="/users" element={<Users />} />
+              <Route path="/alerts" element={<AlertSettings />} />
+              <Route path="/notifications/whatsapp" element={<WhatsAppNotificationsCenter />} />
+              <Route path="/whatsapp" element={<WhatsAppNotificationsCenter />} />
+              <Route path="/reps" element={<Reps />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/invoices" element={<InvoiceSettings />} />
+              <Route path="/settings/pos/function-keys" element={<POSFunctionKeysSettings />} />
+              <Route path="/settings/pos/layout" element={<POSLayoutDesigner />} />
+              <Route path="/settings/payment-methods" element={<PaymentMethodsSettings />} />
+              <Route path="/settings/ticker" element={<TickerControlPanel />} />
+              <Route path="/settings/security/roles" element={<RolePermissions />} />
+              <Route path="/settings/security/audit" element={<SecurityAudit />} />
+              <Route path="/settings/license" element={<LicenseActivation />} />
+              <Route path="/developer/console" element={<DeveloperConsole />} />
+              <Route path="/developer/hub" element={<DeveloperPartnerHub />} />
+              <Route path="/support/center" element={<SupportCenter />} />
+              <Route path="/team/workflow" element={<TeamWorkflowHub />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </>
+  );
+}
+
+export default function App() {
   useEffect(() => {
     initBusinessIntelligence();
   }, []);
@@ -109,122 +252,7 @@ export default function App() {
     <AuthProvider>
       <LearningModeProvider>
         <Toaster position="top-left" toastOptions={{ duration: 4000 }} />
-        <StockAlerts />
-        {showFirstRun && <FirstRunWizard onComplete={() => setShowFirstRun(false)} />}
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            
-            {/* Standalone Public Customer B2B Ordering Portal (Direct Customer Access) */}
-            <Route path="/portal/order" element={<CustomerOrderPortalApp />} />
-            <Route path="/b2b-store" element={<CustomerOrderPortalApp />} />
-            <Route path="/catalog" element={<CustomerOrderPortalApp />} />
-
-            <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/pos" element={<POS />} />
-                <Route path="/pos-models" element={<POSModelsComparisonPage />} />
-                <Route path="/wholesale-invoices" element={<WholesaleInvoicesPage />} />
-                
-                {/* B2B Customer Orders & Web Store Management */}
-                <Route path="/b2b-portal" element={<WholesaleInvoicesPage />} />
-                <Route path="/customer-orders" element={<WholesaleInvoicesPage />} />
-                
-                {/* Core Commercial Industry Modules */}
-                <Route path="/industries/hub" element={<IndustryModulesHub />} />
-                <Route path="/industries/fashion" element={<FashionFootwearPage />} />
-                <Route path="/industries/maintenance" element={<ElectronicsRepairPage />} />
-                <Route path="/industries/food-retail" element={<FoodSupermarketPage />} />
-                <Route path="/industries/restaurants" element={<RestaurantCafePage />} />
-                <Route path="/industries/pharmacy" element={<PharmacyPage />} />
-                <Route path="/industries/auto-parts" element={<AutoPartsPage />} />
-                <Route path="/industries/auto-showroom" element={<AutoShowroomPage />} />
-                <Route path="/industries/agri-export" element={<AgriExportPage />} />
-                <Route path="/industries/car-wash" element={<CarWashPage />} />
-                <Route path="/industries/education" element={<EducationCenterPage />} />
-                <Route path="/industries/clinics" element={<MedicalClinicPage />} />
-                <Route path="/industries/salon-barber" element={<SalonBarberPage />} />
-                <Route path="/industries/gym-fitness" element={<GymFitnessPage />} />
-                <Route path="/industries/nursery" element={<NurseryPreschoolPage />} />
-                <Route path="/industries/parking-garage" element={<ParkingGaragePage />} />
-                <Route path="/industries/tourism-travel" element={<TourismTravelPage />} />
-                <Route path="/industries/import-export" element={<ImportExportPage />} />
-                <Route path="/industries/queue-system" element={<SmartQueuePage />} />
-                <Route path="/industries/price-checker" element={<PriceCheckerHandheldPage />} />
-                <Route path="/industries/transport-shipping" element={<SmartTransportShippingPage />} />
-                <Route path="/industries/ceramics-sanitary" element={<CeramicsSanitaryPage />} />
-                <Route path="/industries/fuel-station" element={<FuelStationPage />} />
-                <Route path="/price-checker" element={<PriceCheckerHandheldPage />} />
-                <Route path="/handheld-pda" element={<PriceCheckerHandheldPage />} />
-                <Route path="/hardware-thermal-barcode" element={<HardwareThermalBarcodeHub />} />
-                <Route path="/thermal-printers" element={<HardwareThermalBarcodeHub />} />
-                <Route path="/barcode-designer" element={<HardwareThermalBarcodeHub />} />
-                <Route path="/barcode-scales" element={<HardwareThermalBarcodeHub />} />
-
-                {/* Core Supply Chain, Inventory & Sales */}
-                <Route path="/products" element={<Products />} />
-                <Route path="/warehouses" element={<Warehouses />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/suppliers" element={<Suppliers />} />
-                <Route path="/invoices" element={<Invoices />} />
-                <Route path="/advanced-sales" element={<AdvancedSalesManagement />} />
-                <Route path="/returns" element={<Returns />} />
-                <Route path="/purchase-returns" element={<PurchaseReturns />} />
-                <Route path="/manufacturing" element={<Manufacturing />} />
-                <Route path="/bills" element={<Bills />} />
-                
-                {/* General Accounting Core & Financial Reports */}
-                <Route path="/accounting/treasury-banks" element={<TreasuryBankDashboard />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/reports/designer" element={<ReportDesigner />} />
-                <Route path="/next-gen-suite" element={<NextGenEnterpriseSuite />} />
-                <Route path="/smart-cashier" element={<SmartCashier />} />
-                <Route path="/cashier-sessions" element={<CashierSessionView />} />
-                <Route path="/sessions" element={<CashierSessionView />} />
-                <Route path="/adaptive-erp" element={<AdaptiveERPHub />} />
-                <Route path="/workflow-engine" element={<WorkflowEngine />} />
-                <Route path="/dynamic-forms" element={<DynamicFormsBuilder />} />
-                <Route path="/advanced-reporting" element={<AdvancedReportingBI />} />
-                <Route path="/crm-projects" element={<CRMAndProjects />} />
-                <Route path="/ai-agents" element={<AIAgents />} />
-                <Route path="/documents-ocr" element={<DocumentManagement />} />
-                <Route path="/production-mrp" element={<ProductionMRP />} />
-                <Route path="/hr-payroll" element={<HRAndPayroll />} />
-                <Route path="/assets-fleet" element={<AssetsAndFleet />} />
-                <Route path="/ecommerce" element={<EcommerceIntegrations />} />
-                <Route path="/procurement" element={<ProcurementContracts />} />
-                <Route path="/branches" element={<BranchManagement />} />
-                <Route path="/zatca" element={<ZatcaEInvoicing />} />
-                <Route path="/assistant-modules" element={<AssistantModulesHub />} />
-                
-                {/* Administration, Security & Developer Console */}
-                <Route path="/users" element={<Users />} />
-                <Route path="/alerts" element={<AlertSettings />} />
-                <Route path="/notifications/whatsapp" element={<WhatsAppNotificationsCenter />} />
-                <Route path="/whatsapp" element={<WhatsAppNotificationsCenter />} />
-                <Route path="/reps" element={<Reps />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/settings/invoices" element={<InvoiceSettings />} />
-                <Route path="/settings/pos/function-keys" element={<POSFunctionKeysSettings />} />
-                <Route path="/settings/pos/layout" element={<POSLayoutDesigner />} />
-                <Route path="/settings/payment-methods" element={<PaymentMethodsSettings />} />
-                <Route path="/settings/ticker" element={<TickerControlPanel />} />
-                <Route path="/settings/security/roles" element={<RolePermissions />} />
-                <Route path="/settings/security/audit" element={<SecurityAudit />} />
-                <Route path="/settings/license" element={<LicenseActivation />} />
-                <Route path="/developer/console" element={<DeveloperConsole />} />
-                <Route path="/developer/hub" element={<DeveloperPartnerHub />} />
-                <Route path="/support/center" element={<SupportCenter />} />
-                <Route path="/team/workflow" element={<TeamWorkflowHub />} />
-              </Route>
-            </Route>
-
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
+        <AppContent />
       </LearningModeProvider>
     </AuthProvider>
   );

@@ -193,6 +193,27 @@ export const LicenseActivation: React.FC = () => {
     toast.success('تم تحميل ملف طلب التفعيل بنجاح.');
   };
 
+  // Send to WhatsApp Technical Support
+  const handleSendToWhatsApp = () => {
+    if (!activationRequestPackage) return;
+    
+    const message = `مرحباً دعم منصة مارو للأعمال (MARO Business Platform),\n\nأود طلب ترخيص المنصة أوفلاين للمؤسسة التالية:\n` +
+      `🏢 الشركة: ${activationRequestPackage.company?.name}\n` +
+      `💼 النشاط: ${activationRequestPackage.company?.industry || 'RETAIL'}\n` +
+      `👤 المسؤول: ${activationRequestPackage.contact?.adminName || 'غير محدد'}\n` +
+      `📞 هاتف: ${activationRequestPackage.contact?.phone}\n` +
+      `✉️ البريد: ${activationRequestPackage.contact?.email || 'لا يوجد'}\n` +
+      `💻 معرف جهاز العميل: ${activationRequestPackage.device?.persistentDeviceId}\n` +
+      `🔐 بصمة التشفير: ${activationRequestPackage.device?.compositeHash}\n` +
+      `📦 موديولات: ${activationRequestPackage.requested?.modules?.join(', ')}\n\n` +
+      `الرجاء توقيع وإصدار ملف الترخيص (.marolic) لإلغاء تجميد المنصة. شكراً لك!`;
+
+    const encoded = encodeURIComponent(message);
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=201000000000&text=${encoded}`;
+    window.open(whatsappUrl, '_blank');
+    toast.success('يتم توجيهك الآن إلى واتساب الدعم الفني لإصدار الترخيص.');
+  };
+
   // Import `.marolic` signed license file
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -714,12 +735,18 @@ export const LicenseActivation: React.FC = () => {
                     <p className="text-slate-400 leading-relaxed">
                       امسح رمز الاستجابة السريعة (QR Code) أو قم بتحميل ملف الترخيص وإرساله إلى مسؤول الدعم الفني أو المطور لإصدار مفتاح الترخيص المشفر Ed25519 الخاص بك.
                     </p>
-                    <div className="pt-2">
+                    <div className="flex flex-wrap gap-2 pt-2">
                       <button 
                         onClick={handleDownloadRequestFile}
                         className="px-3 py-2 bg-[#1e293b] hover:bg-[#334155] text-white rounded-xl font-bold flex items-center gap-1.5 text-[11px] transition-all"
                       >
                         <Download size={14} /> تحميل ملف الطلب (.maroreq)
+                      </button>
+                      <button 
+                        onClick={handleSendToWhatsApp}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 text-[11px] transition-all"
+                      >
+                        <Phone size={14} /> إرسال عبر WhatsApp للمطور
                       </button>
                     </div>
                   </div>

@@ -47,7 +47,7 @@ export const FunctionKeyBar: React.FC<FunctionKeyBarProps> = ({
 
     // Keydown listener highlight effect
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.startsWith('F') && /^F(1[0-2]|[1-9])$/.test(e.key)) {
+      if (e.key && e.key.startsWith('F') && /^F(1[0-2]|[1-9])$/.test(e.key)) {
         setActiveKey(e.key);
         setTimeout(() => setActiveKey(null), 300);
       }

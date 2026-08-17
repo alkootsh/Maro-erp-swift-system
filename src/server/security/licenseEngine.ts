@@ -194,6 +194,45 @@ export class ServerLicenseEngine {
   }
 
   /**
+   * Validates and marks an activation request as used (Replay Protection)
+   */
+  static useActivationRequest(requestId: string, nonce: string): { success: boolean; error?: string } {
+    try {
+      const USED_REQS_FILE = path.join(process.cwd(), '.maro-used-requests.json');
+      let used: Record<string, boolean> = {};
+      if (fs.existsSync(USED_REQS_FILE)) {
+        used = JSON.parse(fs.readFileSync(USED_REQS_FILE, 'utf8'));
+      }
+
+      if (used[requestId] || used[nonce]) {
+        return { success: false, error: 'تم استخدام هذا الطلب أو الرمز الفريد (Nonce) مسبقاً. حماية إعادة التشغيل (Replay Protection) نشطة.' };
+      }
+
+      // Check if request exists in stored requests
+      const requests = this.getActivationRequests();
+      const request = requests.find(r => r.requestId === requestId);
+      if (!request) {
+        return { success: false, error: 'طلب التفعيل المحدد غير موجود بالخادم أو تم حذفه.' };
+      }
+
+      // Check if expired (e.g. older than 24 hours)
+      const reqTime = new Date(request.timestamp).getTime();
+      const now = Date.now();
+      if (now - reqTime > 24 * 60 * 60 * 1000) {
+        return { success: false, error: 'طلب التفعيل منتهي الصلاحية (تجاوز فترة الـ 24 ساعة المسموحة).' };
+      }
+
+      // Mark as used
+      used[requestId] = true;
+      used[nonce] = true;
+      fs.writeFileSync(USED_REQS_FILE, JSON.stringify(used, null, 2), 'utf8');
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: `خطأ أثناء التحقق من الطلب: ${err.message}` };
+    }
+  }
+
+  /**
    * Fetch and calculate current effective license status for a Tenant.
    * Prioritizes the Ed25519 Asymmetric Signed License File if present.
    */

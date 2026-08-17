@@ -16,6 +16,13 @@ export class DeviceEngine {
   private static cachedIdentity: CompositeDeviceIdentity | null = null;
 
   /**
+   * Overrides or resets the cached hardware identity (Developer Sandbox/Testing purposes)
+   */
+  static setMockIdentity(mock: CompositeDeviceIdentity | null): void {
+    this.cachedIdentity = mock;
+  }
+
+  /**
    * Generates or retrieves the persistent deviceId and returns the full composite identity
    */
   static getCompositeDeviceIdentity(): CompositeDeviceIdentity {
