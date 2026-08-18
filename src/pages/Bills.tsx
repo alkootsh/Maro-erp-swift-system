@@ -30,6 +30,7 @@ import { LowStockReplenishmentService } from '../services/lowStockReplenishmentS
 import { KeyboardSearchSelect, SearchOption } from '../components/common/KeyboardSearchSelect';
 import { FastKeyboardInvoiceLineEntry, FastInvoiceLinePayload } from '../components/invoices/FastKeyboardInvoiceLineEntry';
 import { QuickProductModalOnPurchase, QuickAddedBillProductResult } from '../components/purchases/QuickProductModalOnPurchase';
+import { ProductFormModal } from '../components/products/ProductFormModal';
 import { ScreenHubTabs } from '../components/common/ScreenHubTabs';
 
 export const Bills: React.FC = () => {
@@ -239,6 +240,7 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
   const [quickProductSearchQuery, setQuickProductSearchQuery] = useState('');
+  const [editingQuickProduct, setEditingQuickProduct] = useState<ProductMaster | null>(null);
 
   const supplierInputRef = useRef<HTMLInputElement>(null);
 
@@ -269,6 +271,15 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         lineTotal
       }
     ]);
+
+    // Restore focus to invoice line search input
+    setTimeout(() => {
+      const searchInput = document.getElementById('fast-product-search') as HTMLInputElement;
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    }, 100);
   };
 
   // Supplier Search Options
@@ -407,7 +418,7 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
           prodInput?.focus();
           prodInput?.select();
-        } else if (e.key === 'F4') {
+        } else if (e.key === 'F4' || (e.ctrlKey && e.key.toLowerCase() === 'n')) {
           e.preventDefault();
           const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
           setQuickProductSearchQuery(prodInput?.value || '');
@@ -574,7 +585,25 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <td className="px-4 py-3 text-slate-500 font-mono">{idx + 1}</td>
                         <td className="px-4 py-3 font-bold text-white">
                           <div>{item.productName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">SKU: {item.sku}</div>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                            <span>SKU: {item.sku}</span>
+                            {(() => {
+                              const prod = ProductRepository.getProductByIdSync(item.productId);
+                              if (prod?.needsCompletion) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingQuickProduct(prod)}
+                                    className="bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-1.5 py-0.5 rounded border border-amber-500/40 text-[9px] font-bold font-sans transition-all"
+                                    title="انقر لاستكمال باقي بيانات كارت الصنف الفئوية والماركة"
+                                  >
+                                    ⚠️ استكمال البيانات
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300 text-[11px] font-bold border border-slate-700">
@@ -682,6 +711,22 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             initialSearchQuery={quickProductSearchQuery}
             onClose={() => setIsQuickProductModalOpen(false)}
             onProductCreated={handleProductQuickCreated}
+          />
+        )}
+
+        {/* Full Product Master Form for Quick Product Data Completion */}
+        {editingQuickProduct && (
+          <ProductFormModal
+            isOpen={!!editingQuickProduct}
+            onClose={() => {
+              setEditingQuickProduct(null);
+              setProducts(ProductRepository.getProducts());
+            }}
+            editingProduct={editingQuickProduct}
+            categories={ProductRepository.getCategories()}
+            groups={ProductRepository.getGroups()}
+            brands={ProductRepository.getBrands()}
+            manufacturers={ProductRepository.getManufacturers()}
           />
         )}
       </div>

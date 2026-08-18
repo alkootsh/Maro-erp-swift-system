@@ -29,6 +29,22 @@ export class ProductRepository {
     return MaroSyncEngine.getLocalCollection<ProductMaster>(this.PRODUCTS_COLL);
   }
 
+  static getCategories(): ProductCategory[] {
+    return MaroSyncEngine.getLocalCollection<ProductCategory>(this.CATEGORIES_COLL);
+  }
+
+  static getGroups(): ProductGroup[] {
+    return MaroSyncEngine.getLocalCollection<ProductGroup>(this.GROUPS_COLL);
+  }
+
+  static getBrands(): Brand[] {
+    return MaroSyncEngine.getLocalCollection<Brand>(this.BRANDS_COLL);
+  }
+
+  static getManufacturers(): Manufacturer[] {
+    return MaroSyncEngine.getLocalCollection<Manufacturer>(this.MANUFACTURERS_COLL);
+  }
+
   static getProductByIdSync(id: string): ProductMaster | null {
     return MaroSyncEngine.getLocalDocument<ProductMaster>(this.PRODUCTS_COLL, id);
   }

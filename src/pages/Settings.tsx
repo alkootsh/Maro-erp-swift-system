@@ -3,8 +3,9 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Settings.tsx.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { 
   Building2, 
   Settings as SettingsIcon, 
@@ -112,17 +113,21 @@ export const Settings: React.FC = () => {
     taxRate: 15,
   });
 
-  const [selectedIndustry, setSelectedIndustry] = useState<string>('retail');
+  const [selectedIndustry, setSelectedIndustry] = useState<string>('FOOD_SUPERMARKET');
   const [coaStatus, setCoaStatus] = useState<'pending' | 'generating' | 'ready'>('pending');
+  const [industrySearch, setIndustrySearch] = useState<string>('');
 
-  const industries = [
-    { id: 'retail', name: 'تجزئة (Retail)', icon: Store, desc: 'نقاط بيع، مخزون، باركود، وعروض ترويجية.' },
-    { id: 'wholesale', name: 'جملة وتوزيع (Wholesale)', icon: Briefcase, desc: 'مخازن متعددة، تسعير شرائح، مناديب، وسيارات.' },
-    { id: 'restaurant', name: 'مطاعم وكافيهات (F&B)', icon: Utensils, desc: 'طاولات، مطبخ، وصفات (Recipes)، وورديات.' },
-    { id: 'manufacturing', name: 'تصنيع (Manufacturing)', icon: Factory, desc: 'BOM، أوامر إنتاج، هدر، وتكاليف.' },
-    { id: 'medical', name: 'طبي (Medical)', icon: Stethoscope, desc: 'مواعيد، مرضى، تأمين، وسجلات طبية.' },
-    { id: 'services', name: 'خدمات وصيانة (Services)', icon: SettingsIcon, desc: 'مشاريع، عقود، تذاكر دعم، وحجوزات.' }
-  ];
+  const allIndustryModules = useMemo(() => IndustryModuleEngine.getModules(), []);
+
+  const filteredIndustryModules = useMemo(() => {
+    if (!industrySearch.trim()) return allIndustryModules;
+    const query = industrySearch.toLowerCase();
+    return allIndustryModules.filter(m => 
+      m.nameAr.toLowerCase().includes(query) || 
+      m.descriptionAr.toLowerCase().includes(query) ||
+      m.code.toLowerCase().includes(query)
+    );
+  }, [allIndustryModules, industrySearch]);
 
   const modules = [
     { id: 'crm', name: 'إدارة علاقات العملاء (CRM)', category: 'P1', enabled: true },
@@ -439,45 +444,59 @@ export const Settings: React.FC = () => {
             <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Layers className="text-purple-500" /> محرك الأنشطة (Dynamic Industry Engine)
+                  <Layers className="text-purple-500" /> محرك الأنشطة (Dynamic Industry Engine - {allIndustryModules.length} نشاط)
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">يقوم محرك MARO بتشكيل الشاشات والميزات تلقائياً بناءً على طبيعة نشاطك للحفاظ على النظام خفيفاً وسريعاً.</p>
               </div>
-              <Link 
-                to="/adaptive-erp" 
-                className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20 active:scale-95 whitespace-nowrap self-start md:self-auto"
-              >
-                <Layers size={15} />
-                <span>فتح منصة MARO Adaptive ERP الكاملة ↗</span>
-              </Link>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={industrySearch}
+                  onChange={(e) => setIndustrySearch(e.target.value)}
+                  placeholder="بحث في الأنشطة..."
+                  className="bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+                <Link 
+                  to="/adaptive-erp" 
+                  className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20 active:scale-95 whitespace-nowrap"
+                >
+                  <Layers size={15} />
+                  <span>منصة الأنشطة ↗</span>
+                </Link>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {industries.map((ind) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
+              {filteredIndustryModules.map((ind) => (
                 <div 
                   key={ind.id}
                   onClick={() => setSelectedIndustry(ind.id)}
                   className={cn(
-                    "p-5 rounded-2xl border cursor-pointer transition-all flex flex-col gap-3 relative overflow-hidden group",
+                    "p-4 rounded-2xl border cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden group",
                     selectedIndustry === ind.id 
-                      ? "bg-blue-600/10 border-blue-500 shadow-lg shadow-blue-900/20" 
+                      ? "bg-purple-600/10 border-purple-500 shadow-lg shadow-purple-900/20" 
                       : "bg-[#0f172a] border-slate-800 hover:border-slate-600 hover:bg-slate-800/50"
                   )}
                 >
                   {selectedIndustry === ind.id && (
-                    <div className="absolute top-3 left-3 bg-blue-500 text-white p-1 rounded-full">
+                    <div className="absolute top-3 left-3 bg-purple-500 text-white p-1 rounded-full">
                       <CheckCircle2 size={14} />
                     </div>
                   )}
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
-                    selectedIndustry === ind.id ? "bg-blue-500 text-white" : "bg-slate-800 text-slate-400 group-hover:text-white"
-                  )}>
-                    <ind.icon size={24} />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-purple-400 font-mono font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                      {ind.code}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{ind.category}</span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-white mb-1">{ind.name}</h4>
-                    <p className="text-[10px] text-slate-400 leading-relaxed">{ind.desc}</p>
+                    <h4 className="font-bold text-sm text-white mb-1 line-clamp-1">{ind.nameAr}</h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">{ind.descriptionAr}</p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-800 text-[10px] text-slate-500">
+                    <span>{ind.specializedFeatures?.length || 0} ميزات مفعلة</span>
+                    <span>•</span>
+                    <span>{ind.customProductFields?.length || 0} حقول مخصصة</span>
                   </div>
                 </div>
               ))}
@@ -512,7 +531,7 @@ export const Settings: React.FC = () => {
               
               {coaStatus === 'pending' && (
                 <>
-                  <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">لم يتم إنشاء الدليل المحاسبي بعد. هل ترغب في قيام MARO بتوليد دليل شجري متوافق مع معايير IFRS مخصص لنشاط ({industries.find(i => i.id === selectedIndustry)?.name})؟</p>
+                  <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">لم يتم إنشاء الدليل المحاسبي بعد. هل ترغب في قيام MARO بتوليد دليل شجري متوافق مع معايير IFRS مخصص لنشاط ({allIndustryModules.find(i => i.id === selectedIndustry)?.nameAr || selectedIndustry})؟</p>
                   <button onClick={handleGenerateCOA} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-900/20">
                     توليد الدليل المحاسبي الآن
                   </button>

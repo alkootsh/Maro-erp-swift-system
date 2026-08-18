@@ -3,7 +3,8 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: AdaptiveERPHub.tsx.
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Layers, 
   Cpu, 
@@ -24,25 +25,96 @@ import {
   RefreshCw,
   Search,
   Server,
-  Briefcase
+  Briefcase,
+  Utensils,
+  HeartPulse,
+  Car,
+  Factory,
+  Scissors,
+  Dumbbell,
+  Baby,
+  ParkingSquare,
+  Plane,
+  Ship,
+  MessageSquare,
+  ScanLine,
+  Award,
+  Truck,
+  Trees,
+  Paintbrush,
+  Sparkles,
+  Flame,
+  LayoutTemplate,
+  Eye,
+  ArrowLeft
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
+import { IndustryModuleEngine } from '../lib/industryModuleEngine';
+import { IndustryModule } from '../types/industryModules';
 
 export const AdaptiveERPHub: React.FC = () => {
-  const [selectedIndustry, setSelectedIndustry] = useState<string>('retail');
-  const [activeLayer, setActiveLayer] = useState<'core' | 'finance' | 'inventory' | 'industry' | 'ai' | 'workflow'>('core');
+  const navigate = useNavigate();
+  const allModules = useMemo(() => IndustryModuleEngine.getModules(), []);
 
-  // Industry packs definition
-  const industryPacks = [
-    { id: 'retail', name: 'تجارة التجزئة والسوبرماركت', icon: ShoppingCart, features: ['POS سريع', 'ولاء العملاء', 'باركود الأوزان', 'العروض الترويجية'] },
-    { id: 'restaurant', name: 'المطاعم والكافيهات', icon: Activity, features: ['شاشات المطبخ KDS', 'إدارة الطاولات', 'الوصفات والمكونات', 'التوصيل والدليفري'] },
-    { id: 'pharmacy', name: 'الصيدليات والأدوية', icon: ShieldCheck, features: ['تواريخ الصلاحية', 'أرقام التشغيلات', 'البدائل الدوائية', 'صرف الروشتات'] },
-    { id: 'automotive', name: 'قطع الغيار والسيارات', icon: Layers, features: ['أرقام الشاصيه VIN', 'أرقام الأجزاء SKU', 'كتالوج الموديلات', 'ورشة الصيانة'] },
-    { id: 'construction', name: 'المقاولات والمشاريع', icon: Briefcase, features: ['مستخلصات المقاولات', 'جداول الكميات BOQ', 'تكلفة المعدات والعمالة', 'ميزانية المشروع'] },
-    { id: 'manufacturing', name: 'التصنيع والإنتاج', icon: Cpu, features: ['قوائم المواد BOM', 'أوامر الإنتاج', 'تخطيط الاحتياجات MRP', 'مراكز العمل'] },
+  const [selectedModuleId, setSelectedModuleId] = useState<string>(allModules[0]?.id || 'FOOD_SUPERMARKET');
+  const [activeLayer, setActiveLayer] = useState<'core' | 'finance' | 'inventory' | 'industry' | 'ai' | 'workflow'>('industry');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const currentModule = useMemo(() => {
+    return allModules.find(m => m.id === selectedModuleId) || allModules[0];
+  }, [allModules, selectedModuleId]);
+
+  const categories = [
+    { id: 'ALL', name: `الكل (${allModules.length})` },
+    { id: 'RETAIL', name: 'التجزئة والجملة' },
+    { id: 'FOOD_BEVERAGE', name: 'المطاعم والأغذية' },
+    { id: 'HEALTHCARE', name: 'الصحة والرعاية' },
+    { id: 'AUTOMOTIVE', name: 'السيارات والقطع' },
+    { id: 'INDUSTRIAL', name: 'التصنيع والمقاولات' },
+    { id: 'SERVICES', name: 'الخدمات والأكاديميات' },
+    { id: 'DISTRIBUTION', name: 'الشحن والتوزيع' }
   ];
 
-  const currentPack = industryPacks.find(p => p.id === selectedIndustry) || industryPacks[0];
+  const filteredModules = useMemo(() => {
+    return allModules.filter(mod => {
+      const matchesCategory = selectedCategory === 'ALL' || mod.category === selectedCategory;
+      const matchesSearch = !searchQuery.trim() || 
+        mod.nameAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mod.descriptionAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mod.code.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [allModules, selectedCategory, searchQuery]);
+
+  const getModuleIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'ShoppingBag': return <ShoppingCart size={18} />;
+      case 'Shirt': return <Layers size={18} />;
+      case 'Smartphone': return <Zap size={18} />;
+      case 'Utensils': return <Utensils size={18} />;
+      case 'HeartPulse': return <HeartPulse size={18} />;
+      case 'Car': return <Car size={18} />;
+      case 'Factory': return <Factory size={18} />;
+      case 'Scissors': return <Scissors size={18} />;
+      case 'Dumbbell': return <Dumbbell size={18} />;
+      case 'Baby': return <Baby size={18} />;
+      case 'ParkingSquare': return <ParkingSquare size={18} />;
+      case 'Plane': return <Plane size={18} />;
+      case 'Ship': return <Ship size={18} />;
+      case 'MessageSquare': return <MessageSquare size={18} />;
+      case 'ScanLine': return <ScanLine size={18} />;
+      case 'Award': return <Award size={18} />;
+      case 'Truck': return <Truck size={18} />;
+      case 'Trees': return <Trees size={18} />;
+      case 'Paintbrush': return <Paintbrush size={18} />;
+      case 'Flame': return <Flame size={18} />;
+      case 'LayoutTemplate': return <LayoutTemplate size={18} />;
+      case 'Eye': return <Eye size={18} />;
+      case 'Building2': return <Building2 size={18} />;
+      default: return <Layers size={18} />;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -53,49 +125,113 @@ export const AdaptiveERPHub: React.FC = () => {
             <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold text-xs border border-blue-500/30">
               MARO Adaptive ERP Platform v6.0
             </span>
-            <span className="text-xs text-emerald-400 font-bold">● نظام واحد يتشكل حسب نشاطك التجاري</span>
+            <span className="text-xs text-emerald-400 font-bold">● متوافق مع كافة الأنشطة التجارية ({allModules.length} نشاط متاح)</span>
           </div>
-          <h1 className="text-2xl font-black text-white">منصة مارو المؤسسية المتكيفة مع الصناعة</h1>
+          <h1 className="text-2xl font-black text-white">منصة مارو المؤسسية المتكيفة مع الصناعة (Plug & Play Industry Modules)</h1>
           <p className="text-xs text-slate-400 mt-1">
-            نواة محاسبية ومخزنية صارمة بالخلفية، مع وحدات صناعية متخصصة، طبقة ذكاء اصطناعي (AI Operating Layer)، ومحرك سير عمل متقدم (Workflow Engine).
+            نواة محاسبية ومخزنية صارمة بالخلفية، مع وحدات صناعية وتجارية متخصصة لكل نشاط، مع حقول وشاشات مخصصة تلقائياً.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#0f172a] px-4 py-2.5 rounded-xl border border-slate-700 text-right">
-            <span className="text-[10px] text-slate-400 block">النشاط الحالي النشط</span>
-            <span className="font-bold text-emerald-400 text-xs">{currentPack.name}</span>
+            <span className="text-[10px] text-slate-400 block">النشاط النشط حالياً</span>
+            <span className="font-bold text-emerald-400 text-xs flex items-center gap-1.5">
+              {getModuleIcon(currentModule.iconName)}
+              <span>{currentModule.nameAr}</span>
+            </span>
           </div>
+          <button
+            onClick={() => navigate(currentModule.routePath)}
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-purple-900/20 active:scale-95 flex items-center gap-2 whitespace-nowrap"
+          >
+            <span>دخول موديول {currentModule.nameAr.split(' ')[0]}</span>
+            <ArrowLeft size={16} />
+          </button>
         </div>
       </div>
 
-      {/* Industry Selector Bar */}
-      <div className="bg-[#151b2b] p-4 rounded-2xl border border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-white flex items-center gap-2">
-            <Sliders size={16} className="text-blue-400" />
-            <span>اختر طبيعة النشاط التجاري (Industry-Adaptive Engine):</span>
-          </span>
-          <span className="text-[11px] text-slate-400">يتكيف النظام تلقائياً بالحقول والواجهات المناسبة دون تعديل قاعدة البيانات</span>
+      {/* Category Tabs & Search Engine */}
+      <div className="bg-[#151b2b] p-4 rounded-2xl border border-slate-800 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Sliders size={18} className="text-blue-400" />
+            <h3 className="text-sm font-bold text-white">دليل الأنشطة القطاعية المتاحة بالنظام ({allModules.length} نشاط):</h3>
+          </div>
+          
+          {/* Search Box */}
+          <div className="relative w-full md:w-80">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ابحث عن نشاط (مثل: سوبرماركت، مطعم، صيدلية، طيور، عطور)..."
+              className="w-full bg-[#0f172a] border border-slate-700 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          {industryPacks.map(pack => {
-            const IconComponent = pack.icon;
-            const isSelected = selectedIndustry === pack.id;
+
+        {/* Category Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border",
+                selectedCategory === cat.id
+                  ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/30"
+                  : "bg-[#0f172a] text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+              )}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Modules Grid - Show ALL 34+ Modules */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[380px] overflow-y-auto pr-1">
+          {filteredModules.map(mod => {
+            const isSelected = selectedModuleId === mod.id;
             return (
-              <button
-                key={pack.id}
-                onClick={() => setSelectedIndustry(pack.id)}
+              <div
+                key={mod.id}
+                onClick={() => setSelectedModuleId(mod.id)}
                 className={cn(
-                  "p-3 rounded-xl border text-right transition-all flex flex-col gap-2",
-                  isSelected ? "bg-blue-600/20 text-blue-400 border-blue-500/60 shadow-lg shadow-blue-600/10" : "bg-[#0f172a] text-slate-300 border-slate-800 hover:border-slate-700"
+                  "p-3.5 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-2 relative group overflow-hidden",
+                  isSelected
+                    ? "bg-blue-600/15 border-blue-500 shadow-lg shadow-blue-900/20 ring-1 ring-blue-500/50"
+                    : "bg-[#0f172a] border-slate-800 hover:border-slate-700 hover:bg-slate-800/60"
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <IconComponent size={18} className={isSelected ? "text-blue-400" : "text-slate-400"} />
-                  {isSelected && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
+                      isSelected ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 group-hover:text-white"
+                    )}>
+                      {getModuleIcon(mod.iconName)}
+                    </div>
+                    {isSelected ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                        النشاط المحدد
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-mono">{mod.code}</span>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-xs text-white mb-1 line-clamp-1">{mod.nameAr}</h4>
+                  <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{mod.descriptionAr}</p>
                 </div>
-                <span className="font-bold text-xs truncate">{pack.name}</span>
-              </button>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[10px]">
+                  <span className="text-slate-500">{mod.customProductFields?.length || 0} حقول مخصصة</span>
+                  <span className="text-blue-400 font-bold hover:underline flex items-center gap-1">
+                    <span>عرض التفاصيل</span>
+                    <span>←</span>
+                  </span>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -250,27 +386,95 @@ export const AdaptiveERPHub: React.FC = () => {
         )}
 
         {activeLayer === 'industry' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <Layers className="text-amber-400" size={20} />
-                <span>حزمة النشاط الحالي: <span className="text-blue-400">{currentPack.name}</span></span>
-              </h3>
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-xl text-xs font-bold">
-                تكييف تلقائي للشاشات والحقول
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              الميزات المتخصصة المفعلة خصيصاً لهذا النشاط دون الحاجة لبرمجة إضافية:
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-              {currentPack.features.map((feat, idx) => (
-                <div key={idx} className="bg-[#0f172a] p-3 rounded-xl border border-slate-800 flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  <span className="text-xs font-bold text-white">{feat}</span>
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#0f172a] p-5 rounded-2xl border border-slate-800">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                  {getModuleIcon(currentModule.iconName)}
                 </div>
-              ))}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-white text-base">{currentModule.nameAr}</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-400 text-[10px] font-mono border border-purple-500/30">
+                      {currentModule.code}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">{currentModule.descriptionAr}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate(currentModule.routePath)}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/30 flex items-center gap-2 shrink-0"
+              >
+                <span>فتح شاشة الموديول المخصصة</span>
+                <ArrowLeft size={16} />
+              </button>
             </div>
+
+            {/* Specialized Features */}
+            <div>
+              <h4 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <Zap size={15} className="text-amber-400" />
+                <span>الميزات والوظائف المتخصصة المفعلة لهذا النشاط:</span>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {currentModule.specializedFeatures?.map((feat) => (
+                  <div key={feat.id} className="bg-[#0f172a] p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                      <span className="text-xs font-bold text-white">{feat.nameAr}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 pr-6 leading-relaxed">{feat.descriptionAr}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Product Fields */}
+            {currentModule.customProductFields && currentModule.customProductFields.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+                  <Sliders size={15} className="text-blue-400" />
+                  <span>الحقول المخصصة المضافة تلقائياً لبطاقة الصنف (Custom Product Attributes):</span>
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {currentModule.customProductFields.map((field) => (
+                    <div key={field.id} className="bg-[#0f172a] p-3 rounded-xl border border-slate-800 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white">{field.nameAr}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">{field.type}</span>
+                      </div>
+                      {field.options && (
+                        <p className="text-[10px] text-slate-400 line-clamp-2">
+                          خيارات: {field.options.slice(0, 3).join(' ، ')}...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Specialized Reports */}
+            {currentModule.specializedReports && currentModule.specializedReports.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+                  <FileText size={15} className="text-purple-400" />
+                  <span>التقارير التحليلية والذكاء الاصطناعي المدمج لهذا النشاط:</span>
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {currentModule.specializedReports.map((report) => (
+                    <div key={report.id} className="bg-[#0f172a] p-3 rounded-xl border border-slate-800 flex items-start gap-3">
+                      <FileText size={18} className="text-purple-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="font-bold text-xs text-white mb-0.5">{report.nameAr}</h5>
+                        <p className="text-[11px] text-slate-400">{report.descriptionAr}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
