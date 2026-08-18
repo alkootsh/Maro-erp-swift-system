@@ -47,6 +47,7 @@ import { MaroSyncEngine, SyncStatusEvent } from '../lib/maroSyncEngine';
 import { toast } from 'react-hot-toast';
 import { ProductRepository } from '../repositories/productRepository';
 import { DataSeeder } from '../components/settings/DataSeeder';
+import { BackupManagerPanel } from '../components/settings/BackupManagerPanel';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
@@ -774,86 +775,45 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 5: DATABASE BACKUP & EXCEL EXCHANGE */}
+        {/* TAB 5: DATABASE BACKUP, RESET, SCHEDULE & EXCEL EXCHANGE */}
         {activeTab === 'database' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 text-right" dir="rtl">
-            <div className="border-b border-slate-800 pb-4">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <Database className="text-blue-500" /> إدارة النسخ الاحتياطي وتبادل البيانات (Data Exchange & Backup)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">تصدير واستيراد البيانات بصيغة إكسيل ومزامنة النسخ الاحتياطية للمحافظة على أمان وسرية معلوماتك.</p>
-            </div>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 text-right" dir="rtl">
+            {/* Enterprise Backup & Data Hygiene Panel */}
+            <BackupManagerPanel />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Backups Card */}
-              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-4">
-                <div className="flex items-center gap-2 text-white font-bold border-b border-slate-800 pb-3">
-                  <Database className="text-indigo-400 w-5 h-5" />
-                  <span>النسخ الاحتياطي الكلي للنظام (Database JSON Backup)</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  يقوم النظام بحفظ نسخة رقمية مشفرة بالكامل تحتوي على كافة المنتجات، الفواتير، الحسابات، الإعدادات، والعملاء المسجلين حالياً.
-                </p>
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <button
-                    onClick={handleDownloadBackup}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-indigo-600/20"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>تحميل النسخة الاحتياطية (.json)</span>
-                  </button>
-
-                  <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-xs py-2.5 px-4 rounded-xl transition border border-slate-700">
-                    <Upload className="w-4 h-4" />
-                    <span>استعادة قاعدة بيانات</span>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleRestoreBackup}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>تنبيه هام: عملية الاستعادة ستقوم بمسح وإحلال كافة البيانات الحالية ولا يمكن التراجع عنها.</span>
-                </div>
+            {/* Excel Exchange Section */}
+            <div className="bg-[#0f172a] rounded-3xl border border-slate-800 p-6 space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 text-white font-bold border-b border-slate-800 pb-3">
+                <FileSpreadsheet className="text-emerald-400 w-5 h-5" />
+                <span className="text-base font-black">تبادل بيانات الأصناف وشيتات المخازن (Excel Data Exchange)</span>
               </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                قم بتصدير شيت الأصناف والباركود الحالية للعمل عليها وتحديثها، أو قم باستيراد كشوفات الأصناف والمخازن دفعة واحدة لتوفير الوقت والجهد.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  onClick={handleExportProducts}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>تصدير قائمة المنتجات (.xlsx)</span>
+                </button>
 
-              {/* Excel Exchange Card */}
-              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-4">
-                <div className="flex items-center gap-2 text-white font-bold border-b border-slate-800 pb-3">
-                  <FileSpreadsheet className="text-emerald-400 w-5 h-5" />
-                  <span>تبادل بيانات الأصناف (Excel Data Exchange)</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  قم بتصدير شيت الأصناف والباركود الحالية للعمل عليها وتحديثها، أو قم باستيراد كشوفات الأصناف والمخازن دفعة واحدة لتوفير الوقت والجهد.
-                </p>
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <button
-                    onClick={handleExportProducts}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-lg shadow-emerald-600/20"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>تصدير قائمة المنتجات (.xlsx)</span>
-                  </button>
-
-                  <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-xs py-2.5 px-4 rounded-xl transition border border-slate-700">
-                    <Upload className="w-4 h-4" />
-                    <span>استيراد وتحديث من Excel</span>
-                    <input
-                      type="file"
-                      accept=".xlsx, .xls"
-                      ref={fileInputRef}
-                      onChange={handleExcelImportSelect}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>يدعم النظام مطابقة الكود الفريد (SKU) تلقائياً لتحديث الأسعار والكميات القائمة في النظام دون تكرار.</span>
-                </div>
+                <label className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-xs py-2.5 px-4 rounded-xl transition border border-slate-700">
+                  <Upload className="w-4 h-4" />
+                  <span>استيراد وتحديث من Excel</span>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    ref={fileInputRef}
+                    onChange={handleExcelImportSelect}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>يدعم النظام مطابقة الكود الفريد (SKU) تلقائياً لتحديث الأسعار والكميات القائمة في النظام دون تكرار.</span>
               </div>
             </div>
 

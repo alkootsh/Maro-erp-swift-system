@@ -78,6 +78,8 @@ import { FunctionKeyBar } from '../components/common/FunctionKeyBar';
 import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
 import { POSStockInquiryModal } from '../components/POSStockInquiryModal';
 import { TrialLimitService } from '../services/trialLimitService';
+import { ScaleCalculatorModal } from '../components/pos/ScaleCalculatorModal';
+import { POSCustomGroupsManager, POSCustomGroup, POSCustomGroupService } from '../components/pos/POSCustomGroupsManager';
 
 const CATEGORIES = ['الكل', 'مواد غذائية', 'مشروبات', 'خضروات وفواكه', 'لحوم ودواجن', 'ألبان وأجبان', 'عناية شخصية', 'مواد تنظيف'];
 
@@ -180,6 +182,21 @@ export const POS: React.FC = () => {
   const [isXReportModalOpen, setIsXReportModalOpen] = useState(false);
   const [isStockInquiryOpen, setIsStockInquiryOpen] = useState(false);
   const [isUSBManagerOpen, setIsUSBManagerOpen] = useState(false);
+
+  // Scale Modal & Custom POS Groups State
+  const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
+  const [scaleModalProduct, setScaleModalProduct] = useState<ProductMaster | null>(null);
+  const [isGroupsManagerOpen, setIsGroupsManagerOpen] = useState(false);
+  const [customGroups, setCustomGroups] = useState<POSCustomGroup[]>(() => POSCustomGroupService.getGroups());
+  const [selectedCustomGroupId, setSelectedCustomGroupId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGroupsUpdate = (e: any) => {
+      if (e.detail) setCustomGroups(e.detail);
+    };
+    window.addEventListener('maro:pos-custom-groups-updated', handleGroupsUpdate);
+    return () => window.removeEventListener('maro:pos-custom-groups-updated', handleGroupsUpdate);
+  }, []);
 
   // Function keys bar visibility state (toggleable, active in background)
   const [showFunctionKeysBar, setShowFunctionKeysBar] = useState<boolean>(() => localStorage.getItem('pos_show_fkeys') !== 'false');
@@ -341,6 +358,15 @@ export const POS: React.FC = () => {
         return;
       }
 
+      // Spacebar listener for Scale Calculator Modal (زر المسطرة)
+      if ((e.code === 'Space' || e.key === ' ') && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const targetProd = selectedCartIndex !== null && cart[selectedCartIndex] ? cart[selectedCartIndex].product : null;
+        setScaleModalProduct(targetProd);
+        setIsScaleModalOpen(true);
+        return;
+      }
+
       // Scanner buffer listener
       if (e.key === 'Enter') {
         if (barcodeBuffer.length >= 3) {
@@ -359,6 +385,20 @@ export const POS: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleScaleModalConfirm = (prod: ProductMaster, weightKg: number, totalAmount: number) => {
+    setCart(prev => {
+      const existingIdx = prev.findIndex(item => item.product.id === prod.id);
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx].quantity = weightKg;
+        updated[existingIdx].unitPrice = prod.price;
+        return updated;
+      }
+      return [...prev, { product: prod, quantity: weightKg, unitPrice: prod.price, discount: 0 }];
+    });
+    showToast(`تمت إضافة صنف الميزان [${prod.name}] بوزن (${weightKg.toFixed(3)} كجم) وقيمة (${formatCurrency(totalAmount)}) بنجاح`);
   };
 
   // Execute POS Action by ID
@@ -713,7 +753,16 @@ export const POS: React.FC = () => {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesCat = selectedCategory === 'الكل' || p.category === selectedCategory;
+    let matchesCat = true;
+    if (selectedCustomGroupId) {
+      const grp = customGroups.find(g => g.id === selectedCustomGroupId);
+      if (grp) {
+        matchesCat = grp.productIds.includes(p.id) || (grp.id === 'grp_no_barcode' && (!p.barcode || p.isWeighted)) || (grp.id === 'grp_scale_items' && (p.isWeighted || p.unit === 'كجم'));
+      }
+    } else {
+      matchesCat = selectedCategory === 'الكل' || p.category === selectedCategory;
+    }
+
     const searchLower = searchQuery.toLowerCase();
     
     let matchesSearch = p.name.toLowerCase().includes(searchLower) || 
@@ -1398,15 +1447,32 @@ export const POS: React.FC = () => {
                 </button>
               </div>
 
-              {/* Categories */}
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {/* Categories & Custom User Groups */}
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
+                <button
+                  onClick={() => {
+                    setScaleModalProduct(null);
+                    setIsScaleModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 text-amber-300 rounded-lg text-[11px] font-bold flex items-center gap-1.5 shrink-0 shadow-sm"
+                  title="ضغط المسطرة Space لتفعيل حاسبة الميزان"
+                >
+                  <Scale size={13} />
+                  <span>المسطرة (Space) ⚖️</span>
+                </button>
+
+                <div className="h-4 w-px bg-slate-700/60 shrink-0 mx-0.5" />
+
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setSelectedCategory(cat)}
+                    onClick={() => {
+                      setSelectedCustomGroupId(null);
+                      setSelectedCategory(cat);
+                    }}
                     className={cn(
-                      "px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border",
-                      selectedCategory === cat 
+                      "px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border shrink-0",
+                      selectedCategory === cat && !selectedCustomGroupId
                         ? "bg-emerald-600 text-white border-emerald-500 shadow-md" 
                         : "bg-[#151b2b] text-slate-400 border-[#1e293b] hover:bg-slate-800"
                     )}
@@ -1414,25 +1480,76 @@ export const POS: React.FC = () => {
                     {cat}
                   </button>
                 ))}
+
+                <div className="h-4 w-px bg-slate-700/60 shrink-0 mx-0.5" />
+
+                {/* Custom User-Defined Groups */}
+                {customGroups.map((grp) => {
+                  const isSelected = selectedCustomGroupId === grp.id;
+                  return (
+                    <button
+                      key={grp.id}
+                      onClick={() => {
+                        setSelectedCustomGroupId(grp.id);
+                      }}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border shrink-0 flex items-center gap-1.5",
+                        isSelected
+                          ? "bg-purple-600 text-white border-purple-400 shadow-md"
+                          : "bg-purple-950/40 text-purple-300 border-purple-500/30 hover:bg-purple-900/40"
+                      )}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${grp.badgeColor}`} />
+                      <span>{grp.name}</span>
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => setIsGroupsManagerOpen(true)}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0"
+                  title="تخصيص المجموعات والتصنيفات"
+                >
+                  <Sliders size={13} className="text-purple-400" />
+                  <span>تخصيص ⚙️</span>
+                </button>
               </div>
 
               {/* Products Items */}
               <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                {filteredProducts.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addToCart(p)}
-                    className="bg-[#151b2b] border border-[#1e293b] rounded-xl p-3 text-right hover:border-emerald-500 transition-all active:scale-95 flex flex-col justify-between"
-                  >
-                    <div>
-                      <h4 className="font-bold text-white text-xs line-clamp-2 leading-snug">{p.name}</h4>
-                      <p className="text-[9px] text-slate-500 mt-0.5 font-mono">مخزون: {p.quantity}</p>
+                {filteredProducts.map((p) => {
+                  const isScaleItem = p.isWeighted || !p.barcode || p.unit === 'كجم';
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => addToCart(p)}
+                      className="bg-[#151b2b] border border-[#1e293b] rounded-xl p-3 text-right hover:border-emerald-500 transition-all active:scale-95 flex flex-col justify-between cursor-pointer group relative"
+                    >
+                      <div>
+                        <div className="flex justify-between items-start gap-1">
+                          <h4 className="font-bold text-white text-xs line-clamp-2 leading-snug">{p.name}</h4>
+                          {isScaleItem && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setScaleModalProduct(p);
+                                setIsScaleModalOpen(true);
+                              }}
+                              className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[9px] font-bold hover:bg-amber-500/30 shrink-0"
+                              title="احتساب وزن وقيمة الصنف بواسطة المسطرة"
+                            >
+                              ⚖️ وزن
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-slate-500 mt-0.5 font-mono">مخزون: {p.quantity}</p>
+                      </div>
+                      <span className="text-emerald-400 font-black text-sm block mt-2 border-t border-[#1e293b]/50 pt-1 font-mono">
+                        {formatCurrency(p.price)}
+                      </span>
                     </div>
-                    <span className="text-emerald-400 font-black text-sm block mt-2 border-t border-[#1e293b]/50 pt-1 font-mono">
-                      {formatCurrency(p.price)}
-                    </span>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -1464,15 +1581,32 @@ export const POS: React.FC = () => {
                 </button>
               </div>
 
-              {/* Categories */}
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              {/* Categories & Custom User Groups */}
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 items-center">
+                <button
+                  onClick={() => {
+                    setScaleModalProduct(null);
+                    setIsScaleModalOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-sm"
+                  title="ضغط المسطرة Space لتفعيل حاسبة الميزان"
+                >
+                  <Scale size={14} />
+                  <span>المسطرة (Space) ⚖️</span>
+                </button>
+
+                <div className="h-5 w-px bg-slate-700/60 shrink-0 mx-0.5" />
+
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => setSelectedCategory(cat)}
+                    onClick={() => {
+                      setSelectedCustomGroupId(null);
+                      setSelectedCategory(cat);
+                    }}
                     className={cn(
-                      "px-4 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border",
-                      selectedCategory === cat 
+                      "px-4 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0",
+                      selectedCategory === cat && !selectedCustomGroupId
                         ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-600/20" 
                         : "bg-[#151b2b] text-slate-400 border-[#1e293b] hover:bg-slate-800"
                     )}
@@ -1480,25 +1614,76 @@ export const POS: React.FC = () => {
                     {cat}
                   </button>
                 ))}
+
+                <div className="h-5 w-px bg-slate-700/60 shrink-0 mx-0.5" />
+
+                {/* Custom User-Defined Groups */}
+                {customGroups.map((grp) => {
+                  const isSelected = selectedCustomGroupId === grp.id;
+                  return (
+                    <button
+                      key={grp.id}
+                      onClick={() => {
+                        setSelectedCustomGroupId(grp.id);
+                      }}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 flex items-center gap-1.5",
+                        isSelected
+                          ? "bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30"
+                          : "bg-purple-950/40 text-purple-300 border-purple-500/30 hover:bg-purple-900/40"
+                      )}
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full ${grp.badgeColor}`} />
+                      <span>{grp.name}</span>
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => setIsGroupsManagerOpen(true)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0"
+                  title="تخصيص المجموعات والتصنيفات المخصصة"
+                >
+                  <Sliders size={14} className="text-purple-400" />
+                  <span>تخصيص ⚙️</span>
+                </button>
               </div>
 
               {/* Product Items */}
               <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {filteredProducts.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addToCart(p)}
-                    className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-3 flex flex-col justify-between text-right hover:border-blue-500 transition-all active:scale-95 group"
-                  >
-                    <div>
-                      <div className="font-bold text-white text-sm group-hover:text-blue-400 transition-colors line-clamp-2">{p.name}</div>
-                      <div className="text-[10px] text-slate-500 font-mono mt-1">SKU: {p.sku} | مخزون: {p.quantity}</div>
+                {filteredProducts.map((p) => {
+                  const isScaleItem = p.isWeighted || !p.barcode || p.unit === 'كجم';
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => addToCart(p)}
+                      className="bg-[#151b2b] border border-[#1e293b] rounded-2xl p-3 flex flex-col justify-between text-right hover:border-blue-500 transition-all active:scale-95 group cursor-pointer relative"
+                    >
+                      <div>
+                        <div className="flex justify-between items-start gap-1">
+                          <div className="font-bold text-white text-sm group-hover:text-blue-400 transition-colors line-clamp-2">{p.name}</div>
+                          {isScaleItem && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setScaleModalProduct(p);
+                                setIsScaleModalOpen(true);
+                              }}
+                              className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[9px] font-bold hover:bg-amber-500/30 shrink-0"
+                              title="احتساب وزن وقيمة الصنف بواسطة المسطرة"
+                            >
+                              ⚖️ وزن
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono mt-1">SKU: {p.sku} | مخزون: {p.quantity}</div>
+                      </div>
+                      <div className="mt-3 font-mono font-black text-blue-400 text-base border-t border-[#1e293b] pt-2">
+                        {formatCurrency(p.price)}
+                      </div>
                     </div>
-                    <div className="mt-3 font-mono font-black text-blue-400 text-base border-t border-[#1e293b] pt-2">
-                      {formatCurrency(p.price)}
-                    </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -2154,6 +2339,23 @@ export const POS: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Scale Calculator Modal (زر المسطرة) */}
+      <ScaleCalculatorModal
+        isOpen={isScaleModalOpen}
+        onClose={() => setIsScaleModalOpen(false)}
+        products={products}
+        initialProduct={scaleModalProduct}
+        onConfirm={handleScaleModalConfirm}
+      />
+
+      {/* POS Custom Groups & Categories Manager */}
+      <POSCustomGroupsManager
+        isOpen={isGroupsManagerOpen}
+        onClose={() => setIsGroupsManagerOpen(false)}
+        products={products}
+        onGroupsChanged={(updatedGroups) => setCustomGroups(updatedGroups)}
+      />
 
       {/* Global POS Function Keys & Smart Keyboard Toolbar Bar */}
       <FunctionKeyBar 

@@ -27,9 +27,12 @@ import {
   RefreshCw,
   Sliders,
   Check,
-  ShoppingBag
+  ShoppingBag,
+  Scale
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
+import { ScaleCalculatorModal } from '../components/pos/ScaleCalculatorModal';
+import { POSCustomGroupsManager, POSCustomGroup, POSCustomGroupService } from '../components/pos/POSCustomGroupsManager';
 
 interface Product {
   id: string;
@@ -91,6 +94,25 @@ export const SmartCashier: React.FC = () => {
   const [scannerFps, setScannerFps] = useState(10);
   const [scannerQrBox, setScannerQrBox] = useState(250);
   const [simulatedBarcode, setSimulatedBarcode] = useState('');
+
+  // Scale Modal & Custom Groups State
+  const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
+  const [scaleProduct, setScaleProduct] = useState<any>(null);
+  const [isCustomGroupsOpen, setIsCustomGroupsOpen] = useState(false);
+  const [customGroups, setCustomGroups] = useState<POSCustomGroup[]>(() => POSCustomGroupService.getGroups());
+  const [selectedCustomGroupId, setSelectedCustomGroupId] = useState<string | null>(null);
+
+  // Spacebar (زر المسطرة) listener for Scale items calculation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.code === 'Space' || e.key === ' ') && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        setIsScaleModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Save/Load Cart & Inventory to localStorage
   useEffect(() => {
@@ -280,24 +302,71 @@ export const SmartCashier: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Products Catalog */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="bg-[#151b2b] p-4 rounded-2xl border border-slate-800 flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute right-3.5 top-3 text-slate-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="ابحث عن اسم المنتج، SKU، أو الباركود..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-xl pr-10 pl-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
+            <div className="bg-[#151b2b] p-4 rounded-2xl border border-slate-800 flex flex-col space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute right-3.5 top-3 text-slate-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="ابحث عن اسم المنتج، SKU، أو الباركود..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#0f172a] border border-slate-700 rounded-xl pr-10 pl-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setIsScaleModalOpen(true)}
+                  className="flex items-center gap-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 px-3 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shadow-sm"
+                  title="تفعيل زر المسطرة Space للبيع بالوزن والقيمة"
+                >
+                  <Scale size={16} />
+                  <span>المسطرة (Space) ⚖️</span>
+                </button>
+                <button
+                  onClick={() => setIsScannerOpen(true)}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/25 whitespace-nowrap"
+                >
+                  <Camera size={16} />
+                  <span>ماسح الكاميرا</span>
+                </button>
               </div>
-              <button
-                onClick={() => setIsScannerOpen(true)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/25 whitespace-nowrap"
-              >
-                <Camera size={16} />
-                <span>ماسح الكاميرا</span>
-              </button>
+
+              {/* Quick Categories Bar */}
+              <div className="flex gap-2 overflow-x-auto no-scrollbar items-center pt-1 border-t border-slate-800/80">
+                <button
+                  onClick={() => setSelectedCustomGroupId(null)}
+                  className={cn(
+                    "px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0",
+                    !selectedCustomGroupId ? "bg-blue-600 text-white border-blue-500" : "bg-[#0f172a] text-slate-400 border-slate-800 hover:bg-slate-800"
+                  )}
+                >
+                  الكل
+                </button>
+
+                {customGroups.map(grp => (
+                  <button
+                    key={grp.id}
+                    onClick={() => setSelectedCustomGroupId(grp.id)}
+                    className={cn(
+                      "px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 flex items-center gap-1.5",
+                      selectedCustomGroupId === grp.id
+                        ? "bg-purple-600 text-white border-purple-400"
+                        : "bg-purple-950/30 text-purple-300 border-purple-500/30 hover:bg-purple-900/40"
+                    )}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${grp.badgeColor}`} />
+                    <span>{grp.name}</span>
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setIsCustomGroupsOpen(true)}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0"
+                >
+                  <Sliders size={13} className="text-purple-400" />
+                  <span>تخصيص المجموعات ⚙️</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -730,6 +799,63 @@ export const SmartCashier: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Scale Calculator Modal (زر المسطرة) */}
+      <ScaleCalculatorModal
+        isOpen={isScaleModalOpen}
+        onClose={() => setIsScaleModalOpen(false)}
+        products={products.map(p => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          price: p.price,
+          costPrice: p.cost,
+          quantity: p.stock,
+          category: p.category,
+          unit: 'كجم',
+          isWeighted: true
+        }))}
+        initialProduct={scaleProduct}
+        onConfirm={(prod, weightKg, totalAmount) => {
+          const cartItem: CartItem = {
+            id: prod.id,
+            name: prod.name,
+            sku: prod.sku,
+            barcode: prod.barcode || '',
+            price: prod.price,
+            cost: prod.costPrice || 0,
+            stock: prod.quantity,
+            category: prod.category || 'ميزان',
+            quantity: weightKg
+          };
+          setCart(prev => {
+            const existing = prev.find(i => i.id === prod.id);
+            if (existing) {
+              return prev.map(i => i.id === prod.id ? { ...i, quantity: weightKg } : i);
+            }
+            return [...prev, cartItem];
+          });
+        }}
+      />
+
+      {/* POS Custom Groups Manager */}
+      <POSCustomGroupsManager
+        isOpen={isCustomGroupsOpen}
+        onClose={() => setIsCustomGroupsOpen(false)}
+        products={products.map(p => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          price: p.price,
+          costPrice: p.cost,
+          quantity: p.stock,
+          category: p.category,
+          unit: 'قطعة'
+        }))}
+        onGroupsChanged={(updated) => setCustomGroups(updated)}
+      />
     </div>
   );
 };

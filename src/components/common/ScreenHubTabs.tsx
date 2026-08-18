@@ -14,7 +14,7 @@ import {
   Briefcase, Globe, UserPlus, Factory, Bot, Activity, ScanLine, Sparkles, Headphones
 } from 'lucide-react';
 
-export type HubCategory = 'sales' | 'inventory' | 'purchases' | 'accounting' | 'crm' | 'settings' | 'ai';
+export type HubCategory = 'sales' | 'inventory' | 'purchases' | 'accounting' | 'crm' | 'settings' | 'ai' | 'support';
 
 interface HubTabItem {
   name: string;
@@ -104,6 +104,14 @@ const HUB_DEFINITIONS: Record<HubCategory, { title: string; subtitle: string; ta
       { name: 'محرك سير العمل الذكي', path: '/workflow-engine', icon: Activity },
       { name: 'مسح وإدارة الوثائق والـ OCR', path: '/documents-ocr', icon: ScanLine },
       { name: 'المديولات المساعدة الذكية', path: '/assistant-modules', icon: Sparkles }
+    ]
+  },
+  support: {
+    title: 'منظومة الدعم الفني والذكاء التشخيصي (Smart Support & Intelligence)',
+    subtitle: 'المساعد الذكي، تشخيص الأخطاء، إدارة التذاكر، قاعدة المعرفة، وتحليلات الدعم',
+    tabs: [
+      { name: 'مركز الدعم الفني والتأهيل', path: '/support', icon: Headphones },
+      { name: 'لوحة تحليلات الدعم (Support Intelligence)', path: '/support-intelligence', icon: BarChart3 }
     ]
   }
 };

@@ -73,6 +73,7 @@ import { POSModelsComparisonPage } from './pages/POSModelsComparisonPage';
 import { WholesaleInvoicesPage } from './pages/WholesaleInvoicesPage';
 import { DeveloperPartnerHub } from './pages/DeveloperPartnerHub';
 import { SupportCenter } from './pages/SupportCenter';
+import { SupportIntelligenceDashboard } from './pages/SupportIntelligenceDashboard';
 import { TeamWorkflowHub } from './pages/TeamWorkflowHub';
 import { SmartTransportShippingPage } from './pages/industries/SmartTransportShippingPage';
 import { CeramicsSanitaryPage } from './pages/industries/CeramicsSanitaryPage';
@@ -254,7 +255,9 @@ function AppContent() {
               <Route path="/settings/android-activation" element={<AndroidActivationSimulator />} />
               <Route path="/developer/console" element={<DeveloperConsole />} />
               <Route path="/developer/hub" element={<DeveloperPartnerHub />} />
+              <Route path="/support" element={<SupportCenter />} />
               <Route path="/support/center" element={<SupportCenter />} />
+              <Route path="/support-intelligence" element={<SupportIntelligenceDashboard />} />
               <Route path="/team/workflow" element={<TeamWorkflowHub />} />
             </Route>
           </Route>

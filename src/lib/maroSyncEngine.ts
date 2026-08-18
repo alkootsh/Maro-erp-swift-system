@@ -4,6 +4,8 @@
  * @description محرك التزامن (Synchronization Engine) لـ MARO ERP. مسؤول عن دعم خاصية العمل بدون إنترنت (Offline-First) والمزامنة مع قاعدة بيانات PostgreSQL.
  */
 
+import { SmartSupportRepository } from '../repositories/smartSupportRepository';
+
 export type SyncStatusState = 'IDLE' | 'SYNCING' | 'OFFLINE' | 'ERROR' | 'COMPLETED';
 
 export interface SyncOperation {
@@ -73,6 +75,8 @@ export class MaroSyncEngine {
         if (this.cloudSyncEnabled) {
           this.processSyncQueue();
         }
+        // Sync offline support tickets using Idempotency key
+        SmartSupportRepository.syncOfflineQueue().catch(e => console.warn('Support queue sync error:', e));
       });
       window.addEventListener('offline', () => {
         this.isOnline = false;
