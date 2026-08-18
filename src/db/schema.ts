@@ -358,3 +358,133 @@ export const auditLogs = pgTable('audit_logs', {
   tenantActionIdx: index('audit_logs_tenant_action_idx').on(table.tenantId, table.action),
   createdAtIdx: index('audit_logs_created_at_idx').on(table.createdAt),
 }));
+
+// ==========================================
+// CORE 7: MARO SMART SUPPORT & INTELLIGENCE
+// ==========================================
+
+export const supportSessions = pgTable('support_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  branchId: uuid('branch_id').references(() => branches.id),
+  userId: uuid('user_id').references(() => users.id),
+  userName: varchar('user_name', { length: 255 }).notNull(),
+  deviceId: varchar('device_id', { length: 255 }).notNull(),
+  screen: varchar('screen', { length: 100 }),
+  module: varchar('module', { length: 50 }).notNull(),
+  userQuery: text('user_query').notNull(),
+  diagnosis: jsonb('diagnosis').notNull(),
+  actionsTaken: jsonb('actions_taken').default([]),
+  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(), // ACTIVE, RESOLVED_BY_AI, ESCALATED, ABANDONED
+  currentStepIndex: integer('current_step_index').default(0).notNull(),
+  resolvedArticleId: varchar('resolved_article_id', { length: 255 }),
+  feedbackRating: integer('feedback_rating'),
+  feedbackComment: text('feedback_comment'),
+  ticketId: varchar('ticket_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('support_sessions_tenant_idx').on(table.tenantId),
+  moduleIdx: index('support_sessions_module_idx').on(table.module),
+  statusIdx: index('support_sessions_status_idx').on(table.status),
+}));
+
+export const supportTickets = pgTable('support_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ticketNumber: varchar('ticket_number', { length: 50 }).notNull().unique(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  companyName: varchar('company_name', { length: 255 }).notNull(),
+  branchId: uuid('branch_id').references(() => branches.id),
+  branchName: varchar('branch_name', { length: 255 }),
+  userId: uuid('user_id').references(() => users.id),
+  userName: varchar('user_name', { length: 255 }).notNull(),
+  userEmail: varchar('user_email', { length: 255 }),
+  deviceId: varchar('device_id', { length: 255 }).notNull(),
+  module: varchar('module', { length: 50 }).notNull(),
+  screen: varchar('screen', { length: 100 }),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  severity: varchar('severity', { length: 20 }).default('MEDIUM').notNull(),
+  status: varchar('status', { length: 50 }).default('OPEN').notNull(),
+  assignedTo: varchar('assigned_to', { length: 255 }),
+  assignedAgentName: varchar('assigned_agent_name', { length: 255 }),
+  aiSessionId: varchar('ai_session_id', { length: 255 }),
+  aiSummary: text('ai_summary'),
+  detectedSymptoms: jsonb('detected_symptoms').default([]),
+  actionsAttempted: jsonb('actions_attempted').default([]),
+  diagnosticEvidence: jsonb('diagnostic_evidence').default({}),
+  recommendedNextAction: text('recommended_next_action'),
+  knowledgeArticlesUsed: jsonb('knowledge_articles_used').default([]),
+  clientContext: jsonb('client_context').default({}),
+  resolution: text('resolution'),
+  resolvedAt: timestamp('resolved_at'),
+  resolutionTimeMinutes: integer('resolution_time_minutes'),
+  knowledgeCandidate: boolean('knowledge_candidate').default(false),
+  knowledgeStatus: varchar('knowledge_status', { length: 50 }).default('NONE'),
+  idempotencyKey: varchar('idempotency_key', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('support_tickets_tenant_idx').on(table.tenantId),
+  ticketNumberIdx: index('support_tickets_number_idx').on(table.ticketNumber),
+  statusIdx: index('support_tickets_status_idx').on(table.status),
+  moduleIdx: index('support_tickets_module_idx').on(table.module),
+}));
+
+export const supportTicketEvents = pgTable('support_ticket_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ticketId: uuid('ticket_id').references(() => supportTickets.id, { onDelete: 'cascade' }).notNull(),
+  senderType: varchar('sender_type', { length: 50 }).notNull(), // USER, AI_ASSISTANT, SUPPORT_AGENT, SYSTEM
+  senderName: varchar('sender_name', { length: 255 }).notNull(),
+  message: text('message').notNull(),
+  attachments: jsonb('attachments').default([]),
+  isInternalNote: boolean('is_internal_note').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  ticketIdx: index('support_ticket_events_ticket_idx').on(table.ticketId),
+}));
+
+export const supportKnowledgeArticles = pgTable('support_knowledge_articles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: varchar('tenant_id', { length: 255 }).default('global').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  titleArabic: varchar('title_arabic', { length: 255 }).notNull(),
+  module: varchar('module', { length: 50 }).notNull(),
+  category: varchar('category', { length: 100 }),
+  symptoms: jsonb('symptoms').default([]),
+  possibleCauses: jsonb('possible_causes').default([]),
+  diagnosticSteps: jsonb('diagnostic_steps').default([]),
+  solution: text('solution').notNull(),
+  solutionArabic: text('solution_arabic').notNull(),
+  alternativeSolutions: jsonb('alternative_solutions').default([]),
+  requiredPermissions: jsonb('required_permissions').default([]),
+  affectedVersions: jsonb('affected_versions').default([]),
+  severity: varchar('severity', { length: 20 }).default('MEDIUM'),
+  attemptsCount: integer('attempts_count').default(0).notNull(),
+  solvedCount: integer('solved_count').default(0).notNull(),
+  avgResolutionSeconds: integer('avg_resolution_seconds').default(120),
+  ratingAverage: numeric('rating_average', { precision: 3, scale: 2 }).default('5.00'),
+  status: varchar('status', { length: 50 }).default('APPROVED').notNull(),
+  tags: jsonb('tags').default([]),
+  mediaUrls: jsonb('media_urls').default([]),
+  originTicketId: varchar('origin_ticket_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  moduleIdx: index('support_kb_module_idx').on(table.module),
+  statusIdx: index('support_kb_status_idx').on(table.status),
+}));
+
+export const supportProblemClusters = pgTable('support_problem_clusters', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  module: varchar('module', { length: 50 }).notNull(),
+  clusterKey: varchar('cluster_key', { length: 100 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  nameArabic: varchar('name_arabic', { length: 255 }).notNull(),
+  description: text('description'),
+  ticketCount: integer('ticket_count').default(0).notNull(),
+  activeIssueCount: integer('active_issue_count').default(0).notNull(),
+  commonResolution: text('common_resolution'),
+  subClusters: jsonb('sub_clusters').default([]),
+});
+

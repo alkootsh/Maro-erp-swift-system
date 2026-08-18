@@ -3,7 +3,7 @@
  * @module Server Security & Authentication
  * @description Enterprise Session Management, Multi-Tenant Auth, Token Hashing & Strict PostgreSQL Source of Truth
  */
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { db, isDatabaseConfigured } from '../../db/index';
@@ -245,7 +245,14 @@ export class ServerAuthEngine {
 
     try {
       if (isDatabaseConfigured()) {
-        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail));
+        const dbUsers = await db.select().from(users).where(
+          or(
+            eq(sql`LOWER(${users.email})`, cleanEmail),
+            eq(sql`LOWER(${users.email})`, `${cleanEmail}@maro-erp.local`),
+            eq(sql`LOWER(${users.email})`, `${cleanEmail}@maro.local`),
+            eq(sql`LOWER(${users.name})`, cleanEmail)
+          )
+        );
         if (dbUsers && dbUsers.length > 0) {
           user = dbUsers[0];
           isDbConnectionAvailable = true;
@@ -259,7 +266,25 @@ export class ServerAuthEngine {
 
     // Handle Database Connection Failure / Offline State
     if (!isDbConnectionAvailable) {
-      const offlineCred = offlineCredentialRegistry.get(cleanEmail);
+      let offlineCred = offlineCredentialRegistry.get(cleanEmail) ||
+        offlineCredentialRegistry.get(`${cleanEmail}@maro-erp.local`) ||
+        offlineCredentialRegistry.get(`${cleanEmail}@maro.local`);
+
+      if (!offlineCred) {
+        for (const [, cred] of offlineCredentialRegistry) {
+          const cEmail = cred.email.toLowerCase();
+          const cName = cred.name.toLowerCase();
+          if (
+            cEmail === cleanEmail || 
+            cName === cleanEmail || 
+            cEmail.startsWith(`${cleanEmail}@`) ||
+            cEmail.split('@')[0] === cleanEmail.split('@')[0]
+          ) {
+            offlineCred = cred;
+            break;
+          }
+        }
+      }
 
       if (!offlineCred) {
         // Requirement 1 & 7: No offline credential -> reject with clear 503 error, do NOT increment wrong password counter

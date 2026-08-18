@@ -34,8 +34,10 @@ import { WhatsAppNotificationService } from '../services/whatsappNotificationSer
 import { handleSmartKeyDown, getNumericInputProps, handleInputFocus } from '../lib/smartKeyboardEngine';
 import { exportToExcel } from '../lib/excel';
 import { printSalesInvoice } from '../lib/invoicePrinter';
+import { TrialLimitService } from '../services/trialLimitService';
 import { KeyboardSearchSelect, SearchOption } from '../components/common/KeyboardSearchSelect';
 import { FastKeyboardInvoiceLineEntry, FastInvoiceLinePayload } from '../components/invoices/FastKeyboardInvoiceLineEntry';
+import { ScreenHubTabs } from '../components/common/ScreenHubTabs';
 
 export const Invoices: React.FC = () => {
   const navigate = useNavigate();
@@ -64,6 +66,9 @@ export const Invoices: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Unified Sales & POS Hub Tabs */}
+      <ScreenHubTabs hub="sales" />
+
       {/* Top Header Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
@@ -381,6 +386,12 @@ const CreateInvoiceModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     if (e) e.preventDefault();
     if (items.length === 0) {
       alert('يرجى إضافة منتج واحد على الأقل للفاتورة');
+      return;
+    }
+
+    const trialCheck = TrialLimitService.canCreateInvoice();
+    if (!trialCheck.allowed) {
+      alert(trialCheck.messageAr || 'انتهت حدود الفترة التجريبية. يرجى تفعيل النظام للمتابعة.');
       return;
     }
 

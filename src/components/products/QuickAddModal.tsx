@@ -29,48 +29,54 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose, t
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !code) {
-      toast.error('الاسم والرمز مطلوبان');
+    if (!name) {
+      toast.error('الاسم مطلوب');
       return;
     }
+
+    const finalCode = code.trim() || `${type.toUpperCase().slice(0, 3)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     setLoading(true);
     try {
       if (type === 'category') {
         await ProductRepository.addCategory({
           name,
-          code,
+          code: finalCode,
           parentId: parentId || null,
           status: 'active',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
       } else if (type === 'group') {
-        if (!categoryId) {
-          toast.error('يجب اختيار فئة للمجموعة');
-          setLoading(false);
-          return;
+        let catId = categoryId;
+        let catName = '';
+        if (catId) {
+          const cat = categories.find(c => c.id === catId);
+          catName = cat?.name || '';
+        } else if (categories.length > 0) {
+          catId = categories[0].id;
+          catName = categories[0].name;
         }
-        const cat = categories.find(c => c.id === categoryId);
+
         await ProductRepository.addGroup({
           name,
-          code,
-          categoryId,
-          categoryName: cat?.name || '',
+          code: finalCode,
+          categoryId: catId || 'default-cat',
+          categoryName: catName || 'فئة عامة',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
       } else if (type === 'brand') {
         await ProductRepository.addBrand({
           name,
-          code,
+          code: finalCode,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
       } else if (type === 'manufacturer') {
         await ProductRepository.addManufacturer({
           name,
-          code,
+          code: finalCode,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });

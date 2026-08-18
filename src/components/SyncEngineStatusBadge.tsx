@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { MaroSyncEngine, SyncStatusEvent } from '../lib/maroSyncEngine';
-import { Database, RefreshCw, CheckCircle2, AlertTriangle, WifiOff } from 'lucide-react';
+import { Database, RefreshCw, CheckCircle2, AlertTriangle, WifiOff, CloudOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 
@@ -20,7 +20,13 @@ export const SyncEngineStatusBadge: React.FC = () => {
     return () => unsub();
   }, []);
 
+  const isCloudDisabled = status.cloudSyncEnabled === false;
+
   const triggerManualSync = async () => {
+    if (isCloudDisabled) {
+      toast('المزامنة السحابية معطلة في الإعدادات. النظام يعمل في الوضع المحلي (Offline Mode).', { icon: '🔒' });
+      return;
+    }
     if (isSyncing) return;
     setIsSyncing(true);
     toast('جاري بدء مزامنة محرك MARO اللحظي...', { icon: '🔄' });
@@ -42,17 +48,20 @@ export const SyncEngineStatusBadge: React.FC = () => {
     <button
       type="button"
       onClick={triggerManualSync}
-      title="اضغط لبدء المزامنة اليدوية والتحديث الفوري"
+      title={isCloudDisabled ? "المزامنة السحابية معطلة (يعمل محلياً فقط) - اضغط للإشعار" : "اضغط لبدء المزامنة اليدوية والتحديث الفوري"}
       className={cn(
         "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer transition-all border shadow-sm select-none outline-none",
-        status.state === 'OFFLINE' && "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20",
-        (status.state === 'SYNCING' || isSyncing) && "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
-        status.state === 'ERROR' && "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20",
-        (status.state === 'IDLE' || status.state === 'COMPLETED') && !isSyncing && "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+        isCloudDisabled && "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750",
+        !isCloudDisabled && status.state === 'OFFLINE' && "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20",
+        !isCloudDisabled && (status.state === 'SYNCING' || isSyncing) && "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
+        !isCloudDisabled && status.state === 'ERROR' && "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20",
+        !isCloudDisabled && (status.state === 'IDLE' || status.state === 'COMPLETED') && !isSyncing && "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
       )}
     >
       <div className="flex items-center gap-1.5">
-        {status.state === 'OFFLINE' ? (
+        {isCloudDisabled ? (
+          <CloudOff size={14} className="text-slate-400" />
+        ) : status.state === 'OFFLINE' ? (
           <WifiOff size={14} className="text-amber-400" />
         ) : (status.state === 'SYNCING' || isSyncing) ? (
           <RefreshCw size={14} className="animate-spin text-blue-400" />
@@ -65,8 +74,10 @@ export const SyncEngineStatusBadge: React.FC = () => {
       </div>
 
       <span>
-        {status.state === 'OFFLINE'
-          ? 'وضع غير متصل (Offline Ready)'
+        {isCloudDisabled
+          ? 'محلي فقط (Offline Mode)'
+          : status.state === 'OFFLINE'
+          ? 'غير متصل (Offline Ready)'
           : (status.state === 'SYNCING' || isSyncing)
           ? `جاري المزامنة (${status.pendingCount || 0} معلق)`
           : status.state === 'ERROR'

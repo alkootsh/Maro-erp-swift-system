@@ -43,6 +43,7 @@ import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportToExcel } from '../lib/excel';
+import { PurchaseReorderReportModal } from '../components/Inventory/PurchaseReorderReportModal';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -313,9 +314,15 @@ export const Reports: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {selectedReport && (
+      {selectedReport && selectedReport.id === 'purchase-reorder-report' ? (
+        <PurchaseReorderReportModal 
+          isOpen={true} 
+          onClose={() => setSelectedReport(null)}
+          onOpenProcurement={() => window.location.href = '/procurement-contracts'}
+        />
+      ) : selectedReport ? (
         <ReportGenerator report={selectedReport} onClose={() => setSelectedReport(null)} />
-      )}
+      ) : null}
     </div>
   );
 };
@@ -366,6 +373,7 @@ const ReportLibrary: React.FC<{ onSelectReport: (report: any) => void }> = ({ on
       icon: Package,
       color: 'text-red-500',
       reports: [
+        { id: 'purchase-reorder-report', name: 'تقرير نواقص المشتريات ومقترحات إعادة الطلب', description: 'تقرير شامل يحتوي على (رقم الصنف ID، اسم الصنف، الكمية المتبقية، حد الطلب، والكمية المقترحة للطلب) مع إمكانية التصدير والتحويل الفوري لطلب شراء بقسم المشتريات.' },
         { id: 'inventory-valuation', name: 'تقرير تقييم المخزون', description: 'قيمة البضاعة الحالية بناءً على طرق التقييم المعتمدة.' },
         { id: 'stock-movement', name: 'تقرير حركة الأصناف', description: 'تحديد الأصناف الأكثر مبيعاً والأصناف الراكدة.' },
         { id: 'cost-centers', name: 'تقارير مراكز التكلفة', description: 'توزيع المصاريف على الأقسام أو المشاريع.' },

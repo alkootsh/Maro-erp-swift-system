@@ -10,7 +10,7 @@ import path from 'path';
 import { db, isDatabaseConfigured } from '../../db/index';
 import { licenses } from '../../db/schema';
 import { AuditLogger } from './auditLogger';
-import { Ed25519Engine } from '../../lib/crypto/ed25519Engine';
+import { Ed25519Engine, MARO_DEFAULT_PRIVATE_KEY_PEM } from '../../lib/crypto/ed25519Engine';
 import { DeviceEngine } from '../../lib/crypto/deviceEngine';
 import { 
   SignedLicensePayload, 
@@ -103,7 +103,58 @@ export class ServerLicenseEngine {
   }
 
   /**
-   * Loads the local Ed25519 signed license from disk if it exists
+   * Generates and writes a 10-year Enterprise Offline License signed with Ed25519
+   */
+  static ensureDefaultEnterpriseLicense(): SignedLicensePayload {
+    const device = DeviceEngine.getCompositeDeviceIdentity();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(); // 10 years
+
+    const payloadWithoutSig: Omit<SignedLicensePayload, 'signature'> = {
+      licenseId: 'MARO-ENT-PERPETUAL-MASTER-2026',
+      licenseVersion: 'v2.0',
+      keyId: 'MARO-ROOT-ED25519-KEY',
+      tenant: {
+        tenantId: 'default-tenant',
+        companyName: 'مؤسسة مارو للأعمال (MARO ERP Enterprise)',
+        industry: 'ALL_INDUSTRIES',
+      },
+      deviceBinding: {
+        persistentDeviceId: device.persistentDeviceId,
+        compositeHash: device.compositeHash,
+        maxPosDevices: 999,
+        allowHardwareTolerance: true,
+      },
+      entitlements: {
+        plan: 'ENTERPRISE',
+        enabledModules: [
+          'POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 
+          'AI', 'CUSTOMERS', 'SUPPLIERS', 'WAREHOUSES', 'CRM', 'MANUFACTURING', 
+          'TOURISM', 'MEDICAL', 'RESTAURANTS', 'SECURITY'
+        ],
+        maxUsers: 999,
+        maxBranches: 999,
+        maxWarehouses: 999,
+        maxPosDevices: 999,
+      },
+      validity: {
+        issuedAt: now.toISOString(),
+        expiresAt,
+        gracePeriodDays: 90,
+      }
+    };
+
+    const signed = Ed25519Engine.signLicense(payloadWithoutSig, MARO_DEFAULT_PRIVATE_KEY_PEM);
+    try {
+      fs.writeFileSync(LOCAL_LICENSE_FILE, JSON.stringify(signed, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[LICENSE] Error writing default license file', err);
+    }
+    return signed;
+  }
+
+  /**
+   * Loads the local Ed25519 signed license from disk if it exists, or creates the default perpetual license
    */
   static getLocalLicense(): SignedLicensePayload | null {
     try {
@@ -113,6 +164,12 @@ export class ServerLicenseEngine {
       }
     } catch (err) {
       console.error('[LICENSE] Error reading local Ed25519 license', err);
+    }
+
+    try {
+      return this.ensureDefaultEnterpriseLicense();
+    } catch (err) {
+      console.error('[LICENSE] Error generating default perpetual license', err);
     }
     return null;
   }

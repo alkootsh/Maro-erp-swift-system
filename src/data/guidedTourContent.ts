@@ -1460,8 +1460,9 @@ function formatSegmentTitle(segment: string, allSegments: string[]): string {
   }
 
   // Capitalize/format segment
-  return segment
+  return (segment || '')
     .split('-')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .filter(Boolean)
+    .map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '')
     .join(' ');
 }

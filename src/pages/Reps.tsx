@@ -792,7 +792,7 @@ export const Reps: React.FC = () => {
                     <tr key={rep.id} className="hover:bg-slate-800/30 transition-colors group">
                       <td className="px-8 py-5 font-bold text-white flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-blue-600/10 text-blue-400 flex items-center justify-center font-black">
-                          {rep.name.charAt(0)}
+                          {(rep.name || 'م').charAt(0)}
                         </div>
                         <span>{rep.name}</span>
                       </td>

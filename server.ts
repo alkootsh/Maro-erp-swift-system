@@ -14,7 +14,14 @@ import { ServerLicenseEngine, OfflineLicenseToken, computeOfflineLicenseSignatur
 import { AuditLogger } from './src/server/security/auditLogger';
 import { requireAuth, requireModule, requireRole } from './src/server/security/securityMiddleware';
 import { DeviceEngine } from './src/lib/crypto/deviceEngine';
-import { Ed25519Engine } from './src/lib/crypto/ed25519Engine';
+import { Ed25519Engine, MARO_DEFAULT_PRIVATE_KEY_PEM } from './src/lib/crypto/ed25519Engine';
+import { 
+  DEFAULT_KNOWLEDGE_ARTICLES, 
+  DEFAULT_PROBLEM_CLUSTERS, 
+  SmartSupportClassifier, 
+  SupportSecuritySanitizer, 
+  DiagnosticExecutionEngine 
+} from './src/services/smartSupportEngine';
 
 // In-memory PostgreSQL simulated store buffer for local/container dev when external database is offline
 const erpDatabaseStore: Record<string, any[]> = {
@@ -36,7 +43,104 @@ const erpDatabaseStore: Record<string, any[]> = {
     }
   ],
   audit_logs: [],
-  processed_sync_ops: []
+  processed_sync_ops: [],
+  support_sessions: [],
+  support_tickets: [
+    {
+      id: 't_seed_101',
+      ticketNumber: 'TICK-2026-1201',
+      tenantId: 'tenant_maro_main',
+      companyName: 'مؤسسة السعادة للتجارة',
+      branchId: 'branch_main',
+      branchName: 'الفرع الرئيسي',
+      userId: 'usr_admin',
+      userName: 'أحمد ممدوح',
+      userEmail: 'ahmed@saada.com',
+      deviceId: 'DEV-UUID-8941',
+      module: 'POS',
+      screen: 'POS Terminal',
+      title: 'الفاتورة مش بتتحفظ في POS بسبب تعارض طابور المزامنة',
+      description: 'عند الضغط على زر ترحيل الفاتورة في نقطة البيع تظهر رسالة خطأ 409 والزر لا يستجيب.',
+      severity: 'HIGH',
+      status: 'RESOLVED',
+      assignedTo: 'eng_tariq',
+      assignedAgentName: 'المهندس طارق (دعم أول)',
+      aiSessionId: 'sess_98231',
+      aiSummary: 'المستخدم واجه مشكلة في حفظ فاتورة POS. تم فحص الصلاحيات والمخزون وكانا سليمين، ووُجد تعارض في طابور IndexedDB تم إصلاحه.',
+      detectedSymptoms: ['الفاتورة مش بتتحفظ', 'زر الحفظ لا يستجيب', 'تعارض في طابور المزامنة'],
+      actionsAttempted: [
+        { step: 1, title: 'فحص صلاحيات الكاشير', result: 'الصلاحيات سليمة', status: 'SUCCESS' },
+        { step: 2, title: 'فحص توفر رصيد الأصناف', result: 'المخزون متوفر', status: 'SUCCESS' },
+        { step: 3, title: 'فحص طابور المزامنة أوفلاين', result: 'تم رصد تعارض في معرّف الفاتورة', status: 'FAILED' }
+      ],
+      diagnosticEvidence: { syncQueueCount: 3, errorCode: 'SYNC_409_CONFLICT' },
+      recommendedNextAction: 'تفريغ طابور المزامنة الإجباري وإعادة الترقيم التلقائي',
+      knowledgeArticlesUsed: ['kb_pos_save_error'],
+      clientContext: {
+        appVersion: '4.0.0',
+        licensePlan: 'ENTERPRISE',
+        licenseStatus: 'ACTIVE',
+        isOnline: true,
+        syncQueuePendingCount: 3
+      },
+      resolution: 'تم تفعيل الترقيم المتسلسل التلقائي وتفريغ الطابور المتعارض بنجاح.',
+      resolvedAt: '2026-08-16T14:30:00Z',
+      resolutionTimeMinutes: 4,
+      knowledgeCandidate: true,
+      knowledgeStatus: 'APPROVED',
+      idempotencyKey: 'IDEMP-SEED-1201',
+      createdAt: '2026-08-16T14:20:00Z',
+      updatedAt: '2026-08-16T14:30:00Z'
+    },
+    {
+      id: 't_seed_102',
+      ticketNumber: 'TICK-2026-1132',
+      tenantId: 'tenant_maro_main',
+      companyName: 'صيدليات النخبة الحديثة',
+      branchId: 'branch_riyadh',
+      branchName: 'فرع العليا',
+      userId: 'usr_cashier2',
+      userName: 'سارة عبد الله',
+      userEmail: 'sara@elite-pharma.com',
+      deviceId: 'DEV-UUID-3321',
+      module: 'HARDWARE_PRINTING',
+      screen: 'Hardware & Thermal Printers Hub',
+      title: 'طابعة الفواتير الحرارية EPSON TM-T20 لا تستجيب للطباعة',
+      description: 'بعد تحديث نظام التشغيل توقفت الطابعة عن إخراج الورق التلقائي.',
+      severity: 'MEDIUM',
+      status: 'RESOLVED',
+      assignedTo: 'eng_kareem',
+      assignedAgentName: 'المهندس كريم (دعم العتاد)',
+      aiSessionId: 'sess_98235',
+      aiSummary: 'المستخدم واجه توقف طابعة الإيصالات الحرارية. قام المساعد باختبار منفذ ESC/POS وإعادة ربط المنفذ التسلسلي.',
+      detectedSymptoms: ['الطابعة مش بتطبع', 'printer not responding'],
+      actionsAttempted: [
+        { step: 1, title: 'فحص اتصال المنفذ المباشر', result: 'المنفذ غير متصل', status: 'FAILED' },
+        { step: 2, title: 'طباعة إيصال تجريبي ESC/POS', result: 'تمت بنجاح بعد إعادة الربط', status: 'SUCCESS' }
+      ],
+      diagnosticEvidence: { baudRate: 9600, port: 'USB001' },
+      recommendedNextAction: 'تحديث تعريف USB Virtual COM وإعادة تشغيل خدمة Spooler',
+      knowledgeArticlesUsed: ['kb_printer_offline'],
+      clientContext: {
+        appVersion: '4.0.0',
+        licensePlan: 'PRO',
+        licenseStatus: 'ACTIVE',
+        isOnline: true,
+        syncQueuePendingCount: 0
+      },
+      resolution: 'تمت إعادة ضبط إعدادات منفذ ESC/POS 80mm وإجراء طباعة تجريبية ناجحة.',
+      resolvedAt: '2026-08-17T09:45:00Z',
+      resolutionTimeMinutes: 3,
+      knowledgeCandidate: true,
+      knowledgeStatus: 'APPROVED',
+      idempotencyKey: 'IDEMP-SEED-1132',
+      createdAt: '2026-08-17T09:40:00Z',
+      updatedAt: '2026-08-17T09:45:00Z'
+    }
+  ],
+  support_ticket_events: [],
+  support_knowledge_articles: [...DEFAULT_KNOWLEDGE_ARTICLES],
+  support_problem_clusters: [...DEFAULT_PROBLEM_CLUSTERS]
 };
 
 // Tenant and Branch Isolation Context Helper
@@ -169,20 +273,24 @@ async function startServer() {
 
   // Get Current Authenticated User & Licensing Context
   app.get("/api/auth/me", requireAuth, async (req, res) => {
+    await syncLocalLicenseWithCentralCloud();
+    const updatedLicense = await ServerLicenseEngine.getTenantLicense(req.tenantId!);
     res.json({
       success: true,
       user: req.userContext,
       sessionId: req.sessionId,
-      license: req.license
+      license: updatedLicense
     });
   });
 
   // Fast Check Status API
   app.get("/api/auth/check", requireAuth, async (req, res) => {
+    await syncLocalLicenseWithCentralCloud();
+    const updatedLicense = await ServerLicenseEngine.getTenantLicense(req.tenantId!);
     res.json({
       loggedIn: true,
       user: req.userContext,
-      license: req.license
+      license: updatedLicense
     });
   });
 
@@ -296,6 +404,7 @@ async function startServer() {
   // Get Server-Side Computed License Status for Tenant
   app.get("/api/licensing/status", requireAuth, async (req, res) => {
     try {
+      await syncLocalLicenseWithCentralCloud();
       const license = await ServerLicenseEngine.getTenantLicense(req.tenantId!);
       res.json(license);
     } catch (err: any) {
@@ -407,6 +516,468 @@ async function startServer() {
       });
 
       res.json({ success: true, message: 'تم تفعيل الترخيص غير المتصل بنجاح (Enterprise Offline License Active)' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4.5 Fast Instant Activation Endpoint (Single-click offline setup / verification)
+  app.post("/api/licensing/activate-instant", async (req, res) => {
+    try {
+      const license = ServerLicenseEngine.ensureDefaultEnterpriseLicense();
+      res.json({ success: true, message: 'تم تفعيل ترخيص المؤسسات الشامل بنجاح', license });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // ONLINE ACTIVATION & CENTRAL CLOUD REGISTRY SYSTEM (SIMULATOR ENDPOINTS)
+  // =========================================================================
+  const CENTRAL_LICENSES_FILE = path.join(process.cwd(), '.maro-central-licenses.json');
+  const ACTIVATION_REQUESTS_FILE = path.join(process.cwd(), '.maro-activation-requests.json');
+
+  function getCentralLicenses(): any[] {
+    try {
+      if (fs.existsSync(CENTRAL_LICENSES_FILE)) {
+        return JSON.parse(fs.readFileSync(CENTRAL_LICENSES_FILE, 'utf8'));
+      }
+    } catch (err) {
+      console.error('[CENTRAL LICENSES] Error reading file:', err);
+    }
+    return [];
+  }
+
+  function saveCentralLicenses(licensesList: any[]): void {
+    try {
+      fs.writeFileSync(CENTRAL_LICENSES_FILE, JSON.stringify(licensesList, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[CENTRAL LICENSES] Error writing file:', err);
+    }
+  }
+
+  function getActivationRequests(): any[] {
+    try {
+      if (fs.existsSync(ACTIVATION_REQUESTS_FILE)) {
+        return JSON.parse(fs.readFileSync(ACTIVATION_REQUESTS_FILE, 'utf8'));
+      }
+    } catch (err) {
+      console.error('[ACTIVATION REQUESTS] Error reading file:', err);
+    }
+    return [];
+  }
+
+  function saveActivationRequests(requestsList: any[]): void {
+    try {
+      fs.writeFileSync(ACTIVATION_REQUESTS_FILE, JSON.stringify(requestsList, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[ACTIVATION REQUESTS] Error writing file:', err);
+    }
+  }
+
+  // Submit / Record an incoming activation request (via WhatsApp or Portal)
+  app.post("/api/licensing/submit-request", async (req, res) => {
+    try {
+      const { requestPackage, notes } = req.body;
+      if (!requestPackage || !requestPackage.device?.persistentDeviceId) {
+        return res.status(400).json({ success: false, error: 'بيانات طلب التفعيل ومعرف الجهاز مطلوبة' });
+      }
+
+      const list = getActivationRequests();
+      const deviceId = requestPackage.device.persistentDeviceId;
+      
+      const newEntry = {
+        id: `REQ-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+        deviceId: deviceId,
+        companyName: requestPackage.company?.companyName || 'شركة غير محددة',
+        vertical: requestPackage.company?.vertical || 'RETAIL',
+        responsibleName: requestPackage.contact?.responsibleName || 'المسؤول',
+        phone: requestPackage.contact?.phone || '',
+        email: requestPackage.contact?.email || '',
+        address: requestPackage.contact?.address || '',
+        requestedPlan: requestPackage.requested?.plan || 'ENTERPRISE',
+        requestedModules: requestPackage.requested?.modules || ['POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 'AI'],
+        rawPackage: requestPackage,
+        status: 'PENDING', // 'PENDING' | 'APPROVED' | 'REJECTED'
+        createdAt: new Date().toISOString(),
+        notes: notes || 'طلب تفعيل مرسل عبر الواتساب'
+      };
+
+      // Replace if previous pending exists for same device, or append
+      const filtered = list.filter((r: any) => !(r.deviceId === deviceId && r.status === 'PENDING'));
+      filtered.unshift(newEntry);
+      saveActivationRequests(filtered);
+
+      res.json({ 
+        success: true, 
+        message: 'تم استقبال وتسجيل طلب التفعيل في قائمة مراجعة المطورين بنجاح!',
+        requestId: newEntry.id
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get list of incoming activation requests for Developer Dashboard
+  app.get("/api/licensing/requests-list", (req, res) => {
+    try {
+      const list = getActivationRequests();
+      res.json({ success: true, requests: list });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Approve & Sign Activation Request (1-Click Central Cloud Approval + WhatsApp Response Generator)
+  app.post("/api/licensing/approve-and-sign", async (req, res) => {
+    try {
+      const { requestId, deviceId, plan, durationDays, maxPosDevices, enabledModules, customNotes } = req.body;
+      
+      const requests = getActivationRequests();
+      const reqIndex = requests.findIndex((r: any) => r.id === requestId || r.deviceId === deviceId);
+      
+      let targetReq = reqIndex !== -1 ? requests[reqIndex] : null;
+      const targetDeviceId = deviceId || targetReq?.deviceId;
+      
+      if (!targetDeviceId) {
+        return res.status(400).json({ success: false, error: 'معرف جهاز العميل غير موجود' });
+      }
+
+      const companyName = targetReq?.companyName || 'مؤسسة مارو للأعمال';
+      const industry = targetReq?.vertical || 'RETAIL';
+      const responsibleName = targetReq?.responsibleName || 'العميل العزيز';
+      const clientPhone = targetReq?.phone || '';
+      const chosenPlan = plan || targetReq?.requestedPlan || 'ENTERPRISE';
+      const days = durationDays || 365;
+      const modules = enabledModules || targetReq?.requestedModules || ['POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 'AI'];
+
+      const issuedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+      const licenseId = `MARO-${chosenPlan}-${Date.now().toString(36).toUpperCase()}`;
+
+      // Build standard payload
+      const payloadToSign = {
+        licenseId,
+        licenseVersion: "1.0",
+        keyId: "default-dev-key",
+        tenant: {
+          tenantId: `tenant-${Date.now().toString(36)}`,
+          companyName,
+          industry,
+        },
+        deviceBinding: {
+          persistentDeviceId: targetDeviceId,
+          compositeHash: targetReq?.rawPackage?.device?.compositeHash || '',
+          maxPosDevices: maxPosDevices || 999,
+          allowHardwareTolerance: true
+        },
+        entitlements: {
+          plan: chosenPlan,
+          enabledModules: modules,
+          maxUsers: 999,
+          maxBranches: 999,
+          maxWarehouses: 999,
+          maxPosDevices: maxPosDevices || 999,
+        },
+        validity: {
+          issuedAt,
+          expiresAt,
+          gracePeriodDays: 90
+        }
+      };
+
+      // Sign with default developer private key
+      const signedLicense = Ed25519Engine.signLicense(payloadToSign, MARO_DEFAULT_PRIVATE_KEY_PEM);
+
+      // Register in Central Licenses
+      const centralLicenses = getCentralLicenses();
+      const filteredCentral = centralLicenses.filter((l: any) => l.deviceBinding?.persistentDeviceId !== targetDeviceId);
+      filteredCentral.push(signedLicense);
+      saveCentralLicenses(filteredCentral);
+
+      // Update Request Status
+      if (reqIndex !== -1) {
+        requests[reqIndex].status = 'APPROVED';
+        requests[reqIndex].approvedAt = new Date().toISOString();
+        requests[reqIndex].signedLicenseId = licenseId;
+        saveActivationRequests(requests);
+      }
+
+      // Format WhatsApp Congratulations and Activation Delivery Message
+      const expiresDateStr = new Date(expiresAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+      const modulesStr = modules.join('، ');
+
+      const congratulationsWhatsAppMessage = 
+`🎉 *تهانينا! تم تفعيل وتوثيق منظومة MARO ERP بنجاح* 🚀
+
+مرحباً عزيزنا في *${companyName}* (${responsibleName})،
+يسعدنا إبلاغكم بأنه تم اعتماد وترخيص نسختكم من نظام *MARO Business Platform* رسميًا!
+
+📋 *تفاصيل وبيانات الترخيص الرقمي:*
+🏢 المنشأة: *${companyName}*
+💼 النشاط: *${industry}*
+💎 الباقة المعتمدة: *${chosenPlan}*
+⏳ مدة الصلاحية: *${days} يوم* (حتى ${expiresDateStr})
+📦 الأنظمة المفتوحة: *${modules.length} موديول* (${modulesStr})
+💻 معرف الجهاز المربوط: \`${targetDeviceId}\`
+
+🔑 *كود الترخيص الرقمي المشفر (.marolic):*
+\`\`\`json
+${JSON.stringify(signedLicense)}
+\`\`\`
+
+🛠️ *خطوات التفعيل السريعة:*
+1️⃣ افتح البرنامج واضغط على زر *"تفعيل تلقائي أونلاين"* (تم ربط الرخصة بجهازك سحابياً الآن فوراً).
+2️⃣ أو يمكنك نسخ كود الترخيص أعلاه ولصقه في خانة التفعيل ثم النقر على *"تفعيل النسخة"*.
+3️⃣ مبروك! سيتم فك قفل كافة الموديولات فوراً للعمل بأعلى سرعة وكفاءة أوفلاين وأونلاين.
+
+📞 لأي استفسار أو دعم فني، فريق MARO في خدمتكم دائماً.
+نتمنى لكم تجارة رابحة وتطوراً مستمراً! ✨`;
+
+      const cleanPhone = clientPhone.replace(/[^0-9]/g, '');
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(congratulationsWhatsAppMessage)}`;
+
+      res.json({
+        success: true,
+        message: 'تم تفعيل واعتماد الترخيص ونشره في السيرفر المركزي بنجاح!',
+        signedLicense,
+        whatsappUrl,
+        congratulationsWhatsAppMessage,
+        clientPhone
+      });
+
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // A. Register signed license in the Central Cloud Registry (Developer Hub Action)
+  app.post("/api/licensing/register-central", (req, res) => {
+    try {
+      const { signedLicense } = req.body;
+      if (!signedLicense || !signedLicense.signature) {
+        return res.status(400).json({ success: false, error: 'محتوى ترخيص موقع رقمياً مطلوب' });
+      }
+
+      const list = getCentralLicenses();
+      const deviceId = signedLicense.deviceBinding?.persistentDeviceId;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'الترخيص لا يحتوي على معرف جهاز (Device binding) صالح' });
+      }
+
+      // Filter out older licenses for this device
+      const filtered = list.filter((l: any) => l.deviceBinding?.persistentDeviceId !== deviceId);
+      filtered.push(signedLicense);
+      saveCentralLicenses(filtered);
+
+      res.json({ 
+        success: true, 
+        message: 'تم تسجيل ونشر الترخيص بنجاح في السيرفر المركزي السحابي! العميل يستطيع التفعيل أونلاين الآن بضغطة زر واحدة.' 
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // B. Check if there is an active signed license waiting for this device in the Central Cloud Registry
+  app.get("/api/licensing/central-check", (req, res) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'معرف جهاز العميل مطلوب' });
+      }
+
+      const list = getCentralLicenses();
+      const match = list.find((l: any) => l.deviceBinding?.persistentDeviceId === deviceId);
+
+      if (match) {
+        res.json({ success: true, found: true, signedLicense: match });
+      } else {
+        res.json({ success: false, found: false, message: 'لا يوجد ترخيص معتمد مسجل لهذا الجهاز في السيرفر المركزي حتى الآن.' });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // C. Perform Online Activation: fetch the central license, verify, and apply locally on client
+  app.post("/api/licensing/online-activate", async (req, res) => {
+    try {
+      const { deviceId } = req.body;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'معرف جهاز العميل مطلوب' });
+      }
+
+      const list = getCentralLicenses();
+      const match = list.find((l: any) => l.deviceBinding?.persistentDeviceId === deviceId);
+
+      if (!match) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'فشل التفعيل التلقائي: لا يوجد ترخيص مسجل لهذا الجهاز في المنظومة المركزية السحابية للمطور. يرجى تفعيل النسخة أولاً من لوحة تحكم المطورين.' 
+        });
+      }
+
+      // Save locally
+      const applyResult = ServerLicenseEngine.saveLocalLicense(match);
+      if (!applyResult.success) {
+        return res.status(400).json({ success: false, error: `الترخيص الموجود في السيرفر المركزي غير صالح لجهازك: ${applyResult.error}` });
+      }
+
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+      await AuditLogger.log({
+        tenantId: match.tenant?.tenantId || 'default-tenant',
+        userId: req.userId || 'system',
+        action: 'LICENSE_ACTIVATED_ONLINE',
+        entityType: 'LICENSE',
+        entityId: match.licenseId,
+        ipAddress: clientIp,
+        metadata: { licenseId: match.licenseId, method: 'ONLINE_PORTAL_AUTOMATIC', deviceId }
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'تهانينا! تم تفعيل السيرفر أونلاين بنجاح وجلب رخصة المؤسسة الموقعة رقمياً بالكامل.',
+        signedLicense: match 
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // D. Automatically synchronize local license with central registry status
+  async function syncLocalLicenseWithCentralCloud() {
+    try {
+      const identity = DeviceEngine.getCompositeDeviceIdentity();
+      const deviceId = identity.persistentDeviceId;
+      
+      const localLicense = ServerLicenseEngine.getLocalLicense();
+      const centralList = getCentralLicenses();
+      const centralLicense = centralList.find((l: any) => l.deviceBinding?.persistentDeviceId === deviceId);
+      
+      if (centralLicense) {
+        // If central license exists, check if it's different from local
+        if (!localLicense || localLicense.signature !== centralLicense.signature) {
+          // Update local license
+          ServerLicenseEngine.saveLocalLicense(centralLicense);
+          console.log(`[LICENSE SYNC] Automatically updated local license to match central cloud for device ${deviceId}`);
+          
+          const auditIp = '127.0.0.1';
+          await AuditLogger.log({
+            tenantId: centralLicense.tenant?.tenantId || 'default-tenant',
+            userId: 'system',
+            action: 'LICENSE_AUTO_UPDATED_FROM_CLOUD',
+            entityType: 'LICENSE',
+            entityId: centralLicense.licenseId,
+            ipAddress: auditIp,
+            metadata: { licenseId: centralLicense.licenseId, deviceId }
+          });
+        }
+      } else {
+        // If local license was activated, but now doesn't exist in central, and is NOT the default perpetual license, delete/revoke it
+        if (localLicense && localLicense.keyId !== 'perpetual-enterprise-key') {
+          ServerLicenseEngine.deleteLocalLicense();
+          console.log(`[LICENSE SYNC] Automatically revoked local license as it is no longer registered in central cloud`);
+          
+          const auditIp = '127.0.0.1';
+          await AuditLogger.log({
+            tenantId: localLicense.tenant?.tenantId || 'default-tenant',
+            userId: 'system',
+            action: 'LICENSE_AUTO_REVOKED_FROM_CLOUD',
+            entityType: 'LICENSE',
+            entityId: localLicense.licenseId,
+            ipAddress: auditIp,
+            metadata: { licenseId: localLicense.licenseId, deviceId }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[LICENSE SYNC ERROR]', err);
+    }
+  }
+
+  // E. Retrieve all registered central licenses (Developer Dashboard)
+  app.get("/api/licensing/central-list", (req, res) => {
+    try {
+      const list = getCentralLicenses();
+      res.json({ success: true, licenses: list });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // F. Update central license (Change expiration, modules, company, plan, etc.)
+  app.post("/api/licensing/central-update", (req, res) => {
+    try {
+      const { deviceId, tenant, entitlements, validity } = req.body;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'معرف جهاز العميل مطلوب' });
+      }
+
+      const list = getCentralLicenses();
+      const index = list.findIndex((l: any) => l.deviceBinding?.persistentDeviceId === deviceId);
+      if (index === -1) {
+        return res.status(404).json({ success: false, error: 'الترخيص غير موجود في السيرفر المركزي' });
+      }
+
+      // Merge updated payload fields
+      const existing = list[index];
+      
+      const payloadToSign = {
+        licenseId: existing.licenseId,
+        licenseVersion: existing.licenseVersion || "1.0",
+        keyId: existing.keyId || "default-dev-key",
+        tenant: {
+          tenantId: existing.tenant?.tenantId || 'default-tenant',
+          companyName: tenant?.companyName || existing.tenant?.companyName || '',
+          industry: tenant?.industry || existing.tenant?.industry || '',
+        },
+        deviceBinding: {
+          persistentDeviceId: deviceId,
+          compositeHash: existing.deviceBinding?.compositeHash || '',
+          maxPosDevices: entitlements?.maxPosDevices || existing.deviceBinding?.maxPosDevices || 999,
+          allowHardwareTolerance: existing.deviceBinding?.allowHardwareTolerance ?? true
+        },
+        entitlements: {
+          plan: entitlements?.plan || existing.entitlements?.plan || 'ENTERPRISE',
+          enabledModules: entitlements?.enabledModules || existing.entitlements?.enabledModules || [],
+          maxUsers: entitlements?.maxUsers || existing.entitlements?.maxUsers || 999,
+          maxBranches: entitlements?.maxBranches || existing.entitlements?.maxBranches || 999,
+          maxWarehouses: entitlements?.maxWarehouses || existing.entitlements?.maxWarehouses || 999,
+          maxPosDevices: entitlements?.maxPosDevices || existing.entitlements?.maxPosDevices || 999,
+        },
+        validity: {
+          issuedAt: existing.validity?.issuedAt || new Date().toISOString(),
+          expiresAt: validity?.expiresAt || existing.validity?.expiresAt || new Date(Date.now() + 365*24*60*60*1000).toISOString(),
+          gracePeriodDays: existing.validity?.gracePeriodDays ?? 90
+        }
+      };
+
+      // Sign the new payload with the developer private key
+      const signed = Ed25519Engine.signLicense(payloadToSign, MARO_DEFAULT_PRIVATE_KEY_PEM);
+      list[index] = signed;
+      saveCentralLicenses(list);
+
+      res.json({ success: true, message: 'تم تحديث وإعادة توقيع الترخيص رقمياً بنجاح!', signedLicense: signed });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // G. Revoke/cancel central license completely
+  app.post("/api/licensing/central-revoke", (req, res) => {
+    try {
+      const { deviceId } = req.body;
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'معرف جهاز العميل مطلوب' });
+      }
+
+      const list = getCentralLicenses();
+      // Remove it completely so that next auto-sync will find no license, triggering automatic revocation
+      const filtered = list.filter((l: any) => l.deviceBinding?.persistentDeviceId !== deviceId);
+      saveCentralLicenses(filtered);
+
+      res.json({ success: true, message: 'تم إلغاء وترقيع الترخيص المركزي بنجاح! سيتم إلغاء تفعيل السيرفر المحلي للعميل تلقائياً في مزامنته القادمة.' });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -744,6 +1315,576 @@ async function startServer() {
     } catch (err: any) {
       console.error("MARO Sync Engine Error:", err);
       res.status(500).json({ error: err.message || "Sync execution failed" });
+    }
+  });
+
+  // =========================================================================
+  // MARO SMART SUPPORT & TICKET INTELLIGENCE APIS
+  // =========================================================================
+
+  // 1. Diagnose User Query & Start Interactive Session
+  app.post("/api/support/diagnose", async (req, res) => {
+    try {
+      const { userQuery, screen, tenantId, branchId, userId, userName, deviceId } = req.body;
+      const sanitizedQuery = SupportSecuritySanitizer.sanitize(userQuery || '');
+
+      if (!sanitizedQuery.trim()) {
+        return res.status(400).json({ error: "يرجى كتابة وصف المشكلة المراد تشخيصها." });
+      }
+
+      const kbArticles = erpDatabaseStore.support_knowledge_articles || DEFAULT_KNOWLEDGE_ARTICLES;
+      const diagnosis = SmartSupportClassifier.analyzeProblem(sanitizedQuery, screen, kbArticles);
+
+      // Find matched article
+      let matchedArticle = kbArticles.find((a: any) => a.id === diagnosis.matchedArticleId);
+      if (!matchedArticle && kbArticles.length > 0) {
+        matchedArticle = kbArticles[0];
+      }
+
+      // Build diagnostic actions from matched article
+      const actionsTaken = (matchedArticle?.diagnosticSteps || []).map((step: any, index: number) => ({
+        id: `diag_step_${Date.now()}_${index}`,
+        stepNumber: step.step || index + 1,
+        title: step.title,
+        description: step.instruction,
+        actionType: step.autoCheckAction ? 'AUTO_CHECK' : 'USER_ACTION',
+        autoActionKey: step.autoCheckAction,
+        status: 'PENDING',
+        timestamp: new Date().toISOString()
+      }));
+
+      const sessionId = `sess_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
+      const session = {
+        id: sessionId,
+        tenantId: tenantId || 'tenant_maro_main',
+        branchId: branchId || 'branch_main',
+        userId: userId || 'usr_admin',
+        userName: userName || 'مسؤول النظام',
+        deviceId: deviceId || 'DEV-UUID-LOCAL',
+        screen: screen || diagnosis.screen || 'General',
+        module: diagnosis.module,
+        userQuery: sanitizedQuery,
+        diagnosis,
+        actionsTaken,
+        status: 'ACTIVE',
+        currentStepIndex: 0,
+        resolvedArticleId: matchedArticle?.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      erpDatabaseStore.support_sessions.push(session);
+
+      // Find similar historical tickets
+      const existingTickets = erpDatabaseStore.support_tickets || [];
+      const similarTickets = SmartSupportClassifier.findSimilarTickets(sanitizedQuery, diagnosis.module, existingTickets);
+
+      res.json({
+        success: true,
+        session,
+        diagnosis,
+        matchedArticle,
+        similarTickets
+      });
+    } catch (err: any) {
+      console.error("Support Diagnose Error:", err);
+      res.status(500).json({ error: err.message || "فشل تحليل المشكلة" });
+    }
+  });
+
+  // 2. Execute / Record Diagnostic Action in Session
+  app.post("/api/support/session/action", async (req, res) => {
+    try {
+      const { sessionId, stepIndex, status, resultMessage } = req.body;
+      const session = erpDatabaseStore.support_sessions.find((s: any) => s.id === sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "جلسة الدعم الفني غير موجودة." });
+      }
+
+      if (session.actionsTaken[stepIndex]) {
+        session.actionsTaken[stepIndex].status = status || 'SUCCESS';
+        session.actionsTaken[stepIndex].resultMessage = resultMessage || 'تم استكمال الفحص.';
+        session.actionsTaken[stepIndex].timestamp = new Date().toISOString();
+      }
+
+      session.currentStepIndex = Math.min(session.actionsTaken.length - 1, (session.currentStepIndex || 0) + 1);
+      session.updatedAt = new Date().toISOString();
+
+      res.json({
+        success: true,
+        session
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل تسجيل الإجراء التشخيصي" });
+    }
+  });
+
+  // 3. User Feedback on Resolution (Feedback Loop & Success Rate Tuning)
+  app.post("/api/support/session/feedback", async (req, res) => {
+    try {
+      const { sessionId, resolved, rating, comment } = req.body;
+      const session = erpDatabaseStore.support_sessions.find((s: any) => s.id === sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "جلسة الدعم غير موجودة." });
+      }
+
+      session.status = resolved ? 'RESOLVED_BY_AI' : 'ESCALATED';
+      session.feedbackRating = rating || 5;
+      session.feedbackComment = comment || '';
+      session.updatedAt = new Date().toISOString();
+
+      // Update KB Article Statistics
+      if (session.resolvedArticleId) {
+        const article = erpDatabaseStore.support_knowledge_articles.find((a: any) => a.id === session.resolvedArticleId);
+        if (article) {
+          article.attemptsCount = (article.attemptsCount || 0) + 1;
+          if (resolved) {
+            article.solvedCount = (article.solvedCount || 0) + 1;
+          }
+          article.successRate = Number(((article.solvedCount / article.attemptsCount) * 100).toFixed(2));
+          if (rating) {
+            const currentAvg = Number(article.ratingAverage) || 5.0;
+            article.ratingAverage = Number(((currentAvg * 0.8) + (rating * 0.2)).toFixed(2));
+          }
+          article.updatedAt = new Date().toISOString();
+        }
+      }
+
+      res.json({
+        success: true,
+        session
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل تسجيل تقييم الحل" });
+    }
+  });
+
+  // 4. Create Support Ticket with Intelligence Context
+  app.post("/api/support/tickets/create", async (req, res) => {
+    try {
+      const { 
+        sessionId,
+        title, 
+        description, 
+        severity, 
+        module, 
+        screen, 
+        clientContext, 
+        idempotencyKey,
+        tenantId,
+        companyName,
+        branchId,
+        branchName,
+        userId,
+        userName,
+        userEmail,
+        deviceId
+      } = req.body;
+
+      // Idempotency Check: Prevent duplicate tickets on reconnect
+      if (idempotencyKey) {
+        const existing = erpDatabaseStore.support_tickets.find((t: any) => t.idempotencyKey === idempotencyKey);
+        if (existing) {
+          return res.json({ success: true, ticket: existing, isDuplicate: true });
+        }
+      }
+
+      const session = erpDatabaseStore.support_sessions.find((s: any) => s.id === sessionId);
+
+      const sanitizedDesc = SupportSecuritySanitizer.sanitize(description || session?.userQuery || '');
+      const sanitizedTitle = SupportSecuritySanitizer.sanitize(title || `بلاغ دعم فني: ${sanitizedDesc.substring(0, 60)}...`);
+
+      // Synthesize Actions Attempted
+      const actionsAttempted = session ? session.actionsTaken.map((a: any) => ({
+        step: a.stepNumber,
+        title: a.title,
+        result: a.resultMessage || (a.status === 'SUCCESS' ? 'سليم' : 'فشل الفحص'),
+        status: a.status
+      })) : [
+        { step: 1, title: 'فحص ذاتي للنظام', result: 'تم رصد العطل وتحويله للدعم', status: 'SUCCESS' }
+      ];
+
+      // Synthesize AI Resolution Summary for Support Agent
+      const attemptedCount = actionsAttempted.length;
+      const failedChecks = actionsAttempted.filter((a: any) => a.status === 'FAILED');
+      
+      let aiSummary = `المستخدم واجه مشكلة في شاشة (${screen || 'نقطة البيع'}) تتعلق بـ (${sanitizedTitle}).\n`;
+      aiSummary += `تم تنفيذ عدد (${attemptedCount}) إجراءات تشخيصية من المساعد الذكي:\n`;
+      actionsAttempted.forEach((act: any) => {
+        aiSummary += `- ${act.step}. ${act.title}: ${act.result} (${act.status === 'SUCCESS' ? 'سليم' : 'تعارض/خطأ'}).\n`;
+      });
+      if (failedChecks.length > 0) {
+        aiSummary += `السبب المحتمل الأكثر ترجيحاً: ${failedChecks.map((f: any) => f.title).join('، ')}.`;
+      } else {
+        aiSummary += `الفحوصات الأساسية سليمة، ويتطلب التدخل اليدوي لمراجعة السجلات العميقة.`;
+      }
+
+      let recommendedNextAction = 'مراجعة سجلات الاتصال وسجلات التدقيق الخاصة بالفرع وتحديث الحالة.';
+      if (module === 'POS') {
+        recommendedNextAction = 'فحص سجل Sync Engine وسجل تعارضات IndexedDB في متصفح الكاشير.';
+      } else if (module === 'HARDWARE_PRINTING') {
+        recommendedNextAction = 'فحص منفذ الطباعة وإرسال أمر ESC/POS تجريبي من لوحة المطور.';
+      } else if (module === 'INVENTORY') {
+        recommendedNextAction = 'إجراء كشف حركة صنف تراكمي FIFO وفحص الكميات المحجوزة.';
+      } else if (module === 'ZATCA_E_INVOICE') {
+        recommendedNextAction = 'فحص شهادة CSID وبيانات التوقيع المشفرة في بوابة زاتكا.';
+      }
+
+      const ticketNumber = `TICK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newTicket = {
+        id: `tick_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`,
+        ticketNumber,
+        tenantId: tenantId || session?.tenantId || 'tenant_maro_main',
+        companyName: companyName || 'مؤسسة تجارية',
+        branchId: branchId || session?.branchId || 'branch_main',
+        branchName: branchName || 'الفرع الرئيسي',
+        userId: userId || session?.userId || 'usr_admin',
+        userName: userName || session?.userName || 'المستخدم',
+        userEmail: userEmail || '',
+        deviceId: deviceId || session?.deviceId || 'DEV-UUID-LOCAL',
+        module: module || session?.module || 'GENERAL',
+        screen: screen || session?.screen || 'General',
+        title: sanitizedTitle,
+        description: sanitizedDesc,
+        severity: severity || session?.diagnosis?.severity || 'MEDIUM',
+        status: 'OPEN',
+        assignedTo: 'eng_support_pool',
+        assignedAgentName: 'فريق الدعم الفني المركزي',
+        aiSessionId: sessionId,
+        aiSummary,
+        detectedSymptoms: session?.diagnosis?.causeProbability?.map((c: any) => c.cause) || [sanitizedTitle],
+        actionsAttempted,
+        diagnosticEvidence: {
+          sessionConfidence: session?.diagnosis?.confidenceScore || 75,
+          clientTelemetry: clientContext || {}
+        },
+        recommendedNextAction,
+        knowledgeArticlesUsed: session?.resolvedArticleId ? [session.resolvedArticleId] : [],
+        clientContext: clientContext || {
+          appVersion: '4.0.0',
+          licensePlan: 'ENTERPRISE',
+          licenseStatus: 'ACTIVE',
+          isOnline: true,
+          syncQueuePendingCount: 0
+        },
+        knowledgeCandidate: false,
+        knowledgeStatus: 'NONE',
+        idempotencyKey: idempotencyKey || `IDEMP-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      erpDatabaseStore.support_tickets.unshift(newTicket);
+
+      // Create Initial Event
+      erpDatabaseStore.support_ticket_events.push({
+        id: `evt_${Date.now()}`,
+        ticketId: newTicket.id,
+        senderType: 'SYSTEM',
+        senderName: 'نظام MARO الذكي',
+        message: `تم إنشاء التذكرة تلقائياً بعد ${attemptedCount} محاولات تشخيص ذكي غير مكتملة.`,
+        createdAt: new Date().toISOString()
+      });
+
+      if (session) {
+        session.status = 'ESCALATED';
+        session.ticketId = newTicket.id;
+        session.updatedAt = new Date().toISOString();
+      }
+
+      res.json({
+        success: true,
+        ticket: newTicket
+      });
+    } catch (err: any) {
+      console.error("Create Ticket Error:", err);
+      res.status(500).json({ error: err.message || "فشل إنشاء تذكرة الدعم الفني" });
+    }
+  });
+
+  // 5. Get Tickets List
+  app.get("/api/support/tickets", async (req, res) => {
+    try {
+      const tickets = erpDatabaseStore.support_tickets || [];
+      res.json({
+        success: true,
+        tickets
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل استرجاع التذاكر" });
+    }
+  });
+
+  // 6. Get Single Ticket Details with Events & Similarity
+  app.get("/api/support/tickets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const ticket = erpDatabaseStore.support_tickets.find((t: any) => t.id === id || t.ticketNumber === id);
+      if (!ticket) {
+        return res.status(404).json({ error: "التذكرة غير موجودة." });
+      }
+
+      const events = erpDatabaseStore.support_ticket_events.filter((e: any) => e.ticketId === ticket.id);
+      const allOtherTickets = erpDatabaseStore.support_tickets.filter((t: any) => t.id !== ticket.id);
+      const similarTickets = SmartSupportClassifier.findSimilarTickets(ticket.description, ticket.module, allOtherTickets);
+
+      res.json({
+        success: true,
+        ticket,
+        events,
+        similarTickets
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل جلب تفاصيل التذكرة" });
+    }
+  });
+
+  // 7. Resolve Ticket and optionally convert to Knowledge Candidate
+  app.post("/api/support/tickets/:id/resolve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { resolution, makeKnowledgeCandidate } = req.body;
+      const ticket = erpDatabaseStore.support_tickets.find((t: any) => t.id === id || t.ticketNumber === id);
+      if (!ticket) {
+        return res.status(404).json({ error: "التذكرة غير موجودة." });
+      }
+
+      ticket.status = 'RESOLVED';
+      ticket.resolution = resolution || 'تم حل المشكلة وتأكيد استقرار النظام.';
+      ticket.resolvedAt = new Date().toISOString();
+      ticket.updatedAt = new Date().toISOString();
+
+      if (makeKnowledgeCandidate) {
+        ticket.knowledgeCandidate = true;
+        ticket.knowledgeStatus = 'PENDING_REVIEW';
+
+        // Add as Candidate in Knowledge Base
+        const newCandidate = {
+          id: `kb_cand_${Date.now()}`,
+          tenantId: 'global',
+          title: `Resolution: ${ticket.title}`,
+          titleArabic: ticket.title,
+          module: ticket.module,
+          category: 'FIELD_RESOLUTION',
+          symptoms: ticket.detectedSymptoms || [ticket.title],
+          possibleCauses: ['حالة تشغيلية تم حلها وتوثيقها عبر مهندس الدعم'],
+          diagnosticSteps: ticket.actionsAttempted || [],
+          solution: resolution,
+          solutionArabic: resolution,
+          alternativeSolutions: [],
+          requiredPermissions: ['STANDARD_USER'],
+          affectedVersions: ['4.0.0'],
+          severity: ticket.severity,
+          attemptsCount: 1,
+          solvedCount: 1,
+          successRate: 100.0,
+          avgResolutionSeconds: 120,
+          ratingAverage: 5.0,
+          status: 'PENDING_REVIEW',
+          tags: [ticket.module, 'Field Candidate'],
+          mediaUrls: [],
+          originTicketId: ticket.ticketNumber,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        erpDatabaseStore.support_knowledge_articles.unshift(newCandidate);
+      }
+
+      // Add Resolution Event
+      erpDatabaseStore.support_ticket_events.push({
+        id: `evt_${Date.now()}`,
+        ticketId: ticket.id,
+        senderType: 'SUPPORT_AGENT',
+        senderName: 'مهندس الدعم الفني',
+        message: `تم إغلاق التذكرة بنجاح: ${resolution}`,
+        createdAt: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        ticket
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل إغلاق التذكرة" });
+    }
+  });
+
+  // 8. Add Ticket Event Message
+  app.post("/api/support/tickets/:id/event", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { message, senderName, senderType, isInternalNote } = req.body;
+      const ticket = erpDatabaseStore.support_tickets.find((t: any) => t.id === id || t.ticketNumber === id);
+      if (!ticket) {
+        return res.status(404).json({ error: "التذكرة غير موجودة." });
+      }
+
+      const newEvent = {
+        id: `evt_${Date.now()}`,
+        ticketId: ticket.id,
+        senderType: senderType || 'SUPPORT_AGENT',
+        senderName: senderName || 'فريق الدعم',
+        message: SupportSecuritySanitizer.sanitize(message || ''),
+        isInternalNote: !!isInternalNote,
+        createdAt: new Date().toISOString()
+      };
+
+      erpDatabaseStore.support_ticket_events.push(newEvent);
+
+      if (ticket.status === 'OPEN') {
+        ticket.status = 'IN_PROGRESS';
+        ticket.updatedAt = new Date().toISOString();
+      }
+
+      res.json({
+        success: true,
+        event: newEvent
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل إضافة الرسالة" });
+    }
+  });
+
+  // 9. Knowledge Base Management & Approval
+  app.get("/api/support/knowledge-base", async (req, res) => {
+    try {
+      const articles = erpDatabaseStore.support_knowledge_articles || DEFAULT_KNOWLEDGE_ARTICLES;
+      res.json({
+        success: true,
+        articles
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل استرجاع قاعدة المعرفة" });
+    }
+  });
+
+  app.post("/api/support/knowledge-base", async (req, res) => {
+    try {
+      const articleData = req.body;
+      const articles = erpDatabaseStore.support_knowledge_articles;
+      const existingIdx = articles.findIndex((a: any) => a.id === articleData.id);
+
+      if (existingIdx >= 0) {
+        articles[existingIdx] = {
+          ...articles[existingIdx],
+          ...articleData,
+          updatedAt: new Date().toISOString()
+        };
+        return res.json({ success: true, article: articles[existingIdx] });
+      } else {
+        const newArticle = {
+          ...articleData,
+          id: articleData.id || `kb_${Date.now()}`,
+          attemptsCount: articleData.attemptsCount || 0,
+          solvedCount: articleData.solvedCount || 0,
+          successRate: articleData.successRate || 100.0,
+          ratingAverage: articleData.ratingAverage || 5.0,
+          status: articleData.status || 'APPROVED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        articles.unshift(newArticle);
+        return res.json({ success: true, article: newArticle });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل حفظ مقال المعرفة" });
+    }
+  });
+
+  // 10. Analytics Dashboard Endpoint
+  app.get("/api/support/analytics", async (req, res) => {
+    try {
+      const tickets = erpDatabaseStore.support_tickets || [];
+      const totalTickets = tickets.length;
+      const resolvedTickets = tickets.filter((t: any) => t.status === 'RESOLVED' || t.status === 'CLOSED').length;
+      const openTickets = totalTickets - resolvedTickets;
+
+      const analytics = {
+        totalSessions: erpDatabaseStore.support_sessions.length + 140,
+        totalTickets,
+        openTickets,
+        inProgressTickets: Math.max(1, Math.floor(openTickets / 2)),
+        resolvedTickets,
+        aiResolvedCount: 98,
+        humanResolvedCount: resolvedTickets,
+        aiResolutionRate: 74.2,
+        humanEscalationRate: 25.8,
+        averageFirstResponseMinutes: 1.4,
+        averageResolutionMinutes: 4.3,
+        repeatedProblemsCount: 6,
+        topModules: [
+          { module: 'POS', count: 42, percentage: 38 },
+          { module: 'HARDWARE_PRINTING', count: 31, percentage: 28 },
+          { module: 'INVENTORY', count: 28, percentage: 25 },
+          { module: 'SYNC_OFFLINE', count: 19, percentage: 17 }
+        ],
+        topBranches: [
+          { branchName: 'فرع الرياض الرئيسي', count: 14 },
+          { branchName: 'فرع جدة التحلية', count: 9 },
+          { branchName: 'فرع الدمام', count: 6 }
+        ],
+        topClusters: [
+          { name: 'أخطاء حفظ فواتير POS', count: 24, module: 'POS' },
+          { name: 'عدم استجابة طابعات الإيصالات', count: 18, module: 'HARDWARE_PRINTING' },
+          { name: 'فروقات أرصدة المخزون', count: 16, module: 'INVENTORY' }
+        ],
+        mostEffectiveSolutions: [
+          { title: 'تفريغ طابور المزامنة وتأكيد العميل', successRate: 94.3, count: 151 },
+          { title: 'إعادة اقتران USB/ESC-POS للطابعة', successRate: 89.5, count: 188 }
+        ],
+        failedSolutions: [
+          { title: 'إعادة تشغيل المتصفح للطباعة', failureRate: 35.2, count: 24 }
+        ],
+        dailyTrends: [
+          { date: '08-12', tickets: 12, aiResolved: 9, escalated: 3 },
+          { date: '08-13', tickets: 18, aiResolved: 14, escalated: 4 },
+          { date: '08-14', tickets: 15, aiResolved: 11, escalated: 4 },
+          { date: '08-15', tickets: 22, aiResolved: 17, escalated: 5 },
+          { date: '08-16', tickets: 19, aiResolved: 14, escalated: 5 },
+          { date: '08-17', tickets: 25, aiResolved: 19, escalated: 6 },
+          { date: '08-18', tickets: 21, aiResolved: 16, escalated: 5 }
+        ]
+      };
+
+      res.json({
+        success: true,
+        analytics
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل استرجاع التحليلات" });
+    }
+  });
+
+  // 11. Idempotent Offline Queue Sync
+  app.post("/api/support/sync-queue", async (req, res) => {
+    try {
+      const { queuedTickets } = req.body;
+      if (!Array.isArray(queuedTickets)) {
+        return res.status(400).json({ error: "بيانات الطابور غير صالحة." });
+      }
+
+      let syncedCount = 0;
+      for (const t of queuedTickets) {
+        // Idempotency: check if already exists
+        const exists = erpDatabaseStore.support_tickets.find((item: any) => item.idempotencyKey === t.idempotencyKey);
+        if (!exists) {
+          erpDatabaseStore.support_tickets.unshift({
+            ...t,
+            id: `synced_tick_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`,
+            updatedAt: new Date().toISOString()
+          });
+          syncedCount++;
+        }
+      }
+
+      res.json({
+        success: true,
+        syncedCount,
+        message: `تم مزامنة عدد (${syncedCount}) تذكرة بنجاح وتفادي التكرار عبر المفتاح الثابت.`
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "فشل مزامنة طابور الدعم" });
     }
   });
 
@@ -1128,7 +2269,7 @@ ${context}
         ...devCred,
         userId: 'usr_cashier_001',
         email: 'cashier@maro-erp.local',
-        name: 'كاشير المبيعات (POS Cashier)',
+        name: 'أحمد كاشير الوردية (POS Cashier)',
         role: 'cashier',
         passwordHash: cashierPassHash,
         permissions: { pos: true }
@@ -1136,6 +2277,32 @@ ${context}
       const { signature: _sigCashier, ...cashierCredData } = cashierCred;
       cashierCred.signature = computeOfflineCredentialSignature(cashierCredData);
       ServerAuthEngine.registerOfflineCredential(cashierCred);
+
+      const accountantCred: OfflineCredentialSnapshot = {
+        ...devCred,
+        userId: 'usr_acc_001',
+        email: 'accountant@maro-erp.local',
+        name: 'محمد المحاسب (Accountant)',
+        role: 'accountant',
+        passwordHash: adminPassHash,
+        permissions: { accounting: true, reports: true }
+      };
+      const { signature: _sigAcc, ...accountantCredData } = accountantCred;
+      accountantCred.signature = computeOfflineCredentialSignature(accountantCredData);
+      ServerAuthEngine.registerOfflineCredential(accountantCred);
+
+      // Register short alias usernames
+      const adminShortCred = { ...adminCred, email: 'admin' };
+      adminShortCred.signature = computeOfflineCredentialSignature({ ...adminCredData, email: 'admin' });
+      ServerAuthEngine.registerOfflineCredential(adminShortCred);
+
+      const cashierShortCred = { ...cashierCred, email: 'cashier' };
+      cashierShortCred.signature = computeOfflineCredentialSignature({ ...cashierCredData, email: 'cashier' });
+      ServerAuthEngine.registerOfflineCredential(cashierShortCred);
+
+      const accShortCred = { ...accountantCred, email: 'accountant' };
+      accShortCred.signature = computeOfflineCredentialSignature({ ...accountantCredData, email: 'accountant' });
+      ServerAuthEngine.registerOfflineCredential(accShortCred);
     } catch (e) {
       console.error("[DB SEED] Error provisioning dev offline tokens:", e);
     }

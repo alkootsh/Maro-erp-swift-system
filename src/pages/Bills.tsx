@@ -29,6 +29,8 @@ import { LowStockReplenishmentModal } from '../components/Inventory/LowStockRepl
 import { LowStockReplenishmentService } from '../services/lowStockReplenishmentService';
 import { KeyboardSearchSelect, SearchOption } from '../components/common/KeyboardSearchSelect';
 import { FastKeyboardInvoiceLineEntry, FastInvoiceLinePayload } from '../components/invoices/FastKeyboardInvoiceLineEntry';
+import { QuickProductModalOnPurchase, QuickAddedBillProductResult } from '../components/purchases/QuickProductModalOnPurchase';
+import { ScreenHubTabs } from '../components/common/ScreenHubTabs';
 
 export const Bills: React.FC = () => {
   const [bills, setBills] = useState<PurchaseBill[]>([]);
@@ -61,6 +63,9 @@ export const Bills: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Unified Procurement Hub Tabs */}
+      <ScreenHubTabs hub="purchases" />
+
       {/* Top Header Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-[#151b2b] p-5 rounded-2xl border border-[#1e293b]">
@@ -232,12 +237,39 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   });
 
+  const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
+  const [quickProductSearchQuery, setQuickProductSearchQuery] = useState('');
+
   const supplierInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSuppliers(SupplierRepository.getSuppliers());
     setProducts(ProductRepository.getProducts());
   }, []);
+
+  const handleProductQuickCreated = (result: QuickAddedBillProductResult) => {
+    // Refresh products in memory
+    setProducts(ProductRepository.getProducts());
+    
+    // Auto insert into invoice lines
+    const untaxed = result.initialQuantity * result.unitCost;
+    const lineTotal = untaxed * 1.14;
+    
+    setItems(prev => [
+      ...prev,
+      {
+        id: `pbi_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        productId: result.product.id,
+        productName: result.product.name,
+        sku: result.product.sku,
+        unitName: result.unitName || 'قطعة',
+        quantity: result.initialQuantity,
+        unitCost: result.unitCost,
+        taxRate: 14,
+        lineTotal
+      }
+    ]);
+  };
 
   // Supplier Search Options
   const supplierOptions: SearchOption[] = useMemo(() => {
@@ -375,6 +407,11 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
           prodInput?.focus();
           prodInput?.select();
+        } else if (e.key === 'F4') {
+          e.preventDefault();
+          const prodInput = document.getElementById('fast-product-search') as HTMLInputElement;
+          setQuickProductSearchQuery(prodInput?.value || '');
+          setIsQuickProductModalOpen(true);
         } else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
           e.preventDefault();
           handleSubmit();
@@ -412,6 +449,10 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <span className="flex items-center gap-1">
               <kbd className="bg-slate-800 text-blue-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F3</kbd>
               <span>بحث الأصناف</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="bg-slate-800 text-amber-400 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">F4</kbd>
+              <span>+ صنف جديد فوري</span>
             </span>
             <span className="flex items-center gap-1">
               <kbd className="bg-slate-800 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 font-bold">Enter ↵</kbd>
@@ -487,6 +528,10 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             allowWholesaleUnits={true}
             priceType="cost"
             defaultUnit="قطعة"
+            onQuickAddProduct={(query) => {
+              setQuickProductSearchQuery(query || '');
+              setIsQuickProductModalOpen(true);
+            }}
           />
 
           {/* Items Table */}
@@ -629,6 +674,16 @@ const CreateBillModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
           </div>
         </form>
+
+        {/* Quick Product on Purchase Bill Modal */}
+        {isQuickProductModalOpen && (
+          <QuickProductModalOnPurchase
+            isOpen={isQuickProductModalOpen}
+            initialSearchQuery={quickProductSearchQuery}
+            onClose={() => setIsQuickProductModalOpen(false)}
+            onProductCreated={handleProductQuickCreated}
+          />
+        )}
       </div>
     </div>
   );

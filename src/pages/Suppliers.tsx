@@ -15,13 +15,16 @@ import {
   X,
   History,
   DollarSign,
-  Power
+  Power,
+  AlertTriangle,
+  Volume2
 } from 'lucide-react';
 import { Supplier, SupplierLedger } from '../types/sprint8';
 import { SupplierRepository } from '../repositories/supplierRepository';
 import { SaveSupplierCommand, DeleteSupplierCommand, RecordSupplierPaymentCommand, ToggleSupplierStatusCommand } from '../cqrs/commands';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
-import { cn, formatCurrency, formatDate } from '../lib/utils';
+import { cn, formatCurrency, formatDate, playSystemChime } from '../lib/utils';
+import { toast } from 'react-hot-toast';
 
 export const Suppliers: React.FC = () => {
   const location = useLocation();
@@ -247,6 +250,25 @@ const SupplierModal: React.FC<{ supplier: Supplier | null; onClose: () => void }
     status: supplier?.status || 'active'
   });
 
+  const [hasPlayedWarning, setHasPlayedWarning] = useState(false);
+
+  // Check for duplicate phone number dynamically in offline storage
+  const allSuppliers = MaroSyncEngine.getLocalCollection<Supplier>('suppliers');
+  const duplicateSupplier = formData.phone?.trim()
+    ? allSuppliers.find(s => s.phone?.trim() === formData.phone?.trim() && s.id !== supplier?.id)
+    : null;
+
+  useEffect(() => {
+    if (duplicateSupplier) {
+      if (!hasPlayedWarning) {
+        playSystemChime('warning');
+        setHasPlayedWarning(true);
+      }
+    } else {
+      setHasPlayedWarning(false);
+    }
+  }, [duplicateSupplier, hasPlayedWarning]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -256,16 +278,27 @@ const SupplierModal: React.FC<{ supplier: Supplier | null; onClose: () => void }
         currentBalance: supplier?.currentBalance || 0
       });
       await cmd.execute();
+      
+      playSystemChime('success');
+      toast.success(
+        <div className="flex flex-col text-right font-sans">
+          <span className="font-black text-xs text-white">✅ تم حفظ بيانات المورد بنجاح!</span>
+        </div>,
+        { duration: 4000 }
+      );
+      
       onClose();
     } catch (e: any) {
-      alert(e.message || 'حدث خطأ أثناء حفظ المورد');
+      playSystemChime('error');
+      toast.error(e.message || 'حدث خطأ أثناء حفظ المورد');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#151b2b] w-full max-w-lg rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between">
+      <div className="bg-[#151b2b] w-full max-w-lg rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+        <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/40">
           <h3 className="font-bold text-xl text-white">
             {supplier ? 'تعديل بيانات مورد' : 'إضافة مورد جديد'}
           </h3>
@@ -289,7 +322,10 @@ const SupplierModal: React.FC<{ supplier: Supplier | null; onClose: () => void }
               <label className="block text-xs font-bold text-slate-400 uppercase mb-1">رقم الهاتف</label>
               <input 
                 type="text" 
-                className="w-full px-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-white outline-none focus:border-blue-500"
+                className={cn(
+                  "w-full px-4 py-2.5 bg-[#1e293b] border rounded-xl text-white outline-none",
+                  duplicateSupplier ? "border-amber-500/50 focus:border-amber-500" : "border-[#334155] focus:border-blue-500"
+                )}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
@@ -304,6 +340,21 @@ const SupplierModal: React.FC<{ supplier: Supplier | null; onClose: () => void }
               />
             </div>
           </div>
+
+          {/* DYNAMIC DUPLICATE PHONE NUMBER WARNING */}
+          {duplicateSupplier && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-2.5 animate-pulse text-amber-300">
+              <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={16} />
+              <div className="space-y-1">
+                <p className="font-black text-[11px]">⚠️ تنبيه: رقم الهاتف مكرر ومسجل مسبقاً!</p>
+                <p className="text-[10px] text-amber-400/90 leading-relaxed">
+                  هذا الرقم مسجل بالفعل للمورد: <span className="font-black underline text-white">{duplicateSupplier.name}</span>. 
+                  يُفضل استخدام رقم فريد لتفادي تداخل حسابات الموردين وإشعارات الواتساب.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">شروط السداد</label>
             <select
@@ -320,9 +371,10 @@ const SupplierModal: React.FC<{ supplier: Supplier | null; onClose: () => void }
           <div className="pt-4 flex gap-3">
             <button 
               type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20"
+              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 flex items-center justify-center gap-1.5"
             >
-              حفظ المورد
+              <Volume2 size={14} />
+              <span>حفظ المورد</span>
             </button>
             <button 
               type="button"

@@ -24,11 +24,13 @@ export interface SyncStatusEvent {
   pendingCount: number;
   lastSyncedAt?: string;
   error?: string;
+  cloudSyncEnabled?: boolean;
 }
 
 const STORAGE_PREFIX = 'maro_erp_db_';
 const QUEUE_KEY = 'maro_erp_sync_queue';
 const RETRY_KEY = 'maro_erp_retry_queue';
+const CLOUD_SYNC_KEY = 'maro_cloud_sync_enabled';
 
 const LISTENERS: Map<string, Set<(data: any[]) => void>> = new Map();
 const STATUS_LISTENERS: Set<(status: SyncStatusEvent) => void> = new Set();
@@ -61,13 +63,16 @@ export class MaroSyncEngine {
   private static syncInProgress: boolean = false;
   private static currentStatus: SyncStatusState = 'IDLE';
   private static lastSyncedAt: string | undefined = undefined;
+  private static cloudSyncEnabled: boolean = safeStorageGet(CLOUD_SYNC_KEY) !== 'false';
 
   static init() {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.isOnline = true;
         this.emitStatus();
-        this.processSyncQueue();
+        if (this.cloudSyncEnabled) {
+          this.processSyncQueue();
+        }
       });
       window.addEventListener('offline', () => {
         this.isOnline = false;
@@ -90,10 +95,24 @@ export class MaroSyncEngine {
     const queue = this.getQueue();
     const pendingCount = queue.filter(op => op.status === 'PENDING').length;
     return {
-      state: !this.isOnline ? 'OFFLINE' : this.currentStatus,
+      state: !this.isOnline ? 'OFFLINE' : (!this.cloudSyncEnabled ? 'OFFLINE' : this.currentStatus),
       pendingCount,
-      lastSyncedAt: this.lastSyncedAt
+      lastSyncedAt: this.lastSyncedAt,
+      cloudSyncEnabled: this.cloudSyncEnabled
     };
+  }
+
+  static isCloudSyncEnabled(): boolean {
+    return this.cloudSyncEnabled;
+  }
+
+  static setCloudSyncEnabled(enabled: boolean): void {
+    this.cloudSyncEnabled = enabled;
+    safeStorageSet(CLOUD_SYNC_KEY, enabled ? 'true' : 'false');
+    this.emitStatus();
+    if (enabled && this.isOnline) {
+      this.processSyncQueue();
+    }
   }
 
   static setOnline(online: boolean): void {
@@ -298,7 +317,7 @@ export class MaroSyncEngine {
 
   // --- Remote Fetching & Background Synchronization ---
   static async fetchRemoteCollection(collectionName: string): Promise<void> {
-    if (!this.isOnline) return;
+    if (!this.isOnline || !this.cloudSyncEnabled) return;
 
     try {
       const response = await fetch(`/api/erp/${collectionName}`, {
@@ -392,7 +411,7 @@ export class MaroSyncEngine {
   }
 
   static async processSyncQueue(): Promise<void> {
-    if (this.syncInProgress) return;
+    if (this.syncInProgress || !this.cloudSyncEnabled) return;
 
     const queue = this.getQueue();
     const now = Date.now();

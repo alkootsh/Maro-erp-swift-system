@@ -20,9 +20,11 @@ import {
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../lib/utils';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { PurchaseReorderReportModal } from '../components/Inventory/PurchaseReorderReportModal';
 
 export const ProcurementContracts: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'po' | 'contracts'>('po');
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
   const [posList, setPosList] = useState([
     { id: 'PO-2026-0901', supplier: 'الشركة السعودية للتوريدات', date: '2026-08-15', amount: 45000, status: 'approved', convertedBillId: '' },
@@ -68,6 +70,12 @@ export const ProcurementContracts: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+           <button 
+             onClick={() => setIsReorderModalOpen(true)}
+             className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+           >
+             <Box size={16} /> تقرير النواقص ومقترحات إعادة الطلب
+           </button>
            <button className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
              <Plus size={16} /> أمر شراء جديد (PO)
            </button>
@@ -163,6 +171,11 @@ export const ProcurementContracts: React.FC = () => {
           </p>
         </div>
       )}
+
+      <PurchaseReorderReportModal 
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+      />
     </div>
   );
 };

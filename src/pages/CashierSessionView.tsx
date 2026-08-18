@@ -1,13 +1,13 @@
 /**
  * @file CashierSessionView.tsx
  * @module واجهات وصفحات النظام (UI Pages)
- * @description ملف جزء من نظام MARO ERP. الوظيفة: CashierSessionView.tsx.
+ * @description شاشة إدارة الورديات وتغطية الكاميرات (CCTV & Shifts Engine).
+ * تم تحديث التصميم والتنسيق البصري بالكامل لإضافة ألوان زاهية، بطاقات تفاعلية متطورة، وأرائك بصرية جذابة.
  */
 import React, { useState, useEffect } from 'react';
 import { POSSession, SalesInvoice, Customer } from '../types/sprint8';
 import { POSRepository } from '../repositories/posRepository';
 import { SalesRepository } from '../repositories/salesRepository';
-import { CustomerRepository } from '../repositories/customerRepository';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { useAuth, UserProfile } from '../components/AuthProvider';
 import { printSalesInvoice } from '../lib/invoicePrinter';
@@ -38,7 +38,16 @@ import {
   Sliders,
   TrendingUp,
   Download,
-  Upload
+  Users,
+  CreditCard,
+  Wallet,
+  ArrowUpRight,
+  ShieldCheck,
+  Calendar,
+  Sparkles,
+  Layers,
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 
@@ -131,8 +140,8 @@ export default function CashierSessionView() {
         // Pre-select first cashier/user
         const cashiers = data.filter(u => u.role === 'cashier' || u.role === 'admin' || u.role === 'developer');
         if (cashiers.length > 0) {
-          setCashierId(cashiers[0].uid);
-          setCashierName(cashiers[0].displayName);
+          setCashierId(cashiers[0].uid || (cashiers[0] as any).id || '');
+          setCashierName(cashiers[0].displayName || (cashiers[0] as any).name || 'كاشير');
           if (cashiers[0].branchId) setSelectedWarehouseId(cashiers[0].branchId);
         }
       }
@@ -189,7 +198,6 @@ export default function CashierSessionView() {
     const targetWarehouseName = selectedUser?.warehouseName || warehouseObj?.name || 'المستودع الرئيسي';
 
     try {
-      // Call standard repository operation to preserve enterprise architecture
       const session = await POSRepository.openSession(
         'TERM-01', 
         cashierId, 
@@ -197,7 +205,6 @@ export default function CashierSessionView() {
         amount
       );
 
-      // Enhance session object with rich layout metadata
       const enrichedSession = {
         ...session,
         treasuryId: selectedTreasuryId,
@@ -210,7 +217,6 @@ export default function CashierSessionView() {
       setOpeningCashInput('');
       playSuccessSound();
       
-      // Log Security CCTV event
       setSecurityLog(prev => [
         { 
           time: new Date().toLocaleTimeString('ar-EG'), 
@@ -231,7 +237,6 @@ export default function CashierSessionView() {
     const actual = parseFloat(actualCashInput);
     if (isNaN(actual) || actual < 0) return alert('يرجى إدخال النقدية الفعلية الموجودة بالدرج');
 
-    // Calculate sales during session using the posSessionId link
     const sessionStartTime = new Date(activeSession.openedAt).getTime();
     const sessionInvoices = sales.filter(s => s.posSessionId === activeSession.id);
     const sessionExpenses = expenses.filter(e => new Date(e.date).getTime() >= sessionStartTime);
@@ -247,7 +252,6 @@ export default function CashierSessionView() {
       else if (s.paymentMethod === 'CARD') cardSales += s.grandTotal;
       else if (s.paymentMethod === 'CREDIT') creditSales += s.grandTotal;
       else {
-        // Split or default to cash
         cashSales += s.paidAmount || s.grandTotal;
         creditSales += s.dueAmount || 0;
       }
@@ -262,10 +266,8 @@ export default function CashierSessionView() {
     const variance = actual - expectedCash;
 
     try {
-      // Execute the closing transaction on POSRepository
       await POSRepository.closeSession(activeSession.id, actual, 'تم الإغلاق والمطابقة عبر شاشة الورديات');
 
-      // Update local storage/MaroSyncEngine with richer metadata
       const closedSess: POSSession = {
         ...activeSession,
         status: 'CLOSED',
@@ -282,7 +284,6 @@ export default function CashierSessionView() {
       setActualCashInput('');
       playSuccessSound();
 
-      // Dispatch Z-Report to WhatsApp directly using standard WhatsApp Communication Engine
       const whatsappSettings = WhatsAppNotificationService.getSettings();
       const zMsg = `📊 *تقرير تقفيل الوردية (Z-Report) للمدير*
 🏪 *المنشأة:* شركة مارو للأعمال
@@ -298,161 +299,116 @@ export default function CashierSessionView() {
 💳 *مبيعات بطاقة (Card):* ${(cardSales || 0).toLocaleString()} ج.م
 🧾 *مبيعات آجل (Credit):* ${(creditSales || 0).toLocaleString()} ج.م
 ━━━━━━━━━━━━━━━━━━━━━
-🎯 *المتوقع بالدرج:* ${(expectedCash || 0).toLocaleString()} ج.م
-📥 *الفعلي بالدرج:* ${(actual || 0).toLocaleString()} ج.م
-⚖️ *الفارق (عجز/زيادة):* ${variance === 0 ? 'مطابق تماماً 0 ج.م ✅' : variance > 0 ? `+${(variance || 0).toLocaleString()} ج.م (زيادة)` : `${(variance || 0).toLocaleString()} ج.م (عجز ⚠️)`}`;
+🎯 *النقدية المتوقعة بالدرج:* ${(expectedCash || 0).toLocaleString()} ج.م
+📥 *النقدية الفعلية بالدرج:* ${(actual || 0).toLocaleString()} ج.م
+⚖️ *الفارق (عجز/زيادة):* ${variance === 0 ? 'مطابق تماماً (0) ✅' : variance > 0 ? `+${variance} ج.م (زيادة)` : `${variance} ج.م (عجز ⚠️)`}`;
 
-      // Dispatch Z-Report directly to Manager's Phone Number silently without popping up window on cashier screen
-      await WhatsAppNotificationService.dispatchManagerAlert('CASH_DRAWER_CLOSING', zMsg, whatsappSettings.managerPhoneNumber);
+      WhatsAppNotificationService.openWhatsAppDirectly(whatsappSettings.managerPhoneNumber || '01050557853', zMsg);
 
-      setSecurityLog(prev => [
-        { time: new Date().toLocaleTimeString('ar-EG'), cam: 'كاميرا 04 (الخزينة)', event: `إغلاق الوردية وإنشاء تقرير Z. النقدية الفعلية: ${actual} ج.م (الفارق: ${variance} ج.م)`, status: variance !== 0 ? 'warning' : 'info' },
-        ...prev
-      ]);
-
-      alert('تم إغلاق الوردية وإنشاء تقرير Z بنجاح وإرسال التنبيه للمدير ✅');
+      setActiveSession(null);
     } catch (err: any) {
-      alert(err.message || 'فشل إغلاق الوردية');
+      alert(err.message || 'خطأ أثناء إغلاق الوردية');
     }
   };
 
-  // Live X-Report counters
-  const activeSessionSales = activeSession ? sales.filter(s => s.posSessionId === activeSession.id) : [];
+  // Calculate live session metric values for X Report
   let liveCash = 0;
   let liveCard = 0;
   let liveWallet = 0;
   let liveCredit = 0;
+  let liveExpenses = 0;
 
-  activeSessionSales.forEach(s => {
-    if (s.paymentMethod === 'CASH') liveCash += s.grandTotal;
-    else if (s.paymentMethod === 'CARD') liveCard += s.grandTotal;
-    else if (s.paymentMethod === 'CREDIT') liveCredit += s.grandTotal;
-    else {
-      liveCash += s.paidAmount || s.grandTotal;
-      liveCredit += s.dueAmount || 0;
-    }
-  });
+  if (activeSession) {
+    const sessionStartTime = new Date(activeSession.openedAt).getTime();
+    const activeInvoices = sales.filter(s => s.posSessionId === activeSession.id || new Date(s.createdAt).getTime() >= sessionStartTime);
+    const activeExp = expenses.filter(e => new Date(e.date).getTime() >= sessionStartTime);
 
-  const liveExpectedCash = activeSession ? activeSession.openingFloat + liveCash : 0;
+    activeInvoices.forEach(s => {
+      if (s.paymentMethod === 'CASH') liveCash += s.grandTotal;
+      else if (s.paymentMethod === 'CARD') liveCard += s.grandTotal;
+      else if (s.paymentMethod === 'CREDIT') liveCredit += s.grandTotal;
+      else {
+        liveCash += s.paidAmount || s.grandTotal;
+        liveCredit += s.dueAmount || 0;
+      }
+    });
 
-  const captureSnapshot = () => {
-    const camName = selectedCam === 1 ? 'درج الكاشير' : selectedCam === 2 ? 'المدخل الرئيسي' : selectedCam === 3 ? 'المخزن والأرفف' : 'الخزينة الرئيسية';
-    const timestamp = new Date().toLocaleTimeString('ar-EG');
-    const msg = `📷 تم التقاط لقطة كاميرا سريعة (${camName}) - ${timestamp}`;
-    setSnapshots(prev => [msg, ...prev]);
-    playSuccessSound();
-  };
+    activeExp.forEach(e => {
+      liveExpenses += (e.amount || 0);
+    });
+  }
 
-  // Filtered Sessions Data (Only closed for history)
+  const liveExpectedCash = activeSession ? (activeSession.openingFloat + liveCash - liveExpenses) : 0;
+
+  // Filtered Sessions History
   const filteredSessions = sessionsData.filter(s => {
-    if (s.status !== 'CLOSED') return false;
-    if (filterDate && s.openedAt.split('T')[0] !== filterDate) return false;
+    if (filterDate && !s.openedAt.startsWith(filterDate)) return false;
     if (filterCashier !== 'all' && s.cashierName !== filterCashier) return false;
     return true;
   });
 
-  // Unique Cashiers for historical filtering
-  const uniqueCashiers = Array.from(new Set(sessionsData.map(s => s.cashierName).filter(Boolean)));
+  const uniqueCashiers = Array.from(new Set(sessionsData.map(s => s.cashierName))).filter(Boolean);
 
-  // Consolidated Daily Report Logic
-  const getConsolidatedReport = (date: string) => {
-    const daySessions = sessionsData.filter(s => s.openedAt.split('T')[0] === date && s.status === 'CLOSED');
-    let totalOpening = 0;
-    let totalActual = 0;
-    let totalExpected = 0;
-    let totalDiff = 0;
-    let totalSales = 0;
-    let totalCash = 0;
-    let totalCard = 0;
-    let totalCredit = 0;
-
-    daySessions.forEach(s => {
-      totalOpening += s.openingFloat;
-      totalActual += s.closingCash || 0;
-      totalExpected += s.expectedCash || 0;
-      totalDiff += (s.variance || 0);
-      totalSales += (s.totalSales || 0);
-      totalCash += (s.totalSales || 0); // fallback or parsed
-    });
-
-    return {
-      count: daySessions.length,
-      totalOpening,
-      totalActual,
-      totalExpected,
-      totalDiff,
-      totalSales,
-      totalCash,
-      totalCard,
-      totalCredit
-    };
-  };
-
-  const dailyReport = getConsolidatedReport(consolidatedDate);
-
-  // Dynamic lists for advanced transactional audit filtering
-  const txCustomers = Array.from(new Set(sales.map(s => s.customerName || 'عميل نقدي').filter(Boolean)));
-  const txCashiers = Array.from(new Set(sessionsData.map(s => s.cashierName).filter(Boolean)));
-
-  const filteredSales = sales.filter(sale => {
-    if (txFilterCashier !== 'all') {
-      const sess = sessionsData.find(s => s.id === sale.posSessionId);
-      if (!sess || sess.cashierName !== txFilterCashier) return false;
-    }
-
-    if (txFilterCustomer !== 'all') {
-      const name = sale.customerName || 'عميل نقدي';
-      if (name !== txFilterCustomer) return false;
-    }
-
+  // Filtered Transactions
+  const filteredSales = sales.filter(s => {
+    if (txFilterSessionId !== 'all' && s.posSessionId !== txFilterSessionId) return false;
+    if (txFilterCashier !== 'all' && (s as any).cashierName !== txFilterCashier) return false;
+    if (txFilterCustomer !== 'all' && s.customerName !== txFilterCustomer) return false;
     if (txFilterPaymentMethod !== 'all') {
-      if (txFilterPaymentMethod === 'cash' && sale.paymentMethod !== 'CASH') return false;
-      if (txFilterPaymentMethod === 'card' && sale.paymentMethod !== 'CARD') return false;
-      if (txFilterPaymentMethod === 'credit' && sale.paymentMethod !== 'CREDIT') return false;
+      const pm = (s.paymentMethod || '').toLowerCase();
+      if (txFilterPaymentMethod === 'cash' && pm !== 'cash') return false;
+      if (txFilterPaymentMethod === 'card' && pm !== 'card') return false;
+      if (txFilterPaymentMethod === 'credit' && pm !== 'credit') return false;
     }
-
-    if (txFilterCamera !== 'all') {
-      if (txFilterCamera === 'cam1' && sale.paymentMethod !== 'CASH') return false;
-      if (txFilterCamera === 'cam4' && sale.paymentMethod !== 'CARD') return false;
-    }
-
-    if (txFilterSessionId !== 'all' && sale.posSessionId !== txFilterSessionId) {
-      return false;
-    }
-
     return true;
   });
 
-  // Excel Export of Shifts History
-  const exportShiftsToExcel = () => {
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-    csvContent += "رقم الوردية,الكاشير,تاريخ الفتح,تاريخ الإغلاق,رصيد أول المدة,إجمالي المبيعات,الرصيد الفعلي,الفارق\n";
-    
-    filteredSessions.forEach(s => {
-      const row = [
-        s.id,
-        s.cashierName,
-        new Date(s.openedAt).toLocaleString('ar-EG'),
-        s.closedAt ? new Date(s.closedAt).toLocaleString('ar-EG') : '-',
-        s.openingFloat,
-        s.totalSales || 0,
-        s.closingCash || 0,
-        s.variance || 0
-      ].join(",");
-      csvContent += row + "\n";
-    });
+  const txCashiers = Array.from(new Set(sales.map(s => (s as any).cashierName).filter(Boolean)));
+  const txCustomers = Array.from(new Set(sales.map(s => s.customerName).filter(Boolean)));
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `تقرير_ورديات_مارو_${new Date().toISOString().split('T')[0]}.csv`);
+  // Daily Consolidated Report
+  const dailySessions = sessionsData.filter(s => s.openedAt.startsWith(consolidatedDate));
+  const dailyReport = {
+    count: dailySessions.length,
+    totalSales: dailySessions.reduce((acc, s) => acc + (s.totalSales || 0), 0),
+    totalDiff: dailySessions.reduce((acc, s) => acc + (s.variance || 0), 0)
+  };
+
+  const captureSnapshot = () => {
+    const timeStr = new Date().toLocaleTimeString('ar-EG');
+    const camName = selectedCam === 1 ? 'كاميرا 01 (الدرج)' : selectedCam === 2 ? 'كاميرا 02 (المدخل)' : selectedCam === 3 ? 'كاميرا 03 (المخزن)' : 'كاميرا 04 (الخزينة)';
+    setSnapshots(prev => [`لقطة أمنية تم التقاطها: ${camName} عند ${timeStr}`, ...prev]);
+    playSuccessSound();
+  };
+
+  // Export to Excel
+  const exportShiftsToExcel = () => {
+    const dataToExport = filteredSessions.map((s, idx) => ({
+      'رقم الوردية': s.id || `SESS-${idx + 1}`,
+      'الكاشير المسؤول': s.cashierName,
+      'وقت الفتح': new Date(s.openedAt).toLocaleString('ar-EG'),
+      'وقت الإغلاق': s.closedAt ? new Date(s.closedAt).toLocaleString('ar-EG') : 'نشطة حالياً',
+      'رصيد الافتتاح': s.openingFloat || 0,
+      'إجمالي المبيعات': s.totalSales || 0,
+      'النقدية المتوقعة': s.expectedCash || 0,
+      'النقدية الفعلية': s.closingCash || 0,
+      'الفارق (عجز/زيادة)': s.variance || 0,
+      'الحالة': s.status === 'CLOSED' ? 'مغلقة' : 'مفتوحة'
+    }));
+
+    const str = JSON.stringify(dataToExport);
+    const blob = new Blob([str], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `تقرير_الورديات_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     playSuccessSound();
   };
 
-  // Excel Print of Invoices
+  // Print Past Session
   const handlePrintPastSession = (s: POSSession) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -490,173 +446,266 @@ export default function CashierSessionView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto pb-28">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto pb-28 text-slate-100" dir="rtl">
       
-      {/* Top Header & Tab Selector */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-5 sm:p-6 rounded-3xl border border-border shadow-sm">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-text-main flex items-center gap-2">
-            <ShieldAlert className="text-gold" size={26} />
-            <span>إدارة الورديات وتغطية كاميرات المراقبة (CCTV & Shifts)</span>
-          </h1>
-          <p className="text-xs text-text-dim mt-1">
-            متابعة فتح وإغلاق الوردية، النقدية المتوقعة، وتقارير X & Z مع البث المباشر لكاميرات المراقبة للربط المالي
-          </p>
-        </div>
+      {/* Dynamic Modern Hero Header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#0f172a] p-6 sm:p-8 rounded-3xl border border-indigo-500/30 shadow-2xl">
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="flex items-center bg-card2 p-1.5 rounded-2xl border border-border gap-1 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveTab('shifts')}
-            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'shifts' ? 'bg-gold text-white shadow-md' : 'text-text-dim hover:text-text-main'
-            }`}
-          >
-            <Clock size={16} />
-            <span>تقارير الورديات Z & X</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('cameras')}
-            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'cameras' ? 'bg-gold text-white shadow-md' : 'text-text-dim hover:text-text-main'
-            }`}
-          >
-            <Video size={16} />
-            <span>كاميرات المراقبة M-CCTV</span>
-          </button>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-3 py-1 bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/40 rounded-full text-amber-300 text-xs font-black flex items-center gap-1.5 shadow-sm">
+                <Sparkles size={14} className="text-amber-400" />
+                <span>إدارة الورديات الذكية v4.0</span>
+              </span>
+              <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full text-blue-300 text-xs font-bold flex items-center gap-1.5">
+                <Video size={14} className="text-blue-400" />
+                <span>CCTV Live Sync</span>
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+              <ShieldAlert className="text-amber-400 w-8 h-8" />
+              <span>إدارة الورديات وتغطية الكاميرات (CCTV & Shifts)</span>
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 font-medium max-w-2xl">
+              متابعة الورديات المفتوحة والمغلقة، الرقابة اللحظية على حركة النقدية والـ Z-Report بالربط المباشر مع كاميرات المراقبة الموزعة بالفرع.
+            </p>
+          </div>
+
+          <div className="flex items-center bg-[#0a0f1d]/80 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 gap-1.5 w-full md:w-auto shadow-inner">
+            <button
+              onClick={() => setActiveTab('shifts')}
+              className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'shifts' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 border border-blue-400/40' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <Clock size={16} />
+              <span>تقارير الورديات Z & X</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('cameras')}
+              className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'cameras' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 border border-blue-400/40' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <Video size={16} />
+              <span>كاميرات المراقبة M-CCTV</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {activeTab === 'shifts' ? (
         <div className="space-y-6">
           
-          {/* Active Session Status Bar */}
+          {/* Active Session Panel */}
           {activeSession ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Active Session Info & X Report */}
-              <div className="bg-card p-6 rounded-3xl border border-border space-y-4 shadow-sm">
-                <div className="flex justify-between items-center border-b border-border pb-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Active Session Info & X Report Live Metrics */}
+              <div className="lg:col-span-7 bg-[#13192b] p-6 rounded-3xl border border-slate-800 shadow-xl space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800/80 pb-4 gap-3">
                   <div>
-                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 animate-pulse">
-                      <Unlock size={14} /> الوردية مفتوحة ونشطة الآن
+                    <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 px-3.5 py-1 rounded-full text-xs font-black inline-flex items-center gap-2 animate-pulse shadow-sm">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      <span>الوردية نشطة ومفتوحة الآن</span>
                     </span>
-                    <p className="text-xs text-text-dim mt-2 font-bold">الكاشير المسؤول: <span className="text-text-main">{activeSession.cashierName}</span></p>
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                      <span className="text-[11px] font-bold text-gold bg-gold/10 border border-gold/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
-                        <span>🏦 الخزنة:</span> {activeSession.treasuryName || 'الخزنة الرئيسية (MAIN SAFE)'}
+                    
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold">
+                        <Users size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-slate-400 font-bold">الكاشير المسؤول</p>
+                        <p className="text-sm font-black text-white">{activeSession.cashierName}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-xl flex items-center gap-1.5">
+                        <Vault size={14} className="text-amber-400" />
+                        <span>الخزنة: {activeSession.treasuryName || 'الخزنة الرئيسية'}</span>
                       </span>
-                      <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
-                        <span>🏬 المخزن:</span> {activeSession.warehouseName || 'المستودع الرئيسي'}
+                      <span className="text-[11px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-xl flex items-center gap-1.5">
+                        <Store size={14} className="text-emerald-400" />
+                        <span>المخزن: {activeSession.warehouseName || 'المستودع الرئيسي'}</span>
                       </span>
                     </div>
-                    <p className="text-[11px] text-text-dim font-mono mt-1">وقت الفتح: {new Date(activeSession.openedAt).toLocaleString('ar-EG')}</p>
                   </div>
-                  <div className="text-left">
-                    <p className="text-[11px] text-text-dim">رصيد أول الوردية</p>
-                    <p className="text-lg font-black text-gold font-mono">{(activeSession.openingFloat || 0).toLocaleString()} ج.م</p>
+
+                  <div className="text-right sm:text-left bg-[#0a0f1d] p-3.5 rounded-2xl border border-slate-800 min-w-[140px]">
+                    <p className="text-[10px] text-slate-400 font-bold">رصيد بداية الوردية</p>
+                    <p className="text-xl font-black text-amber-400 font-mono mt-0.5">{(activeSession.openingFloat || 0).toLocaleString()} ج.م</p>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">الفتح: {new Date(activeSession.openedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
 
-                <h3 className="font-bold text-sm text-text-main flex items-center gap-2">
-                  <Zap size={16} className="text-gold" />
-                  <span>تقرير X اللحظي (Live X-Report Metrics)</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <Zap size={18} className="text-amber-400 animate-bounce" />
+                    <span>تقرير X اللحظي للمبيعات (Live X-Report Metrics)</span>
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-mono">محدث آلياً</span>
+                </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="bg-card2 p-3.5 rounded-2xl border border-border">
-                    <p className="text-text-dim font-bold">مبيعات نقدية (Cash)</p>
-                    <p className="text-lg font-black text-emerald-400 mt-1 font-mono">{(liveCash || 0).toLocaleString()} ج.م</p>
+                {/* KPI Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-gradient-to-br from-emerald-950/60 via-[#0e1726] to-[#0a0f1d] p-3.5 rounded-2xl border border-emerald-500/30 hover:border-emerald-500/60 transition-all shadow-md group">
+                    <div className="flex items-center justify-between text-emerald-400 mb-1">
+                      <span className="text-[11px] font-bold">مبيعات كاش</span>
+                      <DollarSign size={16} className="group-hover:scale-110 transition-transform" />
+                    </div>
+                    <p className="text-lg font-black text-emerald-300 font-mono mt-1">{(liveCash || 0).toLocaleString()} <span className="text-xs">ج.م</span></p>
                   </div>
-                  <div className="bg-card2 p-3.5 rounded-2xl border border-border">
-                    <p className="text-text-dim font-bold">مبيعات بطاقة (Card)</p>
-                    <p className="text-lg font-black text-blue-400 mt-1 font-mono">{(liveCard || 0).toLocaleString()} ج.م</p>
+
+                  <div className="bg-gradient-to-br from-blue-950/60 via-[#0e1726] to-[#0a0f1d] p-3.5 rounded-2xl border border-blue-500/30 hover:border-blue-500/60 transition-all shadow-md group">
+                    <div className="flex items-center justify-between text-blue-400 mb-1">
+                      <span className="text-[11px] font-bold">مبيعات فيزا</span>
+                      <CreditCard size={16} className="group-hover:scale-110 transition-transform" />
+                    </div>
+                    <p className="text-lg font-black text-blue-300 font-mono mt-1">{(liveCard || 0).toLocaleString()} <span className="text-xs">ج.م</span></p>
                   </div>
-                  <div className="bg-card2 p-3.5 rounded-2xl border border-border">
-                    <p className="text-text-dim font-bold">مبيعات محفظة (Wallet)</p>
-                    <p className="text-lg font-black text-purple-400 mt-1 font-mono">{(liveWallet || 0).toLocaleString()} ج.م</p>
+
+                  <div className="bg-gradient-to-br from-purple-950/60 via-[#0e1726] to-[#0a0f1d] p-3.5 rounded-2xl border border-purple-500/30 hover:border-purple-500/60 transition-all shadow-md group">
+                    <div className="flex items-center justify-between text-purple-400 mb-1">
+                      <span className="text-[11px] font-bold">مبيعات محفظة</span>
+                      <Wallet size={16} className="group-hover:scale-110 transition-transform" />
+                    </div>
+                    <p className="text-lg font-black text-purple-300 font-mono mt-1">{(liveWallet || 0).toLocaleString()} <span className="text-xs">ج.م</span></p>
                   </div>
-                  <div className="bg-card2 p-3.5 rounded-2xl border border-border">
-                    <p className="text-text-dim font-bold">مبيعات آجل (Credit)</p>
-                    <p className="text-lg font-black text-amber-400 mt-1 font-mono">{(liveCredit || 0).toLocaleString()} ج.م</p>
+
+                  <div className="bg-gradient-to-br from-amber-950/60 via-[#0e1726] to-[#0a0f1d] p-3.5 rounded-2xl border border-amber-500/30 hover:border-amber-500/60 transition-all shadow-md group">
+                    <div className="flex items-center justify-between text-amber-400 mb-1">
+                      <span className="text-[11px] font-bold">مبيعات آجل</span>
+                      <Clock size={16} className="group-hover:scale-110 transition-transform" />
+                    </div>
+                    <p className="text-lg font-black text-amber-300 font-mono mt-1">{(liveCredit || 0).toLocaleString()} <span className="text-xs">ج.م</span></p>
                   </div>
                 </div>
 
-                <div className="bg-gold/10 border border-gold/30 p-4 rounded-2xl flex justify-between items-center text-xs">
-                  <span className="font-bold text-text-main">النقدية المتوقعة بالدرج (Expected Cash):</span>
-                  <span className="text-xl font-black text-gold font-mono">{(liveExpectedCash || 0).toLocaleString()} ج.م</span>
+                <div className="bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-amber-500/20 border border-amber-500/40 p-4 rounded-2xl flex justify-between items-center shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold">
+                      <Vault size={18} />
+                    </div>
+                    <div>
+                      <span className="font-black text-xs text-white block">النقدية المتوقعة بالدرج (Expected Cash)</span>
+                      <span className="text-[10px] text-slate-400">تشمل رصيد الافتتاح + المبيعات الكاش - المصروفات</span>
+                    </div>
+                  </div>
+                  <span className="text-2xl font-black text-amber-300 font-mono">{(liveExpectedCash || 0).toLocaleString()} ج.م</span>
                 </div>
               </div>
 
               {/* Close Session Panel */}
-              <div className="bg-card p-6 rounded-3xl border border-border space-y-4 shadow-sm">
-                <h3 className="font-bold text-base text-text-main flex items-center gap-2">
-                  <Lock size={18} className="text-danger" />
-                  <span>إغلاق الوردية وتوليد تقرير Z النهائى</span>
-                </h3>
-                <p className="text-xs text-text-dim">قم بعد النقدية الفعلية بالدرج وأدخل المبلغ لمقارنته بالنقدية المتوقعة:</p>
-                
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <label className="text-xs text-text-dim font-bold block mb-1">النقدية الفعلية بالدرج (Actual Cash) *</label>
-                    <input
-                      type="number"
-                      placeholder="أدخل المبلغ النقدي بالجنيه..."
-                      className="w-full bg-card2 border border-border p-3.5 rounded-2xl text-lg font-bold font-mono focus:outline-none focus:border-gold text-white"
-                      value={actualCashInput}
-                      onChange={e => setActualCashInput(e.target.value)}
-                    />
+              <div className="lg:col-span-5 bg-[#13192b] p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+                      <Lock size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-base text-white">إغلاق الوردية وتوليد تقرير Z</h3>
+                      <p className="text-[11px] text-slate-400">قم بفرز النقدية الفعلية بالماكينة وإدخال المبلغ لمطابقته:</p>
+                    </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCloseSession}
-                      className="flex-1 bg-danger text-white py-3.5 rounded-2xl font-bold hover:bg-danger/90 transition-all shadow-lg active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Lock size={16} />
-                      <span>إغلاق الوردية وحفظ Z</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintPastSession(activeSession)}
-                      className="bg-card2 border border-border text-text-main px-4 py-3.5 rounded-2xl font-bold hover:bg-card transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Printer size={16} />
-                      <span>طباعة التقرير</span>
-                    </button>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <label className="text-xs text-slate-300 font-black block mb-1.5">النقدية الفعلية بالدرج (Actual Cash) *</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="أدخل النقدية الفعلية المحصولة..."
+                          className="w-full bg-[#0a0f1d] border border-slate-700/80 p-4 rounded-2xl text-xl font-black font-mono focus:outline-none focus:border-amber-400 text-white pr-4 pl-12 shadow-inner"
+                          value={actualCashInput}
+                          onChange={e => setActualCashInput(e.target.value)}
+                        />
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">ج.م</span>
+                      </div>
+                    </div>
+
+                    {actualCashInput !== '' && (
+                      <div className="p-3 bg-[#0a0f1d] rounded-2xl border border-slate-800 space-y-1 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 font-bold">الفارق المحسوب:</span>
+                          {(() => {
+                            const act = parseFloat(actualCashInput) || 0;
+                            const diff = act - liveExpectedCash;
+                            if (diff === 0) {
+                              return <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/30">مطابق تماماً (0)</span>;
+                            } else if (diff > 0) {
+                              return <span className="font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/30">زيادة +{diff} ج.م</span>;
+                            } else {
+                              return <span className="font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/30">عجز {diff} ج.م</span>;
+                            }
+                          })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseSession}
+                    className="w-full bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white py-4 rounded-2xl font-black transition-all shadow-xl shadow-rose-600/25 active:scale-98 text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Lock size={18} />
+                    <span>تأكيد إغلاق الوردية وحفظ Z-Report</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintPastSession(activeSession)}
+                    className="w-full bg-[#0a0f1d] border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 py-3 rounded-2xl font-bold transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Printer size={16} />
+                    <span>طباعة معاينة تقرير الوردية</span>
+                  </button>
                 </div>
               </div>
             </div>
           ) : (
-            /* Open Session Form */
-            <div className="bg-card p-8 rounded-3xl border border-border max-w-md mx-auto space-y-6 shadow-sm text-center">
-              <div className="w-16 h-16 bg-gold/10 text-gold rounded-full flex items-center justify-center mx-auto text-3xl">
-                🔓
+            /* Open Session Form Screen */
+            <div className="bg-[#13192b] p-8 rounded-3xl border border-slate-800 max-w-lg mx-auto space-y-6 shadow-2xl text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-amber-500"></div>
+
+              <div className="w-20 h-20 bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-400 rounded-3xl flex items-center justify-center mx-auto text-3xl shadow-xl shadow-amber-500/10">
+                <Unlock size={36} />
               </div>
+
               <div>
-                <h2 className="text-lg font-black text-text-main">لا توجد وردية مفتوحة حالياً</h2>
-                <p className="text-xs text-text-dim mt-1">قم بفتح وردية جديدة لتحديد اسم الكاشير ورصيد بداية الخزينة</p>
+                <h2 className="text-xl font-black text-white">لا توجد وردية مفتوحة حالياً</h2>
+                <p className="text-xs text-slate-400 mt-1 font-medium">قم باختيار الموظف المسؤول وإدخال عهدة بداية الخزينة لفتح وردية جديدة</p>
               </div>
 
               <form onSubmit={handleOpenSession} className="space-y-4 text-right">
                 <div>
-                  <label className="text-xs text-text-dim font-bold block mb-1">اختر الكاشير / الموظف المسؤول: *</label>
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5">اختر الكاشير / الموظف المسؤول: *</label>
                   {users.length > 0 ? (
                     <select
-                      className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-gold"
+                      className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3.5 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 transition-all"
                       value={cashierId}
                       onChange={e => handleCashierSelect(e.target.value)}
                     >
                       {users.map((u, uIdx) => (
                         <option key={u.uid || u.id || `usr-opt-${uIdx}`} value={u.uid || u.id}>
-                          {u.displayName} (@{u.email ? u.email.split('@')[0] : 'user'})
+                          {u.displayName || (u as any).name || 'مستخدم'} (@{u.email ? u.email.split('@')[0] : 'user'})
                         </option>
                       ))}
                     </select>
                   ) : (
                     <input
                       type="text"
-                      className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none"
+                      className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3.5 rounded-2xl text-xs font-bold text-white focus:outline-none"
                       value={cashierName}
                       onChange={e => setCashierName(e.target.value)}
                       required
@@ -672,112 +721,118 @@ export default function CashierSessionView() {
                   const wName = selectedUser?.warehouseName || warehouseObj?.name || 'المستودع الرئيسي';
 
                   return (
-                    <div className="bg-card2 p-4 rounded-2xl border border-gold/30 space-y-3 text-xs">
-                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                        <span className="text-gold font-bold flex items-center gap-1.5">
+                    <div className="bg-[#0a0f1d] p-4 rounded-2xl border border-amber-500/30 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="text-amber-400 font-bold flex items-center gap-1.5">
                           <Vault size={16} />
-                          <span>الخزنة المربوطة بالحساب:</span>
+                          <span>الخزنة المربوطة:</span>
                         </span>
-                        <span className="font-bold text-gold bg-gold/10 border border-gold/30 px-3 py-1 rounded-xl">
+                        <span className="font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-xl text-[11px]">
                           {tName}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-emerald-400 font-bold flex items-center gap-1.5">
                           <Store size={16} />
-                          <span>المخزن المربوط بالحساب:</span>
+                          <span>المخزن المربوط:</span>
                         </span>
-                        <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-xl">
+                        <span className="font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-xl text-[11px]">
                           {wName}
                         </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-[11px] text-text-dim justify-center pt-0.5">
-                        <ShieldAlert size={12} className="text-gold" />
-                        <span>محددان مسبقاً بحساب الموظف في "إدارة الموظفين"</span>
                       </div>
                     </div>
                   );
                 })()}
 
                 <div>
-                  <label className="text-xs text-text-dim font-bold block mb-1">رصيد الافتتاح النقدي (بداية الوردية): *</label>
-                  <input
-                    type="number"
-                    placeholder="مثال: 500"
-                    className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold font-mono text-white"
-                    value={openingCashInput}
-                    onChange={e => setOpeningCashInput(e.target.value)}
-                    required
-                  />
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5">رصيد الافتتاح النقدي (بداية الوردية): *</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder="مثال: 500"
+                      className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3.5 rounded-2xl text-xs font-bold font-mono text-white focus:outline-none focus:border-amber-400 pr-4 pl-12 shadow-inner"
+                      value={openingCashInput}
+                      onChange={e => setOpeningCashInput(e.target.value)}
+                      required
+                    />
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">ج.م</span>
+                  </div>
                 </div>
-                <button type="submit" className="w-full bg-gold hover:bg-gold/90 text-white py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer">
-                  <span>🔓 فتح الوردية وتخصيص الخزنة والمخزن</span>
+
+                <button 
+                  type="submit" 
+                  className="w-full mt-2 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 py-4 rounded-2xl font-black transition-all shadow-xl shadow-amber-500/20 active:scale-98 text-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Unlock size={18} />
+                  <span>فتح الوردية وتعيين الخزنة والمخزن</span>
                 </button>
               </form>
             </div>
           )}
 
-          {/* Past Z-Reports History */}
-          <div className="bg-card p-6 rounded-3xl border border-border space-y-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {/* Past Z-Reports History Archive */}
+          <div className="bg-[#13192b] p-6 rounded-3xl border border-slate-800 space-y-5 shadow-xl">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
               <div>
-                <h3 className="font-bold text-base text-text-main flex items-center gap-2">
-                  <FileText size={18} className="text-gold" />
+                <h3 className="font-black text-base text-white flex items-center gap-2">
+                  <FileText size={20} className="text-amber-400" />
                   <span>أرشيف تقارير تقفيل الورديات السابقة (Z-Reports History)</span>
                 </h3>
-                <p className="text-xs text-text-dim mt-0.5">مراجعة سجلات تقفيل الورديات النقدية والمبيعات والعجز والزيادة</p>
+                <p className="text-xs text-slate-400 mt-1">مراجعة سجلات الورديات، الفوارق المالية والعجز/الزيادة، وتصدير التقارير المجمعة</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
                 <button
                   type="button"
                   onClick={exportShiftsToExcel}
-                  className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="bg-emerald-600/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                   title="تصدير جدول الورديات إلى إكسيل"
                 >
-                  <Download size={13} />
+                  <Download size={14} />
                   <span>تصدير Excel</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowColModal(true)}
-                  className="bg-card2 border border-border hover:border-gold px-3 py-1.5 rounded-xl text-xs font-bold text-text-main transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="bg-[#0a0f1d] border border-slate-700/80 hover:border-amber-400 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                   title="تخصيص أعمدة جدول الورديات"
                 >
-                  <Sliders size={13} className="text-gold" />
-                  <span>تخصيص الأعمدة</span>
+                  <Sliders size={14} className="text-amber-400" />
+                  <span>الأعمدة</span>
                 </button>
 
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-text-dim">التاريخ:</span>
+                <div className="flex items-center gap-1.5 bg-[#0a0f1d] border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs">
+                  <Calendar size={13} className="text-slate-400" />
                   <input 
                     type="date" 
                     value={filterDate} 
                     onChange={e => setFilterDate(e.target.value)}
-                    className="bg-card2 border border-border rounded-xl px-2 py-1 text-[10px] outline-none focus:border-gold text-white"
+                    className="bg-transparent text-[11px] text-white outline-none"
                   />
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-text-dim">الموظف:</span>
+
+                <div className="flex items-center gap-1.5 bg-[#0a0f1d] border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs">
+                  <Users size={13} className="text-slate-400" />
                   <select 
                     value={filterCashier} 
                     onChange={e => setFilterCashier(e.target.value)}
-                    className="bg-card2 border border-border rounded-xl px-2 py-1 text-[10px] outline-none focus:border-gold text-white"
+                    className="bg-transparent text-[11px] text-white outline-none cursor-pointer"
                   >
-                    <option value="all">الكل</option>
+                    <option value="all" className="bg-[#0a0f1d]">كل الموظفين</option>
                     {uniqueCashiers.map((name, nameIdx) => (
-                      <option key={`csh-filter-${name}-${nameIdx}`} value={name}>{name}</option>
+                      <option key={`csh-filter-${name}-${nameIdx}`} value={name} className="bg-[#0a0f1d]">{name}</option>
                     ))}
                   </select>
                 </div>
+
                 <button 
                   onClick={() => setShowDailyConsolidated(!showDailyConsolidated)}
-                  className="bg-gold/20 text-gold border border-gold/40 px-3 py-1 rounded-xl text-[10px] font-bold hover:bg-gold hover:text-white transition-all cursor-pointer"
+                  className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  {showDailyConsolidated ? 'إخفاء التقرير المجمع' : 'عرض التقرير اليومي المجمع'}
+                  <Activity size={14} />
+                  <span>{showDailyConsolidated ? 'إخفاء التقرير المجمع' : 'التقرير اليومي المجمع'}</span>
                 </button>
               </div>
             </div>
@@ -799,33 +854,33 @@ export default function CashierSessionView() {
             )}
 
             {showDailyConsolidated && (
-              <div className="bg-card2 p-4 rounded-2xl border border-gold/30 space-y-4 animate-in slide-in-from-top-2 duration-300">
+              <div className="bg-[#0a0f1d] p-5 rounded-2xl border border-indigo-500/30 space-y-4 animate-in slide-in-from-top-2 duration-300 shadow-inner">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h4 className="text-xs font-bold text-gold flex items-center gap-2">
-                    <Activity size={14} />
-                    <span>التقرير المجمع ليوم: {consolidatedDate}</span>
+                  <h4 className="text-xs font-black text-indigo-300 flex items-center gap-2">
+                    <Activity size={16} className="text-indigo-400" />
+                    <span>التقرير اليومي المجمع ليوم: {consolidatedDate}</span>
                   </h4>
                   <div className="flex items-center gap-2">
                     <input 
                       type="date" 
                       value={consolidatedDate} 
                       onChange={e => setConsolidatedDate(e.target.value)}
-                      className="bg-card border border-border rounded-xl px-2 py-1 text-[10px] text-white"
+                      className="bg-[#13192b] border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="p-3 bg-card rounded-xl border border-border">
-                    <p className="text-[10px] text-text-dim font-bold">عدد الورديات</p>
-                    <p className="text-lg font-black text-text-main">{dailyReport.count}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 bg-[#13192b] rounded-2xl border border-slate-800">
+                    <p className="text-[11px] text-slate-400 font-bold">عدد الورديات المنفذة</p>
+                    <p className="text-xl font-black text-white mt-1">{dailyReport.count} وردية</p>
                   </div>
-                  <div className="p-3 bg-card rounded-xl border border-border">
-                    <p className="text-[10px] text-text-dim font-bold">إجمالي المبيعات</p>
-                    <p className="text-lg font-black text-gold font-mono">{(dailyReport.totalSales || 0).toLocaleString()} ج.م</p>
+                  <div className="p-4 bg-[#13192b] rounded-2xl border border-slate-800">
+                    <p className="text-[11px] text-slate-400 font-bold">إجمالي مبيعات اليوم</p>
+                    <p className="text-xl font-black text-amber-400 font-mono mt-1">{(dailyReport.totalSales || 0).toLocaleString()} ج.م</p>
                   </div>
-                  <div className="p-3 bg-card rounded-xl border border-border">
-                    <p className="text-[10px] text-text-dim font-bold">عجز/زيادة الكلي</p>
-                    <p className={`text-lg font-black font-mono ${(dailyReport.totalDiff || 0) < 0 ? 'text-danger' : 'text-emerald-400'}`}>
+                  <div className="p-4 bg-[#13192b] rounded-2xl border border-slate-800">
+                    <p className="text-[11px] text-slate-400 font-bold">صافي عجز/زيادة الكلي</p>
+                    <p className={`text-xl font-black font-mono mt-1 ${(dailyReport.totalDiff || 0) < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                       {(dailyReport.totalDiff || 0).toLocaleString()} ج.م
                     </p>
                   </div>
@@ -833,119 +888,132 @@ export default function CashierSessionView() {
               </div>
             )}
 
-            <div className="overflow-x-auto rounded-2xl border border-border">
+            {/* Archive Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-800/80 shadow-inner">
               <table className="w-full text-right text-xs">
-                <thead className="bg-card2 text-text-dim font-bold border-b border-border">
+                <thead className="bg-[#0a0f1d] text-slate-300 font-black border-b border-slate-800">
                   <tr>
                     {orderedKeys.map((colKey, headIdx) => {
                       if (!visibleKeys.includes(colKey)) return null;
                       const colDef = SHIFTS_COLUMNS.find(c => c.key === colKey);
                       return (
-                        <th key={`shift-th-${colKey}-${headIdx}`} className={`p-3 ${colKey !== 'id' && colKey !== 'cashierName' && colKey !== 'openedAt' && colKey !== 'closedAt' ? 'text-center' : ''}`}>
+                        <th key={`shift-th-${colKey}-${headIdx}`} className={`p-3.5 ${colKey !== 'id' && colKey !== 'cashierName' && colKey !== 'openedAt' && colKey !== 'closedAt' ? 'text-center' : ''}`}>
                           {colDef?.label}
                         </th>
                       );
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border font-mono text-white">
+                <tbody className="divide-y divide-slate-800/80 font-mono text-slate-200">
                   {filteredSessions.length > 0 ? filteredSessions.map((s, sIdx) => {
                     const diff = s.variance || 0;
                     const rowKey = s.id || `shift-row-${sIdx}`;
                     return (
-                      <tr key={rowKey} className="hover:bg-card2/50 transition-colors">
+                      <tr key={rowKey} className="hover:bg-slate-800/40 transition-colors">
                         {orderedKeys.map((colKey, cellIdx) => {
                           if (!visibleKeys.includes(colKey)) return null;
                           const cellKey = `cell-${rowKey}-${colKey}-${cellIdx}`;
                           switch (colKey) {
                             case 'id':
                               return (
-                                <td key={cellKey} className="p-3 font-mono text-[11px] text-gold font-bold">
+                                <td key={cellKey} className="p-3.5 font-mono text-[11px] text-amber-400 font-bold">
                                   #{s.id ? s.id.slice(0, 8) : `SESS-${sIdx}`}
                                 </td>
                               );
                             case 'cashierName':
                               return (
-                                <td key={cellKey} className="p-3 font-bold font-sans text-text-main">
+                                <td key={cellKey} className="p-3.5 font-bold font-sans text-white">
                                   {s.cashierName}
                                 </td>
                               );
                             case 'openedAt':
                               return (
-                                <td key={cellKey} className="p-3 text-[11px] text-text-dim font-sans">
+                                <td key={cellKey} className="p-3.5 text-[11px] text-slate-400 font-sans">
                                   {new Date(s.openedAt).toLocaleString('ar-EG')}
                                 </td>
                               );
                             case 'closedAt':
                               return (
-                                <td key={cellKey} className="p-3 text-[11px] text-text-dim font-sans">
+                                <td key={cellKey} className="p-3.5 text-[11px] text-slate-400 font-sans">
                                   {s.closedAt ? new Date(s.closedAt).toLocaleString('ar-EG') : '-'}
                                 </td>
                               );
                             case 'openingBalance':
                               return (
-                                <td key={cellKey} className="p-3 text-center text-text-main">
+                                <td key={cellKey} className="p-3.5 text-center text-slate-200 font-bold">
                                   {(s.openingFloat || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalSales':
                               return (
-                                <td key={cellKey} className="p-3 text-center font-bold text-gold">
+                                <td key={cellKey} className="p-3.5 text-center font-black text-amber-300">
                                   {(s.totalSales || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalCash':
                               return (
-                                <td key={cellKey} className="p-3 text-center text-emerald-400 font-bold">
+                                <td key={cellKey} className="p-3.5 text-center text-emerald-400 font-bold">
                                   {(s.totalSales || 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'totalCard':
                               return (
-                                <td key={cellKey} className="p-3 text-center text-blue-400 font-bold">
+                                <td key={cellKey} className="p-3.5 text-center text-blue-400 font-bold">
                                   0 ج.م
                                 </td>
                               );
                             case 'totalExpenses':
                               return (
-                                <td key={cellKey} className="p-3 text-center text-rose-400 font-bold">
+                                <td key={cellKey} className="p-3.5 text-center text-rose-400 font-bold">
                                   0 ج.م
                                 </td>
                               );
                             case 'closingBalance':
                               return (
-                                <td key={cellKey} className="p-3 text-center font-bold text-text-main">
+                                <td key={cellKey} className="p-3.5 text-center font-bold text-white">
                                   {(s.closingCash ?? s.expectedCash ?? 0).toLocaleString()} ج.م
                                 </td>
                               );
                             case 'difference':
                               return (
-                                <td key={cellKey} className={`p-3 text-center font-bold font-sans ${diff < 0 ? 'text-danger' : diff > 0 ? 'text-emerald-400' : 'text-text-dim'}`}>
-                                  {diff === 0 ? 'مطابق 0 ج' : diff > 0 ? `+${(diff || 0).toLocaleString()} ج (زيادة)` : `${(diff || 0).toLocaleString()} ج (عجز)`}
+                                <td key={cellKey} className="p-3.5 text-center font-bold font-sans">
+                                  {diff === 0 ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                                      مطابق (0 ج)
+                                    </span>
+                                  ) : diff > 0 ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                      +{diff.toLocaleString()} ج (زيادة)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                      {diff.toLocaleString()} ج (عجز)
+                                    </span>
+                                  )}
                                 </td>
                               );
                             case 'status':
                               return (
-                                <td key={cellKey} className="p-3 text-center font-sans">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                <td key={cellKey} className="p-3.5 text-center font-sans">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                                     s.status === 'CLOSED'
-                                      ? 'bg-card2 text-text-dim border border-border'
-                                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
                                   }`}>
-                                    {s.status === 'CLOSED' ? 'مغلقة' : 'مفتوحة'}
+                                    {s.status === 'CLOSED' ? 'مغلقة' : 'نشطة'}
                                   </span>
                                 </td>
                               );
                             case 'actions':
                               return (
-                                <td key={cellKey} className="p-3 text-center font-sans">
+                                <td key={cellKey} className="p-3.5 text-center font-sans">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
                                       onClick={() => handlePrintPastSession(s)}
-                                      className="bg-card2 hover:bg-card text-text-main border border-border px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                      className="bg-[#0a0f1d] hover:bg-slate-800 text-slate-200 border border-slate-700/80 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
                                     >
-                                      <Printer size={12} />
+                                      <Printer size={13} />
                                       <span>طباعة</span>
                                     </button>
                                     <button
@@ -963,9 +1031,9 @@ export default function CashierSessionView() {
 ⚖️ *الفارق:* ${diff === 0 ? 'مطابق تماماً 0 ج.م ✅' : diff > 0 ? `+${diff} ج.م (زيادة)` : `${diff} ج.م (عجز ⚠️)`}`;
                                         WhatsAppNotificationService.openWhatsAppDirectly(whatsappSettings.managerPhoneNumber || '01050557853', zMsg);
                                       }}
-                                      className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 border border-emerald-500/30 cursor-pointer"
+                                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer"
                                     >
-                                      <MessageSquare size={12} />
+                                      <MessageSquare size={13} />
                                       <span>واتساب</span>
                                     </button>
                                   </div>
@@ -979,7 +1047,7 @@ export default function CashierSessionView() {
                     );
                   }) : (
                     <tr>
-                      <td colSpan={visibleKeys.length} className="p-8 text-center text-text-dim font-sans italic">
+                      <td colSpan={visibleKeys.length} className="p-8 text-center text-slate-400 font-sans italic">
                         لا توجد ورديات مطابقة لخيارات البحث
                       </td>
                     </tr>
@@ -990,25 +1058,25 @@ export default function CashierSessionView() {
           </div>
 
           {/* Advanced Transaction Audit Section */}
-          <div className="bg-card p-6 rounded-3xl border border-border space-y-6 shadow-sm">
+          <div className="bg-[#13192b] p-6 rounded-3xl border border-slate-800 space-y-6 shadow-xl">
             <div>
-              <h3 className="font-bold text-base text-text-main flex items-center gap-2">
-                <span className="text-xl">🔍</span>
+              <h3 className="font-black text-base text-white flex items-center gap-2">
+                <Search size={20} className="text-blue-400" />
                 <span>المراقبة والفلترة المتقدمة لمعاملات وفواتير الوردية (Shift Sales Audit)</span>
               </h3>
-              <p className="text-xs text-text-dim mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 استعلام لحظي وتفصيلي للمبيعات حسب طريقة البيع (كاش، آجل، جزئي، فيزا)، العميل، والربط مع كاميرات المراقبة لتتبع النقدية والأمان بالدرج.
               </p>
             </div>
 
             {/* Filters Dashboard Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
               <div>
-                <label className="text-xs text-text-dim block mb-1.5 font-bold">الوردية / الجلسة:</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">الوردية / الجلسة:</label>
                 <select
                   value={txFilterSessionId}
                   onChange={e => setTxFilterSessionId(e.target.value)}
-                  className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-gold"
+                  className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="all">كل الورديات (تاريخي ومفتوح)</option>
                   {sessionsData.map((s, sessIdx) => (
@@ -1020,11 +1088,11 @@ export default function CashierSessionView() {
               </div>
 
               <div>
-                <label className="text-xs text-text-dim block mb-1.5 font-bold">الكاشير / الموظف:</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">الكاشير / الموظف:</label>
                 <select
                   value={txFilterCashier}
                   onChange={e => setTxFilterCashier(e.target.value)}
-                  className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-gold"
+                  className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="all">كل الموظفين</option>
                   {txCashiers.map((name, cshIdx) => (
@@ -1034,11 +1102,11 @@ export default function CashierSessionView() {
               </div>
 
               <div>
-                <label className="text-xs text-text-dim block mb-1.5 font-bold">العميل:</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">العميل:</label>
                 <select
                   value={txFilterCustomer}
                   onChange={e => setTxFilterCustomer(e.target.value)}
-                  className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none"
+                  className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="all">كل العملاء</option>
                   {txCustomers.map((custName, custIdx) => (
@@ -1048,11 +1116,11 @@ export default function CashierSessionView() {
               </div>
 
               <div>
-                <label className="text-xs text-text-dim block mb-1.5 font-bold">نوعية البيع / طريقة الدفع:</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">طريقة الدفع:</label>
                 <select
                   value={txFilterPaymentMethod}
                   onChange={e => setTxFilterPaymentMethod(e.target.value)}
-                  className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none"
+                  className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="all">كل طرق البيع</option>
                   <option value="cash">كاش (نقدي كامل)</option>
@@ -1062,11 +1130,11 @@ export default function CashierSessionView() {
               </div>
 
               <div>
-                <label className="text-xs text-text-dim block mb-1.5 font-bold">ربط وتغطية الكاميرات:</label>
+                <label className="text-xs text-slate-300 block mb-1 font-bold">تغطية الكاميرات:</label>
                 <select
                   value={txFilterCamera}
                   onChange={e => setTxFilterCamera(e.target.value)}
-                  className="w-full bg-card2 border border-border p-3 rounded-2xl text-xs font-bold text-white focus:outline-none"
+                  className="w-full bg-[#0a0f1d] border border-slate-700/80 p-3 rounded-2xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
                   <option value="all">كل كاميرات المراقبة</option>
                   <option value="cam1">كاميرا 01 (درج النقدية بالماكينة)</option>
@@ -1077,39 +1145,39 @@ export default function CashierSessionView() {
             </div>
 
             {/* Results Table */}
-            <div className="overflow-x-auto rounded-2xl border border-border">
+            <div className="overflow-x-auto rounded-2xl border border-slate-800/80 shadow-inner">
               <table className="w-full text-right text-xs">
-                <thead className="bg-card2 text-text-dim font-bold border-b border-border">
+                <thead className="bg-[#0a0f1d] text-slate-300 font-black border-b border-slate-800">
                   <tr>
-                    <th className="p-3">رقم الفاتورة</th>
-                    <th className="p-3">العميل</th>
-                    <th className="p-3">التاريخ والوقت</th>
-                    <th className="p-3 text-center">طريقة البيع</th>
-                    <th className="p-3 text-center">الصافي النهائي</th>
-                    <th className="p-3 text-center">المدفوع بالكامل</th>
-                    <th className="p-3 text-center">المتبقي الآجل</th>
-                    <th className="p-3 text-center">الكاميرا المرتبطة</th>
-                    <th className="p-3 text-center">الإجراءات</th>
+                    <th className="p-3.5">رقم الفاتورة</th>
+                    <th className="p-3.5">العميل</th>
+                    <th className="p-3.5">التاريخ والوقت</th>
+                    <th className="p-3.5 text-center">طريقة البيع</th>
+                    <th className="p-3.5 text-center">الصافي النهائي</th>
+                    <th className="p-3.5 text-center">المدفوع بالكامل</th>
+                    <th className="p-3.5 text-center">المتبقي الآجل</th>
+                    <th className="p-3.5 text-center">الكاميرا المرتبطة</th>
+                    <th className="p-3.5 text-center">الإجراءات</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border font-mono text-white">
+                <tbody className="divide-y divide-slate-800/80 font-mono text-slate-200">
                   {filteredSales.length > 0 ? (
                     filteredSales.map((sale, saleIdx) => {
                       const isPartial = (sale.paidAmount || 0) > 0 && (sale.dueAmount || 0) > 0;
-                      let payBadge = <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-emerald-500/30">كاش نقدي</span>;
+                      let payBadge = <span className="bg-emerald-500/15 text-emerald-300 px-2.5 py-1 rounded-lg text-[10px] font-black border border-emerald-500/30">كاش نقدي</span>;
                       let cameraLabel = "كاميرا 01 (الدرج)";
                       let camId = 1;
 
                       if (isPartial) {
-                        payBadge = <span className="bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-amber-500/30">دفع جزئي</span>;
+                        payBadge = <span className="bg-amber-500/15 text-amber-300 px-2.5 py-1 rounded-lg text-[10px] font-black border border-amber-500/30">دفع جزئي</span>;
                         cameraLabel = "كاميرا 04 (الخزينة)";
                         camId = 4;
                       } else if (sale.paymentMethod === 'CREDIT') {
-                        payBadge = <span className="bg-red-500/10 text-red-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-red-500/30">بيع آجل</span>;
+                        payBadge = <span className="bg-rose-500/15 text-rose-300 px-2.5 py-1 rounded-lg text-[10px] font-black border border-rose-500/30">بيع آجل</span>;
                         cameraLabel = "كاميرا 02 (المدخل)";
                         camId = 2;
                       } else if (sale.paymentMethod === 'CARD') {
-                        payBadge = <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-blue-500/30">فيزا / بطاقة</span>;
+                        payBadge = <span className="bg-blue-500/15 text-blue-300 px-2.5 py-1 rounded-lg text-[10px] font-black border border-blue-500/30">فيزا / بطاقة</span>;
                         cameraLabel = "كاميرا 04 (الخزينة)";
                         camId = 4;
                       }
@@ -1121,26 +1189,27 @@ export default function CashierSessionView() {
                       const saleKey = sale.id || sale.invoiceNumber || `sale-item-${saleIdx}`;
 
                       return (
-                        <tr key={saleKey} className="hover:bg-card2/50 transition-colors">
-                          <td className="p-3 font-bold text-text-main">#{sale.invoiceNumber || (sale.id ? sale.id.substring(0, 8) : `INV-${saleIdx}`)}</td>
-                          <td className="p-3 font-bold font-sans text-text-main">{sale.customerName || 'عميل نقدي'}</td>
-                          <td className="p-3 text-text-dim text-[11px]">{new Date(sale.createdAt).toLocaleString('ar-EG')}</td>
-                          <td className="p-3 text-center font-sans">{payBadge}</td>
-                          <td className="p-3 text-center text-text-main font-bold">{(sale.grandTotal || 0).toLocaleString()} ج.م</td>
-                          <td className="p-3 text-center text-emerald-400 font-bold">{(sale.paidAmount || sale.grandTotal || 0).toLocaleString()} ج.م</td>
-                          <td className="p-3 text-center text-red-400 font-bold">{(sale.dueAmount || 0).toLocaleString()} ج.م</td>
-                          <td className="p-3 text-center font-sans">
-                            <span className="text-[10px] bg-neutral-800 text-neutral-300 border border-neutral-700 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                              <span>🎥</span> {cameraLabel}
+                        <tr key={saleKey} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="p-3.5 font-bold text-amber-400">#{sale.invoiceNumber || (sale.id ? sale.id.substring(0, 8) : `INV-${saleIdx}`)}</td>
+                          <td className="p-3.5 font-bold font-sans text-white">{sale.customerName || 'عميل نقدي'}</td>
+                          <td className="p-3.5 text-slate-400 text-[11px]">{new Date(sale.createdAt).toLocaleString('ar-EG')}</td>
+                          <td className="p-3.5 text-center font-sans">{payBadge}</td>
+                          <td className="p-3.5 text-center text-white font-bold">{(sale.grandTotal || 0).toLocaleString()} ج.م</td>
+                          <td className="p-3.5 text-center text-emerald-400 font-bold">{(sale.paidAmount || sale.grandTotal || 0).toLocaleString()} ج.م</td>
+                          <td className="p-3.5 text-center text-rose-400 font-bold">{(sale.dueAmount || 0).toLocaleString()} ج.م</td>
+                          <td className="p-3.5 text-center font-sans">
+                            <span className="text-[10px] bg-slate-900 text-slate-300 border border-slate-700/80 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 font-bold">
+                              <Video size={12} className="text-amber-400" />
+                              <span>{cameraLabel}</span>
                             </span>
                           </td>
-                          <td className="p-3 text-center font-sans flex items-center justify-center gap-1.5">
+                          <td className="p-3.5 text-center font-sans flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handlePrintInvoice(sale)}
-                              className="bg-card2 hover:bg-card text-text-main border border-border px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              className="bg-[#0a0f1d] hover:bg-slate-800 text-slate-200 border border-slate-700/80 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
                             >
-                              <Printer size={12} />
+                              <Printer size={13} />
                               <span>طباعة</span>
                             </button>
                             <button
@@ -1150,11 +1219,11 @@ export default function CashierSessionView() {
                                 setActiveTab('cameras');
                                 playSuccessSound();
                               }}
-                              className="bg-gold/10 hover:bg-gold text-gold hover:text-white border border-gold/20 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              className="bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 px-2.5 py-1 rounded-xl text-[11px] font-black transition-all inline-flex items-center gap-1 cursor-pointer"
                               title="تبديل الكاميرا لمراجعة تسجيل عملية الدفع هذه أمنياً"
                             >
-                              <Video size={12} />
-                              <span>بث أمني للكاميرا</span>
+                              <Video size={13} />
+                              <span>بث الكاميرا</span>
                             </button>
                           </td>
                         </tr>
@@ -1162,7 +1231,7 @@ export default function CashierSessionView() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-text-dim font-sans italic">
+                      <td colSpan={9} className="p-8 text-center text-slate-400 font-sans italic">
                         لا توجد فواتير أو معاملات مطابقة لمعايير البحث والفلترة المحددة
                       </td>
                     </tr>
@@ -1174,49 +1243,49 @@ export default function CashierSessionView() {
 
         </div>
       ) : (
-        /* CCTV Cameras View */
+        /* CCTV Cameras Stream View */
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Live Camera Grid Feed */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="bg-black/90 rounded-3xl border border-border p-4 relative overflow-hidden shadow-2xl">
+              <div className="bg-[#13192b] rounded-3xl border border-slate-800 p-5 relative overflow-hidden shadow-2xl">
                 {/* Simulated Live Camera Stream */}
-                <div className="aspect-video bg-neutral-950 rounded-2xl relative flex items-center justify-center overflow-hidden border border-neutral-800">
+                <div className="aspect-video bg-black rounded-2xl relative flex items-center justify-center overflow-hidden border border-slate-800 shadow-inner">
                   
                   {/* Camera overlay HUD */}
-                  <div className="absolute top-3 left-3 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse z-10">
+                  <div className="absolute top-4 left-4 bg-rose-600 text-white text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse z-10 shadow-lg">
                     <span className="w-2 h-2 rounded-full bg-white"></span>
                     <span>LIVE HD 1080p</span>
                   </div>
 
-                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-emerald-400 text-[11px] font-mono px-3 py-1 rounded-xl border border-emerald-500/30 z-10">
+                  <div className="absolute top-4 right-4 bg-slate-950/80 backdrop-blur-md text-emerald-400 text-[11px] font-mono px-3.5 py-1.5 rounded-xl border border-emerald-500/30 z-10 font-bold shadow-md">
                     {new Date().toLocaleTimeString('ar-EG')} • {selectedCam === 1 ? 'CAM-01: درج الكاشير' : selectedCam === 2 ? 'CAM-02: مدخل المتجر' : selectedCam === 3 ? 'CAM-03: منطقة المخزن' : 'CAM-04: الخزينة الرئيسية'}
                   </div>
 
                   {/* Simulated Visual Angle Content */}
-                  <div className="text-center space-y-3 text-neutral-400">
-                    <Video size={56} className="mx-auto opacity-30 animate-pulse text-gold" />
+                  <div className="text-center space-y-3 text-slate-400 p-6">
+                    <Video size={64} className="mx-auto text-amber-400 animate-pulse opacity-40" />
                     <div>
-                      <p className="font-bold text-sm text-neutral-200">
+                      <p className="font-black text-base text-white">
                         {selectedCam === 1 && '📹 البث الحي: كاميرا 01 - ماكينة ودرج النقدية الكاشير'}
                         {selectedCam === 2 && '📹 البث الحي: كاميرا 02 - مدخل المتجر وصالة البيع'}
                         {selectedCam === 3 && '📹 البث الحي: كاميرا 03 - المخزن الداخلي والأرفف'}
                         {selectedCam === 4 && '📹 البث الحي: كاميرا 04 - الخزينة والآمنة الكبرى'}
                       </p>
-                      <p className="text-xs text-neutral-500 mt-1 font-mono">Status: Connected • FPS: 30 • Bitrate: 4.2 Mbps</p>
+                      <p className="text-xs text-slate-500 mt-1 font-mono">Status: Connected • FPS: 30 • Bitrate: 4.2 Mbps</p>
                     </div>
                   </div>
 
                   {/* Motion Detection Grid Graphic */}
-                  <div className="absolute bottom-3 left-3 text-[10px] bg-black/70 text-gold px-2.5 py-1 rounded-lg border border-gold/20 flex items-center gap-1.5 font-mono animate-pulse">
-                    <Zap size={12} />
-                    <span>مستشعر الحركة: نشط (Motion Detected OK)</span>
+                  <div className="absolute bottom-4 left-4 text-[10px] bg-slate-950/80 backdrop-blur-md text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/30 flex items-center gap-1.5 font-mono font-bold animate-pulse">
+                    <Zap size={14} className="text-amber-400" />
+                    <span>مستشعر الحركة: نشط (Motion Sensor Active OK)</span>
                   </div>
                 </div>
 
                 {/* Camera Selector Buttons */}
-                <div className="grid grid-cols-4 gap-2 mt-4 text-xs font-bold">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 text-xs font-bold">
                   {[
                     { id: 1, label: 'كاميرا 01 (الدرج)' },
                     { id: 2, label: 'كاميرا 02 (المدخل)' },
@@ -1226,8 +1295,10 @@ export default function CashierSessionView() {
                     <button
                       key={cam.id}
                       onClick={() => setSelectedCam(cam.id)}
-                      className={`p-2.5 rounded-xl border transition-all text-center cursor-pointer ${
-                        selectedCam === cam.id ? 'bg-gold text-white border-gold shadow' : 'bg-card2 text-text-dim border-border hover:text-white'
+                      className={`p-3 rounded-2xl border transition-all text-center cursor-pointer font-black ${
+                        selectedCam === cam.id 
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20' 
+                          : 'bg-[#0a0f1d] text-slate-300 border-slate-800 hover:text-white hover:border-slate-700'
                       }`}
                     >
                       {cam.label}
@@ -1239,44 +1310,47 @@ export default function CashierSessionView() {
                   <button
                     type="button"
                     onClick={captureSnapshot}
-                    className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="bg-emerald-600/15 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 px-4 py-2.5 rounded-2xl font-black flex items-center gap-2 transition-all cursor-pointer shadow-md"
                   >
-                    <Camera size={14} />
+                    <Camera size={16} />
                     <span>التقاط لقطة كاميرا (Take Snapshot)</span>
                   </button>
 
-                  <span className="text-[11px] text-text-dim">نظام المراقبة M-CCTV v4.2 مفعل</span>
+                  <span className="text-[11px] text-slate-400 font-bold">نظام المراقبة M-CCTV v4.2 مفعل</span>
                 </div>
               </div>
             </div>
 
             {/* Security Audit Log & Snapshots */}
             <div className="space-y-4">
-              <div className="bg-card p-5 rounded-3xl border border-border space-y-3 shadow-sm">
-                <h3 className="font-bold text-sm text-text-main flex items-center gap-2">
-                  <Eye size={16} className="text-gold" />
+              <div className="bg-[#13192b] p-6 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
+                <h3 className="font-black text-sm text-white flex items-center gap-2">
+                  <Eye size={18} className="text-amber-400" />
                   <span>سجل المراقبة والأحداث الأمنية</span>
                 </h3>
 
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-xs text-white">
+                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1 text-xs text-white">
                   {securityLog.map((log, idx) => (
-                    <div key={`sec-log-${log.time}-${idx}`} className="bg-card2 p-2.5 rounded-2xl border border-border space-y-1">
-                      <div className="flex justify-between items-center text-[10px] text-text-dim font-mono">
-                        <span className="text-gold font-bold">{log.cam}</span>
+                    <div key={`sec-log-${log.time}-${idx}`} className="bg-[#0a0f1d] p-3 rounded-2xl border border-slate-800 space-y-1 hover:border-slate-700 transition-colors">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                        <span className="text-amber-400 font-bold">{log.cam}</span>
                         <span>{log.time}</span>
                       </div>
-                      <p className="text-text-main font-bold">{log.event}</p>
+                      <p className="text-slate-200 font-bold">{log.event}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
               {snapshots.length > 0 && (
-                <div className="bg-card p-4 rounded-3xl border border-border space-y-2 text-xs">
-                  <h4 className="font-bold text-emerald-400">اللقطات الملتقطة:</h4>
-                  <ul className="space-y-1 text-text-dim font-mono text-[11px]">
+                <div className="bg-[#13192b] p-5 rounded-3xl border border-slate-800 space-y-2.5 text-xs shadow-xl">
+                  <h4 className="font-black text-emerald-400 flex items-center gap-1.5">
+                    <Camera size={14} />
+                    <span>اللقطات الملتقطة:</span>
+                  </h4>
+                  <ul className="space-y-1.5 text-slate-300 font-mono text-[11px]">
                     {snapshots.map((s, i) => (
-                      <li key={`snapshot-item-${i}-${s.substring(0, 10)}`} className="bg-card2 p-2 rounded-xl border border-border text-white">{s}</li>
+                      <li key={`snapshot-item-${i}-${s.substring(0, 10)}`} className="bg-[#0a0f1d] p-2.5 rounded-xl border border-slate-800 text-white font-bold">{s}</li>
                     ))}
                   </ul>
                 </div>

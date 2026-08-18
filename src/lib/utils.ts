@@ -24,6 +24,13 @@ export function formatDate(date: Date | string) {
   }).format(d);
 }
 
+export function parseArabicNumbers(str: string | number | undefined | null): string {
+  if (str === null || str === undefined) return '';
+  const stringValue = str.toString();
+  const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return stringValue.replace(/[٠-٩]/g, (w) => arabicNumbers.indexOf(w).toString());
+}
+
 // premium synthesized offline sounds for MARO ERP Desktop experience
 export function playSystemChime(type: 'success' | 'warning' | 'error' | 'confirm' = 'success') {
   try {

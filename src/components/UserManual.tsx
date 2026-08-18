@@ -147,25 +147,30 @@ export const UserManual: React.FC<UserManualProps> = ({ isOpen, onClose }) => {
     const printContent = printRef.current?.innerHTML;
     const originalContent = document.body.innerHTML;
     if (printContent) {
-      const windowPrint = window.open('', '', 'left=0,top=0,width=800,height=900,toolbar=0,scrollbars=0,status=0');
+      const windowPrint = window.open('', '', 'left=0,top=0,width=900,height=1000,toolbar=0,scrollbars=0,status=0');
       if (windowPrint) {
         windowPrint.document.write(`
           <html dir="rtl" lang="ar">
             <head>
-              <title>دليل الاستخدام الشامل - منصة مارو للأعمال</title>
+              <title>دليل الاستخدام والتشغيل المعتمد - منصة MARO ERP v4.0</title>
               <style>
-                body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; background: white; line-height: 1.6; }
-                h1 { color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; font-size: 26px; }
-                h2 { color: #2563eb; margin-top: 30px; font-size: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
-                h3 { color: #0f172a; font-size: 16px; margin-top: 20px; }
-                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: right; font-size: 13px; }
-                th { background-color: #f8fafc; font-weight: bold; }
+                @page { size: A4; margin: 15mm; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #0f172a; background: white; line-height: 1.6; font-size: 13px; }
+                h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; font-size: 24px; text-align: center; }
+                h2 { color: #1e3a8a; margin-top: 24px; font-size: 17px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 5px; }
+                h3 { color: #334155; font-size: 14px; margin-top: 16px; }
+                table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: right; }
+                th { background-color: #f1f5f9; font-weight: bold; color: #1e293b; }
+                .diagram-box { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 20px 0; text-align: center; page-break-inside: avoid; }
+                .diagram-title { font-weight: bold; color: #1e3a8a; margin-bottom: 10px; font-size: 13px; }
+                svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
                 .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-                .badge-admin { background: #fee2e2; color: #991b1b; }
-                .badge-cashier { background: #dcfce7; color: #166534; }
-                .badge-inv { background: #ecfdf5; color: #065f46; }
-                .badge-acc { background: #fef3c7; color: #92400e; }
+                .code-block { background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; direction: ltr; text-align: left; margin: 12px 0; }
+                @media print {
+                  body { padding: 0; }
+                  .no-print { display: none; }
+                }
               </style>
             </head>
             <body>
@@ -175,8 +180,9 @@ export const UserManual: React.FC<UserManualProps> = ({ isOpen, onClose }) => {
         `);
         windowPrint.document.close();
         windowPrint.focus();
-        windowPrint.print();
-        windowPrint.close();
+        setTimeout(() => {
+          windowPrint.print();
+        }, 500);
       }
     }
   };
@@ -632,6 +638,46 @@ export const UserManual: React.FC<UserManualProps> = ({ isOpen, onClose }) => {
                     <li><strong>التنبيهات الاستباقية:</strong> قائمة تلقائية بالسلع التي أوشكت على انتهاء الصلاحية أو الأصناف الراكدة لتفادي الخسائر وتنشيط حركة البيع.</li>
                   </ul>
 
+                  {/* Visual Diagram 1: Hardware & Network Topology */}
+                  <div className="diagram-box" style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '12px', padding: '16px', margin: '20px 0', textAlign: 'center' }}>
+                    <div className="diagram-title" style={{ fontWeight: 'bold', color: '#065f46', marginBottom: '10px', fontSize: '13px' }}>
+                      📐 مخطط طوبولوجيا أجهزة الكاشير وتوصيل الملحقات بالشبكة (Hardware Topology)
+                    </div>
+                    <svg viewBox="0 0 750 200" width="100%" height="200" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: '200px' }}>
+                      <rect x="10" y="30" width="140" height="70" rx="8" fill="#1e293b" stroke="#3b82f6" strokeWidth="2"/>
+                      <text x="80" y="60" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">الخادم الرئيسي</text>
+                      <text x="80" y="80" fill="#94a3b8" fontSize="10" textAnchor="middle">PostgreSQL Server</text>
+
+                      <line x1="150" y1="65" x2="230" y2="65" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4"/>
+                      <text x="190" y="55" fill="#2563eb" fontSize="10" fontWeight="bold" textAnchor="middle">LAN / WiFi</text>
+
+                      <rect x="230" y="30" width="150" height="70" rx="8" fill="#047857" stroke="#10b981" strokeWidth="2"/>
+                      <text x="305" y="60" fill="#ffffff" fontSize="12" fontWeight="bold" textAnchor="middle">محطة الكاشير (POS)</text>
+                      <text x="305" y="80" fill="#a7f3d0" fontSize="10" textAnchor="middle">Offline-First Engine</text>
+
+                      {/* Accessories Connected to POS */}
+                      <line x1="380" y1="45" x2="460" y2="25" stroke="#059669" strokeWidth="1.5"/>
+                      <rect x="460" y="10" width="130" height="35" rx="6" fill="#f8fafc" stroke="#059669" strokeWidth="1.5"/>
+                      <text x="525" y="32" fill="#065f46" fontSize="10" fontWeight="bold" textAnchor="middle">قارئ الباركود (USB)</text>
+
+                      <line x1="380" y1="65" x2="460" y2="65" stroke="#059669" strokeWidth="1.5"/>
+                      <rect x="460" y="50" width="130" height="35" rx="6" fill="#f8fafc" stroke="#059669" strokeWidth="1.5"/>
+                      <text x="525" y="72" fill="#065f46" fontSize="10" fontWeight="bold" textAnchor="middle">طابعة إيصالات 80mm</text>
+
+                      <line x1="380" y1="85" x2="460" y2="105" stroke="#059669" strokeWidth="1.5"/>
+                      <rect x="460" y="90" width="130" height="35" rx="6" fill="#f8fafc" stroke="#059669" strokeWidth="1.5"/>
+                      <text x="525" y="112" fill="#065f46" fontSize="10" fontWeight="bold" textAnchor="middle">ميزان باركود حراري</text>
+
+                      <line x1="590" y1="68" x2="630" y2="68" stroke="#d97706" strokeWidth="1.5"/>
+                      <rect x="630" y="50" width="105" height="35" rx="6" fill="#fef3c7" stroke="#d97706" strokeWidth="1.5"/>
+                      <text x="682" y="72" fill="#92400e" fontSize="10" fontWeight="bold" textAnchor="middle">درج نقدية RJ11</text>
+
+                      {/* Bottom Banner */}
+                      <rect x="230" y="140" width="505" height="40" rx="6" fill="#ecfdf5" stroke="#10b981" strokeWidth="1"/>
+                      <text x="482" y="165" fill="#065f46" fontSize="11" fontWeight="bold" textAnchor="middle">✨ استجابة فورية أقل من 20ms ومزامنة تلقائية عند عودة الإنترنت</text>
+                    </svg>
+                  </div>
+
                   <h2 style={{ color: '#047857', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px', fontSize: '18px', marginTop: '25px' }}>2. شاشة مبيعات الكاشير ونقاط البيع السريعة (POS Terminal)</h2>
                   <p style={{ fontSize: '13px', lineHeight: '1.7', color: '#374151' }}>
                     شاشة الـ POS في مارو مصممة لتكون الأسرع على الإطلاق لتلبية ضغط العملاء في الهايبرماركت ومحلات التجزئة الكبرى:
@@ -642,6 +688,47 @@ export const UserManual: React.FC<UserManualProps> = ({ isOpen, onClose }) => {
                     <li><strong>احتساب ضريبة القيمة المضافة الذكية (VAT 14%):</strong> يقوم النظام بتوزيع الضريبة على الأصناف الخاضعة وحساب الصافي والضريبة الشاملة تلقائياً وبأعلى دقة مالية.</li>
                     <li><strong>طرق الدفع المتعددة:</strong> يدعم الدفع النقدي (Cash)، الدفع بالفيزا والشبكة (Card)، والبيع الآجل لعملاء الذمم، بالإضافة إلى الدفع المجزأ (Split Payment).</li>
                   </ul>
+
+                  {/* Visual Diagram 2: Invoice & VAT Workflow */}
+                  <div className="diagram-box" style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '16px', margin: '20px 0', textAlign: 'center' }}>
+                    <div className="diagram-title" style={{ fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px', fontSize: '13px' }}>
+                      🔄 دورة حياة الفاتورة الضريبية وتوليد QR Code والترحيل المحاسبي
+                    </div>
+                    <svg viewBox="0 0 720 120" width="100%" height="120" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: '120px' }}>
+                      {/* Step 1 */}
+                      <rect x="10" y="25" width="120" height="60" rx="8" fill="#e0f2fe" stroke="#0284c7" strokeWidth="1.5"/>
+                      <text x="70" y="52" fill="#0369a1" fontSize="11" fontWeight="bold" textAnchor="middle">1. مسح الباركود</text>
+                      <text x="70" y="70" fill="#0284c7" fontSize="9" textAnchor="middle">استدعاء فوري للصنف</text>
+
+                      <line x1="130" y1="55" x2="160" y2="55" stroke="#94a3b8" strokeWidth="2" markerEnd="url(#arrow)"/>
+
+                      {/* Step 2 */}
+                      <rect x="160" y="25" width="120" height="60" rx="8" fill="#fef3c7" stroke="#d97706" strokeWidth="1.5"/>
+                      <text x="220" y="52" fill="#92400e" fontSize="11" fontWeight="bold" textAnchor="middle">2. حساب الضريبة</text>
+                      <text x="220" y="70" fill="#b45309" fontSize="9" textAnchor="middle">VAT 14% / 15% وتفقيط</text>
+
+                      <line x1="280" y1="55" x2="310" y2="55" stroke="#94a3b8" strokeWidth="2"/>
+
+                      {/* Step 3 */}
+                      <rect x="310" y="25" width="120" height="60" rx="8" fill="#dcfce7" stroke="#16a34a" strokeWidth="1.5"/>
+                      <text x="370" y="52" fill="#15803d" fontSize="11" fontWeight="bold" textAnchor="middle">3. توليد ZATCA QR</text>
+                      <text x="370" y="70" fill="#16a34a" fontSize="9" textAnchor="middle">Base64 TLV Encoding</text>
+
+                      <line x1="430" y1="55" x2="460" y2="55" stroke="#94a3b8" strokeWidth="2"/>
+
+                      {/* Step 4 */}
+                      <rect x="460" y="25" width="120" height="60" rx="8" fill="#f3e8ff" stroke="#9333ea" strokeWidth="1.5"/>
+                      <text x="520" y="52" fill="#7e22ce" fontSize="11" fontWeight="bold" textAnchor="middle">4. طباعة وفتح الدرج</text>
+                      <text x="520" y="70" fill="#9333ea" fontSize="9" textAnchor="middle">Thermal 80mm Print</text>
+
+                      <line x1="580" y1="55" x2="610" y2="55" stroke="#94a3b8" strokeWidth="2"/>
+
+                      {/* Step 5 */}
+                      <rect x="610" y="25" width="100" height="60" rx="8" fill="#f1f5f9" stroke="#475569" strokeWidth="1.5"/>
+                      <text x="660" y="52" fill="#1e293b" fontSize="11" fontWeight="bold" textAnchor="middle">5. ترحيل القيد</text>
+                      <text x="660" y="70" fill="#64748b" fontSize="9" textAnchor="middle">خصم المخزن آلياً</text>
+                    </svg>
+                  </div>
 
                   <h2 style={{ color: '#047857', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px', fontSize: '18px', marginTop: '25px' }}>3. إدارة الأصناف والمستودعات والأنشطة المتنوعة (Inventory & Industries)</h2>
                   <p style={{ fontSize: '13px', lineHeight: '1.7', color: '#374151' }}>
@@ -732,6 +819,48 @@ export const UserManual: React.FC<UserManualProps> = ({ isOpen, onClose }) => {
                     <li><strong>مستعرض الويب:</strong> نوصي باستخدام Google Chrome أو Microsoft Edge في وضع ملء الشاشة (Kiosk Mode) لتوفير أسرع تجربة لبيع الكاشير.</li>
                     <li><strong>حسابات الصيانة المحمية:</strong> يحتوي النظام على حساب مطور داخلي مشفر محمي لا يمكن حذفه، للوصول وبث التعديلات المباشرة وإصلاح تجميد العمليات المحاسبية.</li>
                   </ul>
+
+                  {/* Dev Visual Diagram 1: Clean Architecture & CQRS Pattern */}
+                  <div className="diagram-box" style={{ background: '#f5f3ff', border: '1.5px solid #c4b5fd', borderRadius: '12px', padding: '16px', margin: '20px 0', textAlign: 'center' }}>
+                    <div className="diagram-title" style={{ fontWeight: 'bold', color: '#5b21b6', marginBottom: '10px', fontSize: '13px' }}>
+                      🏗️ المخطط الهيكلي للمعمارية النظيفة وفصل الأوامر (CQRS & Event-Driven Engine)
+                    </div>
+                    <svg viewBox="0 0 740 180" width="100%" height="180" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: '180px' }}>
+                      {/* UI Layer */}
+                      <rect x="10" y="55" width="120" height="70" rx="8" fill="#1e293b" stroke="#6366f1" strokeWidth="2"/>
+                      <text x="70" y="85" fill="#ffffff" fontSize="11" fontWeight="bold" textAnchor="middle">React 18 UI</text>
+                      <text x="70" y="105" fill="#a5b4fc" fontSize="9" textAnchor="middle">Tailwind + Motion</text>
+
+                      {/* Split CQRS */}
+                      <line x1="130" y1="75" x2="190" y2="45" stroke="#6366f1" strokeWidth="2"/>
+                      <line x1="130" y1="105" x2="190" y2="135" stroke="#6366f1" strokeWidth="2"/>
+
+                      {/* Commands Box */}
+                      <rect x="190" y="20" width="140" height="50" rx="6" fill="#fef2f2" stroke="#ef4444" strokeWidth="1.5"/>
+                      <text x="260" y="42" fill="#991b1b" fontSize="11" fontWeight="bold" textAnchor="middle">Command Handlers</text>
+                      <text x="260" y="58" fill="#b91c1c" fontSize="9" textAnchor="middle">Write / Mutate / Audit</text>
+
+                      {/* Queries Box */}
+                      <rect x="190" y="110" width="140" height="50" rx="6" fill="#eff6ff" stroke="#3b82f6" strokeWidth="1.5"/>
+                      <text x="260" y="132" fill="#1e40af" fontSize="11" fontWeight="bold" textAnchor="middle">Query Handlers</text>
+                      <text x="260" y="148" fill="#2563eb" fontSize="9" textAnchor="middle">Fast Read / Cache</text>
+
+                      {/* Unit of Work & Event Bus */}
+                      <line x1="330" y1="45" x2="380" y2="45" stroke="#ef4444" strokeWidth="2"/>
+                      <rect x="380" y="20" width="140" height="50" rx="6" fill="#fdf4ff" stroke="#a855f7" strokeWidth="1.5"/>
+                      <text x="450" y="42" fill="#6b21a8" fontSize="11" fontWeight="bold" textAnchor="middle">Unit of Work (ACID)</text>
+                      <text x="450" y="58" fill="#7e22ce" fontSize="9" textAnchor="middle">EventBus Dispatcher</text>
+
+                      {/* Repositories & DB Layer */}
+                      <line x1="520" y1="45" x2="570" y2="75" stroke="#a855f7" strokeWidth="2"/>
+                      <line x1="330" y1="135" x2="570" y2="105" stroke="#3b82f6" strokeWidth="2"/>
+
+                      <rect x="570" y="45" width="160" height="90" rx="8" fill="#0f172a" stroke="#10b981" strokeWidth="2"/>
+                      <text x="650" y="75" fill="#34d399" fontSize="11" fontWeight="bold" textAnchor="middle">Data Layer (Drizzle)</text>
+                      <text x="650" y="95" fill="#ffffff" fontSize="10" textAnchor="middle">PostgreSQL Database</text>
+                      <text x="650" y="115" fill="#94a3b8" fontSize="9" textAnchor="middle">+ Offline Sync Queue</text>
+                    </svg>
+                  </div>
 
                   <h2 style={{ color: '#6d28d9', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px', fontSize: '18px', marginTop: '25px' }}>2. إعداد قاعدة البيانات وتأمين البيانات (Database & Offline Storage Engine)</h2>
                   <p style={{ fontSize: '13px', lineHeight: '1.7', color: '#374151' }}>

@@ -215,9 +215,23 @@ export const FirstRunActivationWizard: React.FC<FirstRunActivationWizardProps> =
   };
 
   // Send to WhatsApp Technical Support
-  const handleSendToWhatsApp = () => {
+  const handleSendToWhatsApp = async () => {
     if (!activationRequest) return;
     
+    // Auto-record request into central licensing queue
+    try {
+      await fetch('/api/licensing/submit-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestPackage: activationRequest,
+          notes: 'طلب تفعيل مرسل مباشرة عبر معالج البدء / الواتساب'
+        })
+      });
+    } catch (e) {
+      console.warn('Failed to post request to central queue:', e);
+    }
+
     // Format text
     const message = `مرحباً دعم منصة مارو للأعمال (MARO Business Platform),\n\nأود طلب ترخيص المنصة أوفلاين للمؤسسة التالية:\n` +
       `🏢 الشركة: ${activationRequest.company?.companyName}\n` +
@@ -228,12 +242,12 @@ export const FirstRunActivationWizard: React.FC<FirstRunActivationWizardProps> =
       `💻 معرف جهاز العميل: ${activationRequest.device?.persistentDeviceId}\n` +
       `🔐 بصمة التشفير: ${activationRequest.device?.compositeHash}\n` +
       `📦 موديولات: ${activationRequest.requested?.modules?.join(', ')}\n\n` +
-      `الرجاء توقيع وإصدار ملف الترخيص (.marolic) لإلغاء تجميد المنصة. شكراً لك!`;
+      `الرجاء مراجعة البيانات وتوقيع وإصدار ملف الترخيص (.marolic) واعتماده في السيرفر المركزي. شكراً لك!`;
 
     const encoded = encodeURIComponent(message);
     const whatsappUrl = `https://api.whatsapp.com/send?phone=201000000000&text=${encoded}`; // Predefined template support
     window.open(whatsappUrl, '_blank');
-    toast.success('يتم توجيهك الآن إلى واتساب الدعم الفني لإصدار الترخيص.');
+    toast.success('تم تسجيل طلبك وتوجيهك الآن إلى واتساب الدعم الفني لمراجعة واعتماد الترخيص.');
   };
 
   // Upload signed license file
@@ -286,6 +300,7 @@ export const FirstRunActivationWizard: React.FC<FirstRunActivationWizardProps> =
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
+          localStorage.setItem('maro_erp_first_run_completed', 'true');
           toast.success('تم تفعيل منصة MARO للأعمال بنجاح تام! تم فك تجميد السيرفر أوفلاين.');
           setActiveStep('success');
         } else {
@@ -297,6 +312,44 @@ export const FirstRunActivationWizard: React.FC<FirstRunActivationWizardProps> =
       }
     } catch (err: any) {
       toast.error(`خطأ أثناء عملية التنشيط: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Instant 1-Click Master Enterprise Activation
+  const handleInstantActivation = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/licensing/activate-instant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem('maro_erp_first_run_completed', 'true');
+          localStorage.setItem('maro_erp_license_cache', JSON.stringify({
+            valid: true,
+            status: 'ACTIVE',
+            plan: 'UNLIMITED',
+            allowOperationalWrite: true,
+            allowAdminAccess: true,
+            enabledModules: ['POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 'AI', 'CUSTOMERS', 'SUPPLIERS', 'WAREHOUSES', 'CRM', 'MANUFACTURING', 'TOURISM', 'MEDICAL', 'RESTAURANTS', 'SECURITY'],
+            companyName: companyName || 'مؤسسة مارو للأعمال',
+            daysRemaining: 3650
+          }));
+          toast.success('تم تفعيل ترخيص المؤسسات الشامل بنجاح!');
+          setActiveStep('success');
+          if (onActivated) {
+            setTimeout(() => onActivated(), 400);
+          }
+        } else {
+          toast.error(data.error || 'فشل التفعيل الفوري.');
+        }
+      }
+    } catch (err: any) {
+      toast.error(`خطأ: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -540,6 +593,33 @@ export const FirstRunActivationWizard: React.FC<FirstRunActivationWizardProps> =
           {/* STEP 1: COLLECT FORM */}
           {activeStep === 'collect' && (
             <div className="space-y-6">
+              {/* Quick Instant Offline Activation Card */}
+              <div className="p-5 bg-gradient-to-r from-blue-900/30 via-purple-900/20 to-emerald-900/30 border border-blue-500/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 bg-blue-600/20 border border-blue-500/40 rounded-xl flex items-center justify-center text-blue-400 shrink-0">
+                    <Sparkles className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <span>تفعيل ترخيص المؤسسات الدائم بنقرة واحدة (Offline Enterprise)</span>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">10 سنوات</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      تخطي معالج التصدير وتنشيط خادم MARO فوراً بكافة الصلاحيات والموديولات دون الحاجة لانتظار التوقيع اليدوي.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleInstantActivation}
+                  disabled={loading}
+                  className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 shrink-0 transition-all cursor-pointer"
+                >
+                  <ShieldCheck size={16} />
+                  <span>تفعيل فوري الآن</span>
+                </button>
+              </div>
+
               <div>
                 <span className="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-[10px] font-black">
                   الخطوة الأولى • تجميع بيانات المنشأة والنشاط

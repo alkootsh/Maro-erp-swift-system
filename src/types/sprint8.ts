@@ -199,7 +199,7 @@ export interface InventoryMovement {
   sku: string;
   warehouseId: string;
   warehouseName?: string;
-  type: 'PURCHASE' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT' | 'RETURN';
+  type: 'PURCHASE' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT' | 'RETURN' | 'OPENING_BALANCE';
   quantity: number; // positive for incoming, negative for outgoing
   unitCost: number;
   referenceId?: string; // invoiceId, billId, transferId

@@ -4,6 +4,7 @@
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Inventory.tsx.
  */
 import React, { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { InventoryIntelligenceDashboard } from '../components/Inventory/InventoryIntelligenceDashboard';
 import { InventoryAlertsList } from '../components/Inventory/InventoryAlertsList';
 import { LowStockReplenishmentModal } from '../components/Inventory/LowStockReplenishmentModal';
@@ -13,7 +14,9 @@ import {
   RefreshCw, 
   X,
   ShoppingCart,
-  Sparkles
+  Sparkles,
+  Boxes,
+  Percent
 } from 'lucide-react';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
@@ -101,20 +104,34 @@ export const Inventory: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to="/opening-balances"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all font-bold shadow-lg shadow-emerald-600/20 active:scale-95 text-xs"
+          >
+            <Boxes size={16} />
+            <span>إدخال أرصدة أول المدة</span>
+          </Link>
+          <Link
+            to="/price-adjustments"
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all font-bold shadow-lg shadow-purple-600/20 active:scale-95 text-xs"
+          >
+            <Percent size={16} />
+            <span>تعديل وتحديث الأسعار والجملة</span>
+          </Link>
           <button 
             onClick={() => handleOpenReplenishment()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl transition-all font-bold shadow-lg shadow-amber-600/20 active:scale-95 text-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl transition-all font-bold shadow-lg shadow-amber-600/20 active:scale-95 text-xs"
           >
             <ShoppingCart size={16} />
-            <span>تحويل النواقص لأوامر وفواتير شراء</span>
+            <span>تحويل النواقص لأوامر شراء</span>
           </button>
           <button 
             onClick={() => { setSelectedProduct(null); setIsAdjustModalOpen(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs"
           >
             <RefreshCw size={16} />
-            <span>إجراء تسوية مخزنية / جرد</span>
+            <span>إجراء تسوية / جرد</span>
           </button>
         </div>
       </div>

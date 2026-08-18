@@ -53,12 +53,14 @@ export interface Manufacturer {
 export interface ProductUnit {
   id: string;
   name: string; // e.g., Piece, Box, Carton
-  symbol: string; // e.g., pcs, box, ctn
+  symbol?: string; // Optional code/symbol
   factor: number; // conversion factor relative to base unit (base unit factor = 1)
   isBaseUnit: boolean;
-  barcode?: string;
+  barcode?: string; // Primary barcode
+  additionalBarcodes?: string[]; // Multiple additional barcodes per unit
   salePrice?: number;
   purchasePrice?: number;
+  unitLevel?: 'smallest' | 'medium' | 'largest';
 }
 
 export interface ProductBarcode {
@@ -172,6 +174,9 @@ export interface ProductMaster {
   preferredSupplierId?: string;
   salesRepresentativeId?: string;
   status: 'active' | 'draft' | 'archived';
+  needsCompletion?: boolean; // Flag if created on-the-fly from purchase bill needing master data completion later
+  isQuickAdded?: boolean;
+  quickAddedFrom?: 'BILL' | 'POS' | 'INVOICE';
   notes?: string;
 
   // Phase 2: Classification
@@ -209,6 +214,9 @@ export interface ProductMaster {
   units: ProductUnit[];
   barcodes: ProductBarcode[];
   packageSizes?: string[]; // e.g. "1x12", "1x24"
+  defaultPurchaseUnitId?: string;
+  defaultRetailUnitId?: string;
+  defaultWholesaleUnitId?: string;
 
   // Phase 2: Pricing
   purchasePrice?: number;

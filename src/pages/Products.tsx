@@ -3,7 +3,7 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Products.tsx.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Plus, 
   Search, 
@@ -36,7 +36,27 @@ import { BrandsTab } from '../components/products/BrandsTab';
 import { InventorySettingsModal } from '../components/products/InventorySettingsModal';
 import { ProductFormModal } from '../components/products/ProductFormModal';
 import { QuickProductBarcodePrintModal } from '../components/hardware/QuickProductBarcodePrintModal';
+import { ExportOptionsModal, ExportColumnDef } from '../components/common/ExportOptionsModal';
+import { TrialLimitService } from '../services/trialLimitService';
 import { Link } from 'react-router-dom';
+import { ScreenHubTabs } from '../components/common/ScreenHubTabs';
+
+const PRODUCT_EXPORT_COLUMNS: ExportColumnDef[] = [
+  { id: 'name', label: 'الاسم (Name)', isDefaultSummary: true },
+  { id: 'nameArabic', label: 'الاسم بالعربية (Arabic Name)' },
+  { id: 'sku', label: 'الرمز (SKU)', isDefaultSummary: true },
+  { id: 'category', label: 'الفئة (Category)', isDefaultSummary: true },
+  { id: 'price', label: 'سعر البيع (Sale Price)', isDefaultSummary: true },
+  { id: 'costPrice', label: 'سعر التكلفة (Cost Price)' },
+  { id: 'quantity', label: 'الكمية الحالية (Quantity)', isDefaultSummary: true },
+  { id: 'group', label: 'المجموعة (Group)' },
+  { id: 'brandName', label: 'الماركة (Brand)' },
+  { id: 'reorderLevel', label: 'حد الطلب (Reorder Level)' },
+  { id: 'description', label: 'الوصف (Description)' },
+  { id: 'type', label: 'النوع (Type)' },
+  { id: 'unit', label: 'الوحدة (Unit)' },
+  { id: 'status', label: 'الحالة (Status)' },
+];
 
 export const Products: React.FC = () => {
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'categories' | 'brands'>('products');
@@ -50,12 +70,14 @@ export const Products: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductMaster | null>(null);
   const [barcodePrintProduct, setBarcodePrintProduct] = useState<ProductMaster | null>(null);
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
   const [showThresholdInput, setShowThresholdInput] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'needs_completion' | 'low_stock'>('all');
 
   useEffect(() => {
     const unsubProducts = ProductRepository.subscribeProducts(setProducts, (err) => {
@@ -78,15 +100,29 @@ export const Products: React.FC = () => {
     };
   }, []);
 
+  const needsCompletionProducts = useMemo(() => {
+    return products.filter(p => p.needsCompletion);
+  }, [products]);
+
+  const lowStockProducts = useMemo(() => {
+    return products.filter(p => p.quantity <= (p.reorderLevel || lowStockThreshold));
+  }, [products, lowStockThreshold]);
+
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.barcodes && p.barcodes.some(bc => (typeof bc === 'string' ? bc : bc.code).toLowerCase().includes(searchTerm.toLowerCase())));
     const matchesCat = !selectedCategory || p.category === selectedCategory || p.categoryId === selectedCategory;
-    return matchesSearch && matchesCat;
-  });
+    
+    let matchesStatus = true;
+    if (statusFilter === 'needs_completion') {
+      matchesStatus = !!p.needsCompletion;
+    } else if (statusFilter === 'low_stock') {
+      matchesStatus = p.quantity <= (p.reorderLevel || lowStockThreshold);
+    }
 
-  const lowStockProducts = products.filter(p => p.quantity <= (p.reorderLevel || lowStockThreshold));
+    return matchesSearch && matchesCat && matchesStatus;
+  });
 
   const handleBarcodeScan = (scannedCode: string) => {
     setSearchTerm(scannedCode);
@@ -106,19 +142,35 @@ export const Products: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    const dataToExport = products.map(p => ({
-      'الاسم': p.name,
-      'الرمز (SKU)': p.sku,
-      'سعر البيع': p.price,
-      'سعر التكلفة': p.costPrice || 0,
-      'الكمية الحالية': p.quantity,
-      'الفئة': p.category,
-      'الماركة': p.brandName || '',
-      'حد إعادة الطلب': p.reorderLevel || 5,
-      'الوصف': p.description || ''
-    }));
-    exportToExcel(dataToExport, 'دليل_المنتجات_الشامل');
-    toast.success('تم تصدير الدليل بنجاح');
+    setIsExportModalOpen(true);
+  };
+
+  const executeExport = (selectedColumns: string[]) => {
+    const dataToExport = products.map(p => {
+      const row: any = {};
+      selectedColumns.forEach(col => {
+        switch (col) {
+          case 'name': row['الاسم'] = p.name; break;
+          case 'nameArabic': row['الاسم بالعربية'] = p.nameArabic || ''; break;
+          case 'sku': row['الرمز (SKU)'] = p.sku; break;
+          case 'category': row['الفئة'] = p.category || ''; break;
+          case 'price': row['سعر البيع'] = p.price; break;
+          case 'costPrice': row['سعر التكلفة'] = p.costPrice || 0; break;
+          case 'quantity': row['الكمية الحالية'] = p.quantity; break;
+          case 'group': row['المجموعة'] = (p as any).group || p.groupId || ''; break;
+          case 'brandName': row['الماركة'] = p.brandName || ''; break;
+          case 'reorderLevel': row['حد الطلب'] = p.reorderLevel || 5; break;
+          case 'description': row['الوصف'] = p.description || ''; break;
+          case 'type': row['النوع'] = (p as any).type === 'service' ? 'خدمة' : 'منتج مخزني'; break;
+          case 'unit': row['الوحدة'] = (p as any).unit || p.units?.[0]?.name || ''; break;
+          case 'status': row['الحالة'] = p.status === 'active' ? 'نشط' : 'غير نشط'; break;
+        }
+      });
+      return row;
+    });
+    
+    exportToExcel(dataToExport, 'Products_Export');
+    toast.success('تم تصدير البيانات بنجاح');
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,6 +216,9 @@ export const Products: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Unified Inventory Hub Tabs */}
+      <ScreenHubTabs hub="inventory" />
+
       {/* Page Header & Module Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1e293b] pb-4">
         <div>
@@ -237,6 +292,34 @@ export const Products: React.FC = () => {
       {/* TAB CONTENT: Products List */}
       {activeMainTab === 'products' && (
         <div className="space-y-6">
+          {/* Pending Completion Banner */}
+          {needsCompletionProducts.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-500/20 text-amber-300 rounded-xl flex items-center justify-center border border-amber-500/30">
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>أصناف مضافة سريعاً من فواتير الشراء</span>
+                    <span className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-black border border-amber-500/30">
+                      {needsCompletionProducts.length} صنف بانتظار استكمال البيانات
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    تمت إضافة هذه الأصناف أثناء تسجيل فواتير المشتريات لتسريع العمل، ويمكنك استكمال تفاصيلها (الفئات، الباركودات، الموردين) في أي وقت.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setStatusFilter(statusFilter === 'needs_completion' ? 'all' : 'needs_completion')}
+                className="text-xs font-black bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/30 transition-colors"
+              >
+                {statusFilter === 'needs_completion' ? 'عرض جميع الأصناف' : 'تصفية الأصناف غير المكتملة'}
+              </button>
+            </div>
+          )}
+
           {/* Low Stock Alert Banner */}
           {lowStockProducts.length > 0 && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between animate-in fade-in duration-300">
@@ -252,18 +335,18 @@ export const Products: React.FC = () => {
                 </div>
               </div>
               <button 
-                onClick={() => setSearchTerm('')}
+                onClick={() => setStatusFilter(statusFilter === 'low_stock' ? 'all' : 'low_stock')}
                 className="text-xs font-bold text-red-400 hover:underline"
               >
-                تصفية المنتجات المنخفضة
+                {statusFilter === 'low_stock' ? 'عرض جميع الأصناف' : 'تصفية المنتجات المنخفضة'}
               </button>
             </div>
           )}
 
           {/* Action Bar & Controls */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-1 items-center gap-3">
-              <div className="relative flex-1 max-w-md">
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input 
                   type="text" 
@@ -281,6 +364,44 @@ export const Products: React.FC = () => {
                 </button>
               </div>
 
+              {/* Status Filter Chips */}
+              <div className="flex items-center gap-1.5 bg-[#151b2b] p-1 border border-[#1e293b] rounded-xl text-xs font-bold">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg transition-colors",
+                    statusFilter === 'all' ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  الكل ({products.length})
+                </button>
+                {needsCompletionProducts.length > 0 && (
+                  <button
+                    onClick={() => setStatusFilter('needs_completion')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5",
+                      statusFilter === 'needs_completion' ? "bg-amber-500 text-slate-950 font-black" : "text-amber-400 hover:text-amber-300"
+                    )}
+                  >
+                    <span>بانتظار الاستكمال</span>
+                    <span className="bg-amber-950/40 text-amber-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                      {needsCompletionProducts.length}
+                    </span>
+                  </button>
+                )}
+                {lowStockProducts.length > 0 && (
+                  <button
+                    onClick={() => setStatusFilter('low_stock')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg transition-colors",
+                      statusFilter === 'low_stock' ? "bg-red-600 text-white" : "text-red-400 hover:text-red-300"
+                    )}
+                  >
+                    نواقص ({lowStockProducts.length})
+                  </button>
+                )}
+              </div>
+
               {/* Category Filter */}
               <select
                 value={selectedCategory}
@@ -296,7 +417,15 @@ export const Products: React.FC = () => {
 
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
+                onClick={() => {
+                  const check = TrialLimitService.canCreateProduct();
+                  if (!check.allowed) {
+                    toast.error(check.messageAr || 'تم الوصول للحد الأقصى للأصناف التجريبية (20 صنف). يرجى تفعيل النظام.');
+                    return;
+                  }
+                  setEditingProduct(null); 
+                  setIsModalOpen(true); 
+                }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all font-bold text-sm shadow-lg shadow-blue-600/20 active:scale-95"
               >
                 <Plus size={18} />
@@ -357,7 +486,15 @@ export const Products: React.FC = () => {
                               )}
                             </div>
                             <div>
-                              <span className="font-bold text-white text-sm block">{product.name}</span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-white text-sm block">{product.name}</span>
+                                {product.needsCompletion && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                    <span>مضاف من فاتورة شراء (غير مكتمل)</span>
+                                  </span>
+                                )}
+                              </div>
                               {product.brandName && (
                                 <span className="text-[10px] text-amber-400 font-medium">ماركة: {product.brandName}</span>
                               )}
@@ -386,17 +523,38 @@ export const Products: React.FC = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-left">
-                          <div className="flex items-center gap-2 justify-end">
-                            <div className="relative group/actions">
-                              <button className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
-                                <MoreHorizontal size={18} className="text-slate-400" />
+                          <div className="flex items-center gap-2 justify-end lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                            {product.needsCompletion && (
+                              <button
+                                onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
+                                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-black transition-colors flex items-center gap-1"
+                                title="استكمال كارتة الصنف وتفاصيل الفئات والباركود"
+                              >
+                                <Edit2 size={13} />
+                                <span>استكمال الكارتة</span>
                               </button>
-                              <div className="absolute left-0 mt-2 w-40 bg-[#1e293b] rounded-xl shadow-xl border border-slate-700 py-1 hidden group-hover/actions:block z-20">
-                                <button onClick={() => setBarcodePrintProduct(product)} className="w-full text-right px-4 py-2 text-xs text-emerald-400 hover:bg-slate-800">طباعة باركود</button>
-                                <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="w-full text-right px-4 py-2 text-xs text-blue-400 hover:bg-slate-800">تعديل</button>
-                                <button onClick={() => handleDelete(product.id, product.name)} className="w-full text-right px-4 py-2 text-xs text-red-400 hover:bg-slate-800">حذف</button>
-                              </div>
-                            </div>
+                            )}
+                            <button 
+                              onClick={() => setBarcodePrintProduct(product)} 
+                              className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors border border-emerald-500/20"
+                              title="طباعة باركود"
+                            >
+                              <Printer size={16} />
+                            </button>
+                            <button 
+                              onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} 
+                              className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors border border-blue-500/20"
+                              title="تعديل المنتج"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(product.id, product.name)} 
+                              className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20"
+                              title="حذف المنتج"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -410,6 +568,14 @@ export const Products: React.FC = () => {
       )}
 
       {/* Modals */}
+      <ExportOptionsModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        columns={PRODUCT_EXPORT_COLUMNS}
+        onExport={executeExport}
+        entityName="المنتجات"
+      />
+
       <ProductFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

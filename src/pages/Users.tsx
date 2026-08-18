@@ -23,12 +23,21 @@ import {
   MessageSquare,
   Smartphone,
   CheckCircle2,
-  Send
+  Send,
+  AlertTriangle,
+  UserCheck,
+  UserX,
+  Power,
+  ToggleLeft,
+  ToggleRight,
+  Ban,
+  CheckCircle
 } from 'lucide-react';
 import { MaroSyncEngine } from '../lib/maroSyncEngine';
 import { cn } from '../lib/utils';
-import { SecurityEngine } from '../lib/securityEngine';
+import { SecurityEngine, DEVELOPER_ACCOUNT_ID, DEVELOPER_EMAIL } from '../lib/securityEngine';
 import { EmployeeAuthService } from '../services/employeeAuthService';
+import { useAuth } from '../components/AuthProvider';
 import { toast } from 'react-hot-toast';
 
 export interface UserProfile {
@@ -52,12 +61,16 @@ export interface UserProfile {
 }
 
 export const Users: React.FC = () => {
+  const { user: currentAuthUser } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedUserForReset, setSelectedUserForReset] = useState<UserProfile | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = MaroSyncEngine.subscribe<UserProfile>('users', (data) => {
@@ -116,21 +129,98 @@ export const Users: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const filteredUsers = SecurityEngine.filterOutSystemDeveloper(users).filter(u => 
-    (u.displayName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-    (u.email || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
-    (u.phone && u.phone.includes(searchTerm))
-  );
+  // Determine if a user is protected from deletion
+  const isProtectedUser = (targetUser: UserProfile): { isProtected: boolean; reason?: string } => {
+    if (SecurityEngine.isDeveloperAccount(targetUser.id, targetUser.email)) {
+      return { isProtected: true, reason: 'حساب مهندس النظام ومطور المنصة محمي كلياً ولا يمكن حذفه' };
+    }
+    if (targetUser.id === 'usr_1' || targetUser.email === 'admin@maro-erp.local') {
+      return { isProtected: true, reason: 'حساب مدير النظام الرئيسي محمي لضمان استقرار المنصة' };
+    }
+    if (currentAuthUser && (currentAuthUser.id === targetUser.id || currentAuthUser.email === targetUser.email)) {
+      return { isProtected: true, reason: 'لا يمكن حذف الحساب المسجل به حالياً' };
+    }
+    return { isProtected: false };
+  };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المستخدم نهائياً من النظام؟')) {
+  const filteredUsers = SecurityEngine.filterOutSystemDeveloper(users)
+    .filter(u => {
+      if (statusFilter === 'active') return u.status === 'active';
+      if (statusFilter === 'inactive') return u.status === 'inactive';
+      return true;
+    })
+    .filter(u => 
+      (u.displayName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+      (u.email || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+      (u.phone && u.phone.includes(searchTerm))
+    );
+
+  const inactiveUsersCount = users.filter(u => u.status === 'inactive' && !isProtectedUser(u).isProtected).length;
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    const protection = isProtectedUser(userToDelete);
+    if (protection.isProtected) {
+      toast.error(protection.reason || 'لا يمكن حذف هذا المستخدم');
+      setUserToDelete(null);
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await MaroSyncEngine.deleteDocument('users', userToDelete.id);
+      toast.success(`تم حذف المستخدم [${userToDelete.displayName}] بنجاح`);
+      setUserToDelete(null);
+    } catch (error) {
+      console.error('Delete user failed:', error);
+      toast.error('حدث خطأ أثناء حذف المستخدم');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteInactiveUsers = async () => {
+    const inactiveUsers = users.filter(u => u.status === 'inactive' && !isProtectedUser(u).isProtected);
+    if (inactiveUsers.length === 0) {
+      toast.error('لا يوجد مستخدمون موقوفون قابلون للحذف حالياً');
+      return;
+    }
+
+    if (window.confirm(`هل أنت متأكد من حذف جميع المستخدمين الموقوفين وعددهم (${inactiveUsers.length}) مستخدم نهائياً؟`)) {
       try {
-        await MaroSyncEngine.deleteDocument('users', id);
-        toast.success('تم حذف المستخدم بنجاح');
+        for (const u of inactiveUsers) {
+          await MaroSyncEngine.deleteDocument('users', u.id);
+        }
+        toast.success(`تم حذف ${inactiveUsers.length} مستخدم موقوف بنجاح`);
       } catch (error) {
-        console.error('Delete user failed:', error);
-        toast.error('حدث خطأ أثناء حذف المستخدم');
+        console.error('Delete inactive users failed:', error);
+        toast.error('حدث خطأ أثناء حذف المستخدمين الموقوفين');
       }
+    }
+  };
+
+  const handleDelete = (targetUser: UserProfile) => {
+    const protection = isProtectedUser(targetUser);
+    if (protection.isProtected) {
+      toast.error(protection.reason || 'لا يمكن حذف هذا المستخدم المحمي');
+      return;
+    }
+    setUserToDelete(targetUser);
+  };
+
+  const handleToggleStatus = async (targetUser: UserProfile) => {
+    const protection = isProtectedUser(targetUser);
+    if (protection.isProtected && targetUser.status === 'active') {
+      toast.error('لا يمكن إيقاف حساب النظام المحمي');
+      return;
+    }
+
+    const newStatus = targetUser.status === 'active' ? 'inactive' : 'active';
+    try {
+      await MaroSyncEngine.saveDocument('users', { ...targetUser, status: newStatus }, false);
+      toast.success(`تم تغيير حالة المستخدم إلى: ${newStatus === 'active' ? 'نشط ومفعل' : 'موقوف وغير نشط'}`);
+    } catch (error) {
+      toast.error('فشل تغيير حالة المستخدم');
     }
   };
 
@@ -150,16 +240,16 @@ export const Users: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white tracking-tight">إدارة المستخدمين وصلاحيات الموظفين</h2>
           <p className="text-xs text-slate-400 mt-1">
-            تسجيل بيانات الموظفين، كلمات المرور، وربط الحسابات بأرقام الهواتف لتأكيد واستعادة كلمات المرور.
+            تسجيل بيانات الموظفين، كلمات المرور، التحكم في الحسابات النشطة والموقوفة وحذف المستخدمين غير النشطين.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 sm:w-64 max-w-md">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
@@ -169,12 +259,56 @@ export const Users: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* Quick Filter: All / Active / Inactive */}
+          <div className="flex items-center bg-[#151b2b] p-1 border border-[#1e293b] rounded-2xl">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                statusFilter === 'all' ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white"
+              )}
+            >
+              الكل ({users.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('active')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                statusFilter === 'active' ? "bg-emerald-600 text-white shadow" : "text-slate-400 hover:text-white"
+              )}
+            >
+              النشطين ({users.filter(u => u.status === 'active').length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('inactive')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                statusFilter === 'inactive' ? "bg-red-600 text-white shadow" : "text-slate-400 hover:text-white"
+              )}
+            >
+              الموقوفين ({users.filter(u => u.status === 'inactive').length})
+            </button>
+          </div>
+
+          {/* Delete All Inactive Users Button */}
+          {inactiveUsersCount > 0 && (
+            <button
+              onClick={handleDeleteInactiveUsers}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-2xl transition-all font-bold text-xs shadow-sm active:scale-95"
+              title="حذف كافة المستخدمين الموقوفين بنقرة واحدة"
+            >
+              <Trash2 size={15} />
+              <span>حذف الموقوفين ({inactiveUsersCount})</span>
+            </button>
+          )}
+
           <button 
             onClick={() => { setEditingUser(null); setIsModalOpen(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs uppercase tracking-widest"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all font-bold shadow-lg shadow-blue-600/20 active:scale-95 text-xs uppercase tracking-widest"
           >
             <UserPlus size={18} />
-            <span>إضافة موظف / مستخدم جديد</span>
+            <span>إضافة مستخدم جديد</span>
           </button>
         </div>
       </div>
@@ -304,15 +438,50 @@ export const Users: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-5">
-                    <span className={cn(
-                      "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border",
-                      user.status === 'active' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
-                    )}>
-                      {user.status === 'active' ? 'نشط ومفعل' : 'موقوف'}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(user)}
+                      title={user.status === 'active' ? 'انقر لتعطيل وإيقاف الحساب' : 'انقر لتفعيل وتنشيط الحساب'}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm",
+                        user.status === 'active' 
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25" 
+                          : "bg-red-500/15 text-red-400 border-red-500/30 hover:bg-red-500/25"
+                      )}
+                    >
+                      {user.status === 'active' ? (
+                        <>
+                          <UserCheck size={14} className="text-emerald-400" />
+                          <span>نشط ومفعل</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        </>
+                      ) : (
+                        <>
+                          <UserX size={14} className="text-red-400" />
+                          <span>موقوف ومُعطل</span>
+                          <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                        </>
+                      )}
+                    </button>
                   </td>
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-1.5 justify-center">
+                      {/* Quick Toggle Status Button (تفعيل / إيقاف) */}
+                      <button 
+                        type="button"
+                        title={user.status === 'active' ? "إيقاف الحساب وتعطيله مؤقتاً" : "تفعيل الحساب وتنشيط الدخول"}
+                        onClick={() => handleToggleStatus(user)}
+                        className={cn(
+                          "p-2 rounded-xl transition-all border font-bold text-xs flex items-center gap-1 cursor-pointer",
+                          user.status === 'active'
+                            ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                        )}
+                      >
+                        <Power size={14} />
+                        <span className="text-[10px] hidden md:inline">{user.status === 'active' ? 'إيقاف' : 'تفعيل'}</span>
+                      </button>
+
                       {/* Send Password reset via WhatsApp */}
                       <button 
                         title="إرسال كود استعادة كلمة المرور عبر الواتساب"
@@ -343,13 +512,25 @@ export const Users: React.FC = () => {
                       </button>
 
                       {/* Delete */}
-                      <button 
-                        title="حذف المستخدم"
-                        onClick={() => handleDelete(user.id)}
-                        className="p-2 hover:bg-red-500/10 text-red-400 rounded-xl transition-colors border border-red-500/20"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {(() => {
+                        const protection = isProtectedUser(user);
+                        return (
+                          <button 
+                            type="button"
+                            title={protection.isProtected ? protection.reason : "حذف المستخدم نهائياً"}
+                            disabled={protection.isProtected}
+                            onClick={() => handleDelete(user)}
+                            className={cn(
+                              "p-2 rounded-xl transition-all border",
+                              protection.isProtected 
+                                ? "opacity-30 cursor-not-allowed bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/40" 
+                                : "hover:bg-red-500/10 text-red-400 border-red-500/20 hover:scale-105 active:scale-95 cursor-pointer"
+                            )}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        );
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -359,10 +540,75 @@ export const Users: React.FC = () => {
         </div>
       </div>
 
+      {/* Delete User Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#151b2b] border border-[#1e293b] w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 text-right relative">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">تأكيد حذف المستخدم نهائياً</h3>
+                <p className="text-xs text-slate-400 mt-0.5">هذا الإجراء لا يمكن التراجع عنه وسيحذف كافة صلاحيات الدخول.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">اسم الموظف:</span>
+                <span className="font-bold text-white">{userToDelete.displayName}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">البريد الإلكتروني:</span>
+                <span className="font-mono text-slate-300">{userToDelete.email}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">الدور الوظيفي:</span>
+                <span className="font-bold text-blue-400">
+                  {userToDelete.role === 'admin' ? 'مدير النظام' : userToDelete.role === 'cashier' ? 'كاشير مبيعات' : 'محاسب عام'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">الحالة الحالية:</span>
+                <span className={userToDelete.status === 'active' ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
+                  {userToDelete.status === 'active' ? 'نشط' : 'موقوف'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setUserToDelete(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteUser}
+                className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all shadow-lg shadow-red-600/20 text-xs flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                <Trash2 size={15} />
+                <span>{isDeleting ? 'جاري الحذف...' : 'نعم، احذف المستخدم'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isModalOpen && (
         <UserModal 
           user={editingUser} 
           users={users}
+          isProtected={editingUser ? isProtectedUser(editingUser) : { isProtected: false }}
+          onDelete={(user) => {
+            setIsModalOpen(false);
+            handleDelete(user);
+          }}
           onClose={() => setIsModalOpen(false)} 
         />
       )}
@@ -370,7 +616,13 @@ export const Users: React.FC = () => {
   );
 };
 
-const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onClose: () => void }> = ({ user, users, onClose }) => {
+const UserModal: React.FC<{ 
+  user: UserProfile | null; 
+  users: UserProfile[]; 
+  isProtected: { isProtected: boolean; reason?: string };
+  onDelete: (user: UserProfile) => void;
+  onClose: () => void; 
+}> = ({ user, users, isProtected, onDelete, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     displayName: user?.displayName || '',
@@ -422,9 +674,28 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
     }
   };
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
-      <div className="bg-[#151b2b] w-full max-w-xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative max-h-[92vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-[#0b0f1a]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+      dir="rtl"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="bg-[#151b2b] w-full max-w-xl rounded-3xl border border-[#1e293b] shadow-2xl overflow-hidden relative max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-emerald-500 to-purple-600"></div>
         <div className="p-6 border-b border-[#1e293b] flex items-center justify-between bg-[#0f172a]/50">
           <div>
@@ -435,7 +706,7 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
               ربط الحساب برقم هاتف الموظف لتأكيد واستعادة كلمة المرور عبر OTP
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 transition-colors cursor-pointer" title="إغلاق النافذة (Esc)">
             <X size={20} />
           </button>
         </div>
@@ -455,14 +726,14 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-300 mb-1">البريد الإلكتروني / اسم الدخول *</label>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">اسم الدخول / البريد الإلكتروني *</label>
               <input 
-                type="email" 
+                type="text" 
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500"
-                placeholder="ahmed@maro-erp.local"
+                placeholder="مثال: ahmed أو ahmed@maro-erp.com"
               />
             </div>
           </div>
@@ -526,42 +797,79 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
             </div>
           </div>
 
-          {/* Role & Secondary Credentials */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-300 mb-1">الصلاحية والدور (Role)</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2.5 text-white text-xs font-bold"
-              >
-                <option value="admin">مدير النظام والفرع (Admin)</option>
-                <option value="accountant">محاسب عام (Accountant)</option>
-                <option value="cashier">كاشير مبيعات (POS Cashier)</option>
-              </select>
+          {/* Status, Role & Secondary Credentials */}
+          <div className="p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Power size={15} className={formData.status === 'active' ? "text-emerald-400" : "text-red-400"} />
+                <span>حالة الحساب (تفعيل / إيقاف) والصلاحية</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, status: 'active' })}
+                  className={cn(
+                    "px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer",
+                    formData.status === 'active'
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white bg-slate-800/50"
+                  )}
+                >
+                  <UserCheck size={13} />
+                  <span>نشط ومفعل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, status: 'inactive' })}
+                  className={cn(
+                    "px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer",
+                    formData.status === 'inactive'
+                      ? "bg-red-500/20 text-red-300 border border-red-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white bg-slate-800/50"
+                  )}
+                >
+                  <UserX size={13} />
+                  <span>موقوف ومُعطل</span>
+                </button>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-purple-400 mb-1">كود الـ PIN السريع (للكاشير)</label>
-              <input 
-                type="text" 
-                maxLength={6}
-                value={formData.pinCode}
-                onChange={(e) => setFormData({ ...formData, pinCode: e.target.value })}
-                className="w-full bg-[#0b0f1a] border border-purple-500/30 rounded-xl px-3 py-2.5 text-purple-300 font-mono text-xs font-bold"
-                placeholder="1234"
-              />
-            </div>
+            <div className="grid grid-cols-3 gap-3 pt-1">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-300 mb-1">الصلاحية والدور (Role)</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-3 py-2.5 text-white text-xs font-bold"
+                >
+                  <option value="admin">مدير النظام والفرع (Admin)</option>
+                  <option value="accountant">محاسب عام (Accountant)</option>
+                  <option value="cashier">كاشير مبيعات (POS Cashier)</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-amber-400 mb-1">كارت ID الذكي (NFC/RFID)</label>
-              <input 
-                type="text" 
-                value={formData.idCardCode}
-                onChange={(e) => setFormData({ ...formData, idCardCode: e.target.value })}
-                className="w-full bg-[#0b0f1a] border border-amber-500/30 rounded-xl px-3 py-2.5 text-amber-300 font-mono text-xs font-bold"
-                placeholder="CARD-1003"
-              />
+              <div>
+                <label className="block text-[10px] font-bold text-purple-400 mb-1">كود الـ PIN السريع (للكاشير)</label>
+                <input 
+                  type="text" 
+                  maxLength={6}
+                  value={formData.pinCode}
+                  onChange={(e) => setFormData({ ...formData, pinCode: e.target.value })}
+                  className="w-full bg-[#0b0f1a] border border-purple-500/30 rounded-xl px-3 py-2.5 text-purple-300 font-mono text-xs font-bold"
+                  placeholder="1234"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-amber-400 mb-1">كارت ID الذكي (NFC/RFID)</label>
+                <input 
+                  type="text" 
+                  value={formData.idCardCode}
+                  onChange={(e) => setFormData({ ...formData, idCardCode: e.target.value })}
+                  className="w-full bg-[#0b0f1a] border border-amber-500/30 rounded-xl px-3 py-2.5 text-amber-300 font-mono text-xs font-bold"
+                  placeholder="CARD-1003"
+                />
+              </div>
             </div>
           </div>
 
@@ -617,21 +925,43 @@ const UserModal: React.FC<{ user: UserProfile | null, users: UserProfile[], onCl
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e293b]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-bold hover:from-blue-500 hover:to-emerald-500 transition-all shadow-lg shadow-blue-600/20 text-xs flex items-center gap-1.5"
-            >
-              <CheckCircle2 size={16} />
-              <span>حفظ الموظف وتأكيد الربط</span>
-            </button>
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#1e293b]">
+            <div>
+              {user && (
+                <button
+                  type="button"
+                  disabled={isProtected.isProtected}
+                  title={isProtected.isProtected ? isProtected.reason : "حذف المستخدم نهائياً"}
+                  onClick={() => onDelete(user)}
+                  className={cn(
+                    "px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all",
+                    isProtected.isProtected
+                      ? "opacity-30 cursor-not-allowed bg-slate-800/40 text-slate-500 border-slate-700/50"
+                      : "bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/30 active:scale-95"
+                  )}
+                >
+                  <Trash2 size={15} />
+                  <span>حذف المستخدم</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-all text-xs"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-bold hover:from-blue-500 hover:to-emerald-500 transition-all shadow-lg shadow-blue-600/20 text-xs flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={16} />
+                <span>حفظ الموظف وتأكيد الربط</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

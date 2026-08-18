@@ -4,6 +4,7 @@
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Settings.tsx.
  */
 import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Building2, 
   Settings as SettingsIcon, 
@@ -28,18 +29,75 @@ import {
   Upload,
   FileSpreadsheet,
   RefreshCw,
-  Trash2
+  Trash2,
+  Cloud,
+  CloudOff,
+  Wifi,
+  WifiOff,
+  Zap,
+  Server,
+  HardDrive,
+  Code
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../components/AuthProvider';
 import { exportToExcel, importFromExcel } from '../lib/excel';
-import { MaroSyncEngine } from '../lib/maroSyncEngine';
+import { MaroSyncEngine, SyncStatusEvent } from '../lib/maroSyncEngine';
+import { toast } from 'react-hot-toast';
+import { ProductRepository } from '../repositories/productRepository';
+import { DataSeeder } from '../components/settings/DataSeeder';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules' | 'database'>('tenant');
+  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules' | 'database' | 'sync' | 'developer'>('tenant');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Sync Engine States
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState<boolean>(() => MaroSyncEngine.isCloudSyncEnabled());
+  const [syncStatus, setSyncStatus] = useState<SyncStatusEvent>(() => MaroSyncEngine.getStatus());
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // Loyalty Settings
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean>(() => localStorage.getItem('maro_loyalty_enabled') === 'true');
+
+  React.useEffect(() => {
+    const unsub = MaroSyncEngine.subscribeStatus((st) => {
+      setSyncStatus(st);
+    });
+    return unsub;
+  }, []);
+
+  const handleToggleCloudSync = (enabled: boolean) => {
+    setCloudSyncEnabled(enabled);
+    MaroSyncEngine.setCloudSyncEnabled(enabled);
+    if (enabled) {
+      toast.success('تم تفعيل المزامنة السحابية التلقائية. سيتم ترحيل البيانات عند توفر الإنترنت.');
+    } else {
+      toast.success('تم إيقاف المزامنة السحابية. النظام يعمل الآن في وضع محلي معزول 100% (Offline-First Air-Gapped).');
+    }
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await MaroSyncEngine.forceSyncNow();
+      if (res.success) {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'تعذر استكمال المزامنة السحابية');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleFlushQueue = () => {
+    MaroSyncEngine.flushQueueLocally();
+    toast.success('تم تفريغ طابور المزامنة وحفظ الحالة المحلية بنجاح');
+  };
 
   // Excel Import States
   const [importedProducts, setImportedProducts] = useState<any[]>([]);
@@ -79,6 +137,7 @@ export const Settings: React.FC = () => {
     setLoading(true);
     // Simulate API Save
     setTimeout(() => {
+      localStorage.setItem('maro_loyalty_enabled', loyaltyEnabled.toString());
       setMessage({ type: 'success', text: 'تم تحديث التكوين الأساسي (Core Configuration) بنجاح.' });
       setLoading(false);
       setTimeout(() => setMessage(null), 3000);
@@ -258,7 +317,9 @@ export const Settings: React.FC = () => {
     { id: 'industry', name: 'محرك الأنشطة (Industry Engine)', icon: Layers },
     { id: 'finance', name: 'المحاسبة والمالية (Finance Core)', icon: Wallet },
     { id: 'modules', name: 'الوحدات (Module Enablement)', icon: Boxes },
+    { id: 'sync', name: 'المزامنة السحابية والعمل دون إنترنت (Offline-First Sync)', icon: Cloud },
     { id: 'database', name: 'النسخ الاحتياطي والتبادل (Data Exchange & Backup)', icon: Database },
+    { id: 'developer', name: 'خيارات المطور وتوليد البيانات (Developer & Seed)', icon: Code },
   ];
 
   return (
@@ -375,11 +436,20 @@ export const Settings: React.FC = () => {
         {/* TAB 2: INDUSTRY ENGINE */}
         {activeTab === 'industry' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            <div className="border-b border-slate-800 pb-4">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <Layers className="text-purple-500" /> محرك الأنشطة (Dynamic Industry Engine)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">يقوم محرك MARO بتشكيل الشاشات والميزات تلقائياً بناءً على طبيعة نشاطك للحفاظ على النظام خفيفاً وسريعاً.</p>
+            <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Layers className="text-purple-500" /> محرك الأنشطة (Dynamic Industry Engine)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">يقوم محرك MARO بتشكيل الشاشات والميزات تلقائياً بناءً على طبيعة نشاطك للحفاظ على النظام خفيفاً وسريعاً.</p>
+              </div>
+              <Link 
+                to="/adaptive-erp" 
+                className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20 active:scale-95 whitespace-nowrap self-start md:self-auto"
+              >
+                <Layers size={15} />
+                <span>فتح منصة MARO Adaptive ERP الكاملة ↗</span>
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -482,6 +552,32 @@ export const Settings: React.FC = () => {
             </div>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-blue-900/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs bg-emerald-500/20 text-emerald-400">
+                    LOY
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">برنامج نقاط الولاء (Loyalty Points)</h4>
+                    <p className="text-[10px] text-slate-500">يتيح إضافة حقل تليفون العميل في شاشة البيع النقدي لاكتساب واستبدال النقاط.</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={loyaltyEnabled}
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setLoyaltyEnabled(val);
+                      localStorage.setItem('maro_loyalty_enabled', val.toString());
+                      toast.success(val ? 'تم تفعيل برنامج الولاء' : 'تم تعطيل برنامج الولاء');
+                    }}
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+              </div>
+
               {modules.map((mod) => (
                 <div key={mod.id} className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-slate-800">
                   <div className="flex items-center gap-4">
@@ -502,6 +598,159 @@ export const Settings: React.FC = () => {
                   </label>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: OFFLINE FIRST & CLOUD SYNC CONTROL */}
+        {activeTab === 'sync' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 text-right" dir="rtl">
+            {/* Header & Core Philosophy Banner */}
+            <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Cloud className="text-blue-500" /> إعدادات المزامنة السحابية والعمل دون إنترنت (Offline-First Architecture)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  نظام MARO ERP يعمل بشكل محلي كامل (Offline-First) كأصل، ويقوم بمزامنة البيانات تلقائياً مع السحابة عند توفر الإنترنت.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 bg-[#0a0f1d] px-4 py-2.5 rounded-2xl border border-slate-800">
+                <span className="text-xs font-bold text-slate-300">مفتاح المزامنة السحابية:</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={cloudSyncEnabled} 
+                    onChange={(e) => handleToggleCloudSync(e.target.checked)} 
+                  />
+                  <div className="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+                <span className={cn(
+                  "text-xs font-black px-2.5 py-0.5 rounded-full border",
+                  cloudSyncEnabled ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                )}>
+                  {cloudSyncEnabled ? 'مفعلة (Auto Cloud Sync)' : 'معطلة (Offline Only)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Architectural Rule Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-5 rounded-2xl bg-blue-950/20 border border-blue-800/40 space-y-2">
+                <div className="flex items-center gap-2 text-blue-400 font-black text-sm">
+                  <HardDrive size={18} />
+                  <span>1. العمل محلياً هو الأساس (Offline Native)</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  كل عمليات الكاشير، إصدار الفواتير، الاستعلام، وإدارة المخزون تتم على الجهاز نفسه بسرعة استجابة فائقة (&lt; 20ms) حتى لو انقطع اتصال الإنترنت نهائياً.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-800/40 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 font-black text-sm">
+                  <Wifi size={18} />
+                  <span>2. مزامنة ذكية عند الاتصال (Auto-Sync)</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  بمجرد توفر شبكة الإنترنت وتفعيل خيار المزامنة، يتم ترحيل الفواتير والعمليات المتراكمة في طابور العمليات (Sync Queue) إلى السيرفر المركزي بسلاسة وبدون مقاطعة العمل.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-purple-950/20 border border-purple-800/40 space-y-2">
+                <div className="flex items-center gap-2 text-purple-400 font-black text-sm">
+                  <Server size={18} />
+                  <span>3. وضع العزل التام (Air-Gapped Mode)</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  إذا أوقفت المزامنة السحابية من هذا المفتاح، سيعمل النظام في وضع محلي معزول تماماً ولن يقوم بإجراء أي اتصالات خارجية مع الاحتفاظ بالبيانات بأمان محلياً.
+                </p>
+              </div>
+            </div>
+
+            {/* Live Engine Monitor & Action Dashboard */}
+            <div className="bg-[#0f172a] rounded-2xl border border-slate-800 p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn(
+                    "w-3.5 h-3.5 rounded-full animate-pulse",
+                    !cloudSyncEnabled ? "bg-amber-400" : (syncStatus.state === 'OFFLINE' ? "bg-red-500" : "bg-emerald-500")
+                  )} />
+                  <span className="text-white font-black text-sm">لوحة مراقبة حالة المحرك وقناة الاتصال المباشرة</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleManualSync}
+                    disabled={isSyncing || !cloudSyncEnabled}
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-black py-2 px-4 rounded-xl transition shadow-lg shadow-blue-600/20 cursor-pointer"
+                  >
+                    <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
+                    <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة يدوية الآن'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleFlushQueue}
+                    className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3.5 rounded-xl transition border border-slate-700"
+                  >
+                    <Trash2 size={14} />
+                    <span>تفريغ الطابور محلياً</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#151b2b] p-4 rounded-xl border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">حالة اتصال الشبكة</span>
+                  <div className="flex items-center gap-2">
+                    {typeof navigator !== 'undefined' && navigator.onLine ? (
+                      <span className="text-emerald-400 font-black text-sm flex items-center gap-1">
+                        <Wifi size={16} /> متصل بالإنترنت
+                      </span>
+                    ) : (
+                      <span className="text-amber-400 font-black text-sm flex items-center gap-1">
+                        <WifiOff size={16} /> غير متصل (أوفلاين)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-[#151b2b] p-4 rounded-xl border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">حالة المزامنة السحابية</span>
+                  <div className="flex items-center gap-2">
+                    {cloudSyncEnabled ? (
+                      <span className="text-blue-400 font-black text-sm flex items-center gap-1">
+                        <Cloud size={16} /> نشطة ومفعلة
+                      </span>
+                    ) : (
+                      <span className="text-amber-400 font-black text-sm flex items-center gap-1">
+                        <CloudOff size={16} /> معطلة بطلب المستخدم
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-[#151b2b] p-4 rounded-xl border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">العمليات المعلقة في الطابور</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-black text-base">
+                      {syncStatus.pendingCount}
+                    </span>
+                    <span className="text-[10px] text-slate-400">عملية تنتظر الإرسال</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#151b2b] p-4 rounded-xl border border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">آخر مزامنة ناجحة</span>
+                  <div className="text-slate-300 font-medium text-xs">
+                    {syncStatus.lastSyncedAt 
+                      ? new Date(syncStatus.lastSyncedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                      : 'لم تتم مزامنة بعد / وضع محلي'}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -651,6 +900,11 @@ export const Settings: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 6: DEVELOPER & DATA SEEDING */}
+        {activeTab === 'developer' && (
+          <DataSeeder />
         )}
       </div>
     </div>

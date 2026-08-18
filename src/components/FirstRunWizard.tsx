@@ -62,7 +62,10 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) =>
         <div className="p-8 space-y-6 relative">
           {/* Top-Right Close/Exit button */}
           <button 
-            onClick={onComplete}
+            onClick={() => {
+              DemoDataSeeder.markFirstRunCompleted();
+              onComplete();
+            }}
             className="absolute top-5 left-5 text-slate-500 hover:text-white text-base font-bold transition-colors w-8 h-8 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center cursor-pointer z-10"
             title="خروج وإنهاء"
           >

@@ -27,6 +27,7 @@ interface FastKeyboardInvoiceLineEntryProps {
   priceType?: 'retail' | 'wholesale' | 'cost';
   className?: string;
   autoFocusSearch?: boolean;
+  onQuickAddProduct?: (searchQuery?: string) => void;
 }
 
 export const FastKeyboardInvoiceLineEntry: React.FC<FastKeyboardInvoiceLineEntryProps> = ({
@@ -37,6 +38,7 @@ export const FastKeyboardInvoiceLineEntry: React.FC<FastKeyboardInvoiceLineEntry
   priceType = 'wholesale',
   className,
   autoFocusSearch = false,
+  onQuickAddProduct,
 }) => {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductMaster | null>(null);
@@ -142,19 +144,31 @@ export const FastKeyboardInvoiceLineEntry: React.FC<FastKeyboardInvoiceLineEntry
 
   return (
     <div className={cn("p-4 bg-[#0f172a] rounded-2xl border border-[#1e293b] space-y-3", className)}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-600/20 text-blue-400 rounded-lg">
             <Package size={16} />
           </div>
           <span className="text-xs font-black text-white">إدخال الأصناف السريع بلوحة المفاتيح (Keyboard-First Entry)</span>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-slate-400">
-          <span className="hidden sm:inline">التنقل:</span>
-          <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-slate-300">Enter ↵</span>
-          <span className="text-slate-500">للتأكيد والانتقال</span>
-          <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-slate-300">↑ / ↓</span>
-          <span className="text-slate-500">لاختيار الصنف</span>
+        <div className="flex items-center gap-3">
+          {onQuickAddProduct && (
+            <button
+              type="button"
+              onClick={() => onQuickAddProduct(searchInputRef.current?.value || '')}
+              className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-black transition-all active:scale-95 shadow-sm"
+              title="إضافة صنف جديد سريع دون مغادرة الفاتورة (F4)"
+            >
+              <Plus size={14} className="text-amber-400" />
+              <span>+ صنف جديد سريع</span>
+              <kbd className="bg-amber-900/50 text-amber-200 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold border border-amber-500/30">F4</kbd>
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+            <span className="hidden sm:inline">التنقل:</span>
+            <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-slate-300">Enter ↵</span>
+            <span className="text-slate-500">للتأكيد</span>
+          </div>
         </div>
       </div>
 
@@ -164,14 +178,16 @@ export const FastKeyboardInvoiceLineEntry: React.FC<FastKeyboardInvoiceLineEntry
           <KeyboardSearchSelect
             id="fast-product-search"
             label="اسم الصنف / الباركود / الكود (SKU)"
-            placeholder="اكتب أول حرف أو جزء من اسم الصنف..."
+            placeholder="اكتب أول حرف أو جزء من اسم الصنف أو امسح الباركود..."
             options={productOptions}
             value={selectedProductId}
             onChange={handleProductSelect}
             inputRef={searchInputRef}
             autoFocus={autoFocusSearch}
             shortcutBadge="F3"
-            emptyMessage="لا يوجد صنف مطابق — تأكد من الاسم أو الباركود"
+            emptyMessage="الصنف غير موجود في قاعدة البيانات"
+            onNotFoundAction={onQuickAddProduct}
+            notFoundActionLabel="+ إضافة صنف جديد فوري"
           />
         </div>
 

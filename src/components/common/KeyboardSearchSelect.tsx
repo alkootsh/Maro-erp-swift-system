@@ -37,6 +37,8 @@ interface KeyboardSearchSelectProps {
   renderCustomItem?: (item: SearchOption, isHighlighted: boolean) => React.ReactNode;
   clearable?: boolean;
   emptyMessage?: string;
+  onNotFoundAction?: (searchTerm: string) => void;
+  notFoundActionLabel?: string;
   shortcutBadge?: string;
   inputRef?: React.RefObject<HTMLInputElement>;
 }
@@ -70,6 +72,8 @@ export const KeyboardSearchSelect: React.FC<KeyboardSearchSelectProps> = ({
   renderCustomItem,
   clearable = true,
   emptyMessage = 'لا توجد نتائج مطابقة لبحثك',
+  onNotFoundAction,
+  notFoundActionLabel = '+ إضافة صنف جديد (F4)',
   shortcutBadge,
   inputRef: externalInputRef
 }) => {
@@ -312,9 +316,26 @@ export const KeyboardSearchSelect: React.FC<KeyboardSearchSelectProps> = ({
           )}
         >
           {filteredOptions.length === 0 ? (
-            <div className="p-4 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
-              <AlertCircle size={20} className="text-slate-500" />
-              <span>{emptyMessage}</span>
+            <div className="p-4 text-center text-slate-400 text-xs flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2 text-amber-400">
+                <AlertCircle size={18} />
+                <span className="font-bold">{emptyMessage}</span>
+              </div>
+              {onNotFoundAction && searchTerm.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onNotFoundAction(searchTerm);
+                  }}
+                  className="w-full py-2.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-amber-950/40"
+                >
+                  <span>{notFoundActionLabel}</span>
+                  <span className="bg-amber-900/60 text-amber-200 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
+                    "{searchTerm.length > 20 ? searchTerm.substring(0, 20) + '...' : searchTerm}"
+                  </span>
+                </button>
+              )}
             </div>
           ) : (
             filteredOptions.map((opt, idx) => {

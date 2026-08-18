@@ -22,7 +22,7 @@ import { MaroEventBus } from './eventBus';
 // Constants
 export const DEVELOPER_ACCOUNT_ID = 'dev_master_sys_001';
 export const DEVELOPER_EMAIL = 'developer@maro-erp.internal';
-export const DEFAULT_DEVELOPER_KEY = 'MARO_DEV_MASTER_2026_KEY';
+export const DEFAULT_DEVELOPER_KEY = 'MenKenMohEbr@1880';
 
 const LOCAL_STORAGE_KEY_LICENSE = 'maro_erp_system_license';
 const LOCAL_STORAGE_KEY_FLAGS = 'maro_erp_feature_flags';
@@ -185,7 +185,7 @@ export class SecurityEngine {
   }
 
   public static authenticateDeveloper(devKey: string): boolean {
-    if (devKey === DEFAULT_DEVELOPER_KEY || devKey === 'MARO_DEV_MASTER_ADMIN') {
+    if (devKey === DEFAULT_DEVELOPER_KEY || devKey === 'MenKenMohEbr@1880') {
       this.isDevAuthenticated = true;
       this.logSecurityAction({
         userId: DEVELOPER_ACCOUNT_ID,

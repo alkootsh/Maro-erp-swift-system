@@ -31,7 +31,13 @@ import {
   Wrench,
   Trash2,
   Mail,
-  Phone
+  Phone,
+  MessageSquare,
+  Send,
+  ExternalLink,
+  Inbox,
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { toast } from 'react-hot-toast';
@@ -43,6 +49,7 @@ import {
   LicensePlan,
   LicenseStatus
 } from '../../types/licensing';
+import { ScreenHubTabs } from '../../components/common/ScreenHubTabs';
 
 export const LicenseActivation: React.FC = () => {
   // Navigation Tabs
@@ -84,6 +91,34 @@ export const LicenseActivation: React.FC = () => {
   const [devPrivateKey, setDevPrivateKey] = useState('');
   const [generatedLicense, setGeneratedLicense] = useState<SignedLicensePayload | null>(null);
   const [generatedLicenseQr, setGeneratedLicenseQr] = useState<string>('');
+  const [isRegisteringCentral, setIsRegisteringCentral] = useState(false);
+
+  // Central License Management States
+  const [centralLicenses, setCentralLicenses] = useState<any[]>([]);
+  const [isFetchingCentral, setIsFetchingCentral] = useState(false);
+  const [editingCentralLicense, setEditingCentralLicense] = useState<any | null>(null);
+  
+  // Fields for editing central license:
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editIndustry, setEditIndustry] = useState('');
+  const [editPlan, setEditPlan] = useState<LicensePlan>('ENTERPRISE');
+  const [editExpiresAt, setEditExpiresAt] = useState('');
+  const [editMaxPosDevices, setEditMaxPosDevices] = useState(1);
+  const [editModules, setEditModules] = useState<string[]>([]);
+
+  // WhatsApp Activation Requests States
+  const [activationRequests, setActivationRequests] = useState<any[]>([]);
+  const [isFetchingRequests, setIsFetchingRequests] = useState(false);
+  const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
+  const [whatsAppModal, setWhatsAppModal] = useState<{
+    isOpen: boolean;
+    companyName: string;
+    responsibleName: string;
+    phone: string;
+    message: string;
+    whatsappUrl: string;
+    signedLicense: any;
+  } | null>(null);
 
   // Load Active License and Device identity on load
   const loadData = async () => {
@@ -114,9 +149,50 @@ export const LicenseActivation: React.FC = () => {
     }
   };
 
+  const fetchCentralLicenses = async () => {
+    setIsFetchingCentral(true);
+    try {
+      const res = await fetch('/api/licensing/central-list');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setCentralLicenses(data.licenses || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching central licenses', err);
+    } finally {
+      setIsFetchingCentral(false);
+    }
+  };
+
+  const fetchActivationRequests = async () => {
+    setIsFetchingRequests(true);
+    try {
+      const res = await fetch('/api/licensing/requests-list');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setActivationRequests(data.requests || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching activation requests', err);
+    } finally {
+      setIsFetchingRequests(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (isDeveloperAuthenticated) {
+      fetchCentralLicenses();
+      fetchActivationRequests();
+    }
+  }, [isDeveloperAuthenticated]);
 
   // Module checklist options
   const MODULE_OPTIONS = [
@@ -193,25 +269,84 @@ export const LicenseActivation: React.FC = () => {
     toast.success('تم تحميل ملف طلب التفعيل بنجاح.');
   };
 
-  // Send to WhatsApp Technical Support
-  const handleSendToWhatsApp = () => {
+  // Send to WhatsApp Technical Support & Central Request Queue
+  const handleSendToWhatsApp = async () => {
     if (!activationRequestPackage) return;
     
+    try {
+      await fetch('/api/licensing/submit-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestPackage: activationRequestPackage,
+          notes: 'طلب تفعيل مرسل عبر شاشة التراخيص'
+        })
+      });
+    } catch (e) {
+      console.warn('Failed to post request to central queue:', e);
+    }
+
+    const reqPkg = activationRequestPackage as any;
     const message = `مرحباً دعم منصة مارو للأعمال (MARO Business Platform),\n\nأود طلب ترخيص المنصة أوفلاين للمؤسسة التالية:\n` +
-      `🏢 الشركة: ${activationRequestPackage.company?.name}\n` +
-      `💼 النشاط: ${activationRequestPackage.company?.industry || 'RETAIL'}\n` +
-      `👤 المسؤول: ${activationRequestPackage.contact?.adminName || 'غير محدد'}\n` +
-      `📞 هاتف: ${activationRequestPackage.contact?.phone}\n` +
-      `✉️ البريد: ${activationRequestPackage.contact?.email || 'لا يوجد'}\n` +
-      `💻 معرف جهاز العميل: ${activationRequestPackage.device?.persistentDeviceId}\n` +
-      `🔐 بصمة التشفير: ${activationRequestPackage.device?.compositeHash}\n` +
-      `📦 موديولات: ${activationRequestPackage.requested?.modules?.join(', ')}\n\n` +
-      `الرجاء توقيع وإصدار ملف الترخيص (.marolic) لإلغاء تجميد المنصة. شكراً لك!`;
+      `🏢 الشركة: ${reqPkg?.company?.name || reqPkg?.company?.companyName || companyName}\n` +
+      `💼 النشاط: ${reqPkg?.company?.industry || reqPkg?.company?.vertical || 'RETAIL'}\n` +
+      `👤 المسؤول: ${reqPkg?.contact?.adminName || reqPkg?.contact?.responsibleName || 'غير محدد'}\n` +
+      `📞 هاتف: ${reqPkg?.contact?.phone || contactPhone}\n` +
+      `✉️ البريد: ${reqPkg?.contact?.email || contactEmail || 'لا يوجد'}\n` +
+      `💻 معرف جهاز العميل: ${reqPkg?.device?.persistentDeviceId}\n` +
+      `🔐 بصمة التشفير: ${reqPkg?.device?.compositeHash}\n` +
+      `📦 موديولات: ${reqPkg?.requested?.modules?.join(', ')}\n\n` +
+      `الرجاء مراجعة البيانات وتوقيع وإصدار ملف الترخيص (.marolic) واعتماده في السيرفر المركزي. شكراً لك!`;
 
     const encoded = encodeURIComponent(message);
     const whatsappUrl = `https://api.whatsapp.com/send?phone=201000000000&text=${encoded}`;
     window.open(whatsappUrl, '_blank');
-    toast.success('يتم توجيهك الآن إلى واتساب الدعم الفني لإصدار الترخيص.');
+    toast.success('تم تسجيل طلبك وتوجيهك الآن إلى واتساب الدعم الفني لمراجعة واعتماد الترخيص.');
+  };
+
+  // 1-Click Approve Activation Request from Developer Dashboard
+  const handleApproveActivationRequest = async (reqItem: any, planOverride?: LicensePlan, daysOverride?: number) => {
+    setApprovingRequestId(reqItem.id);
+    try {
+      const res = await fetch('/api/licensing/approve-and-sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: reqItem.id,
+          deviceId: reqItem.deviceId,
+          plan: planOverride || reqItem.requestedPlan || 'ENTERPRISE',
+          durationDays: daysOverride || 365,
+          enabledModules: reqItem.requestedModules || ['POS', 'SALES', 'PURCHASES', 'INVENTORY', 'ACCOUNTING', 'REPORTS', 'AI']
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`🎉 تم اعتماد وترخيص منشأة "${reqItem.companyName}" بنجاح!`);
+        
+        // Open WhatsApp delivery modal
+        setWhatsAppModal({
+          isOpen: true,
+          companyName: reqItem.companyName,
+          responsibleName: reqItem.responsibleName,
+          phone: reqItem.phone || data.clientPhone,
+          message: data.congratulationsWhatsAppMessage,
+          whatsappUrl: data.whatsappUrl,
+          signedLicense: data.signedLicense
+        });
+
+        // Refresh requests and central registry
+        fetchActivationRequests();
+        fetchCentralLicenses();
+        loadData();
+      } else {
+        toast.error(data.error || 'فشل اعتماد الترخيص');
+      }
+    } catch (err: any) {
+      toast.error(`خطأ أثناء التفعيل: ${err.message}`);
+    } finally {
+      setApprovingRequestId(null);
+    }
   };
 
   // Import `.marolic` signed license file
@@ -295,6 +430,69 @@ export const LicenseActivation: React.FC = () => {
       toast.error(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateCentralLicense = async () => {
+    if (!editingCentralLicense) return;
+    try {
+      const res = await fetch('/api/licensing/central-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId: editingCentralLicense.deviceBinding?.persistentDeviceId,
+          tenant: {
+            companyName: editCompanyName,
+            industry: editIndustry
+          },
+          entitlements: {
+            plan: editPlan,
+            enabledModules: editModules,
+            maxPosDevices: editMaxPosDevices
+          },
+          validity: {
+            expiresAt: new Date(editExpiresAt).toISOString()
+          }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          toast.success('تم تحديث الترخيص وإعادة توقيعه رقمياً في السيرفر بنجاح!');
+          setEditingCentralLicense(null);
+          fetchCentralLicenses();
+          loadData();
+        } else {
+          toast.error(data.error || 'فشل تحديث الترخيص');
+        }
+      }
+    } catch (err: any) {
+      toast.error(`خطأ أثناء التحديث: ${err.message}`);
+    }
+  };
+
+  const handleRevokeCentralLicense = async (deviceId: string) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في إلغاء وتجميد ترخيص هذا الجهاز بالكامل؟ بمجرد المزامنة، سيقفل النظام لدى العميل.')) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/licensing/central-revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          toast.success('تم إلغاء الترخيص وحجبه من الخادم المركزي بنجاح!');
+          fetchCentralLicenses();
+          loadData();
+        } else {
+          toast.error(data.error || 'فشل إلغاء الترخيص');
+        }
+      }
+    } catch (err: any) {
+      toast.error(`خطأ أثناء إلغاء التفعيل: ${err.message}`);
     }
   };
 
@@ -430,8 +628,34 @@ export const LicenseActivation: React.FC = () => {
     toast.success('تم تحميل ملف الترخيص الجديد (.marolic) بنجاح.');
   };
 
+  // Register Signed License to Central Cloud Server
+  const handleRegisterCentral = async () => {
+    if (!generatedLicense) return;
+    setIsRegisteringCentral(true);
+    try {
+      const res = await fetch('/api/licensing/register-central', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signedLicense: generatedLicense })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message, { duration: 6000 });
+      } else {
+        toast.error(data.error || 'فشل نشر الترخيص للسيرفر المركزي.');
+      }
+    } catch (err: any) {
+      toast.error(`خطأ أثناء الاتصال: ${err.message}`);
+    } finally {
+      setIsRegisteringCentral(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 bg-[#0b0f1a] text-white min-h-screen font-sans" dir="rtl">
+      {/* Unified Administration & Licensing Hub Tabs */}
+      <ScreenHubTabs hub="settings" />
+
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1e293b] pb-6">
         <div className="flex items-center gap-3">
@@ -833,7 +1057,192 @@ export const LicenseActivation: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <>
+              {/* WhatsApp Activation Requests Inbox & Approval Center */}
+              <div className="bg-[#151b2b] rounded-3xl border border-emerald-500/30 p-6 space-y-6 shadow-2xl text-right" dir="rtl">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#1e293b] pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                      <MessageSquare size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-base text-white">صندوق استقبال ومراجعة طلبات التفعيل عبر الواتساب (WhatsApp Requests Inbox)</h3>
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black rounded-full animate-pulse">
+                          {activationRequests.filter(r => r.status === 'PENDING').length} طلب بانتظار الاعتماد
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">راجع بيانات العملاء الواردة من رسائل الواتساب، واعتمد التفعيل بضغطة زر مع إرسال رسالة التهنئة وكود الترخيص مباشرة.</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={fetchActivationRequests}
+                    disabled={isFetchingRequests}
+                    className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/20 rounded-xl font-bold text-xs flex items-center gap-2 transition-all"
+                  >
+                    <RefreshCw size={14} className={isFetchingRequests ? "animate-spin" : ""} />
+                    تحديث طلبات الواتساب
+                  </button>
+                </div>
+
+                {activationRequests.length === 0 ? (
+                  <div className="p-8 text-center border-2 border-dashed border-[#1e293b] rounded-2xl text-slate-500 text-xs">
+                    <Inbox size={36} className="mx-auto mb-2 opacity-40 text-slate-400" />
+                    لا توجد طلبات تفعيل جديدة واردة عبر الواتساب حالياً. عند إرسال أي عميل لطلبه عبر النظام ستظهر هنا للمراجعة الفورية.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-[#1e293b]">
+                    <table className="w-full text-right border-collapse">
+                      <thead>
+                        <tr className="bg-[#0b0f1a] text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-[#1e293b]">
+                          <th className="p-3.5">المنشأة والمسؤول</th>
+                          <th className="p-3.5">الهاتف والتواصل</th>
+                          <th className="p-3.5">معرف الجهاز (UUID)</th>
+                          <th className="p-3.5">الباقة المطلوبة</th>
+                          <th className="p-3.5">وقت الطلب</th>
+                          <th className="p-3.5">الحالة</th>
+                          <th className="p-3.5 text-center">الإجراء والرد عبر واتساب</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1e293b] text-xs font-bold text-slate-300">
+                        {activationRequests.map((reqItem: any) => {
+                          const isApproved = reqItem.status === 'APPROVED';
+                          const isProcessing = approvingRequestId === reqItem.id;
+                          
+                          return (
+                            <tr key={reqItem.id} className="hover:bg-slate-900/30 transition-colors">
+                              <td className="p-3.5">
+                                <div className="font-black text-white">{reqItem.companyName}</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">👤 {reqItem.responsibleName} • {reqItem.vertical || 'نشاط تجاري'}</div>
+                              </td>
+                              <td className="p-3.5 font-mono text-[11px]">
+                                <div className="text-emerald-400 flex items-center gap-1">
+                                  <Phone size={12} />
+                                  <span dir="ltr">{reqItem.phone || 'غير مسجل'}</span>
+                                </div>
+                                {reqItem.email && <div className="text-[10px] text-slate-500">{reqItem.email}</div>}
+                              </td>
+                              <td className="p-3.5 font-mono text-[10px] text-slate-400 max-w-[140px] truncate" title={reqItem.deviceId}>
+                                {reqItem.deviceId}
+                              </td>
+                              <td className="p-3.5">
+                                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md text-[10px]">
+                                  {reqItem.requestedPlan || 'ENTERPRISE'}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-slate-400 text-[10px]">
+                                {new Date(reqItem.createdAt).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="p-3.5">
+                                {isApproved ? (
+                                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md text-[10px] flex items-center gap-1 w-fit font-bold">
+                                    <CheckCircle size={11} /> مفعّل ومعتمد
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md text-[10px] flex items-center gap-1 w-fit font-bold animate-pulse">
+                                    <Clock size={11} /> بانتظار التفعيل
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <button
+                                  onClick={() => handleApproveActivationRequest(reqItem)}
+                                  disabled={isProcessing}
+                                  className={`px-3 py-1.5 rounded-xl font-black text-[11px] flex items-center justify-center gap-1.5 mx-auto transition-all shadow-md ${
+                                    isApproved 
+                                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700' 
+                                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-950'
+                                  }`}
+                                >
+                                  <Send size={12} className={isProcessing ? "animate-spin" : ""} />
+                                  {isProcessing ? 'جاري الاعتماد والتوقيع...' : isApproved ? 'إعادة إرسال رسالة التهنئة' : 'تفعيل فوري والرد عبر واتساب'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* WhatsApp Congratulatory Message & License Delivery Modal */}
+              {whatsAppModal && whatsAppModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4" dir="rtl">
+                  <div className="bg-[#151b2b] border border-emerald-500/40 rounded-3xl p-6 max-w-2xl w-full space-y-5 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-[#1e293b] pb-3">
+                      <div className="flex items-center gap-2 text-emerald-400">
+                        <CheckCircle2 size={22} />
+                        <h3 className="font-black text-base text-white">🎉 تم التفعيل بنجاح وإصدار رسالة التهنئة الرسمية</h3>
+                      </div>
+                      <button 
+                        onClick={() => setWhatsAppModal(null)}
+                        className="text-slate-400 hover:text-white p-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="p-4 bg-emerald-950/30 border border-emerald-500/20 rounded-2xl text-xs space-y-2">
+                      <p className="text-emerald-300 font-bold">
+                        تم تسجيل ترخيص المنشأة <span className="text-white underline">{whatsAppModal.companyName}</span> في السيرفر المركزي السحابي فورياً.
+                      </p>
+                      <p className="text-slate-300">
+                        اضغط على الزر الأخضر بالأسفل لفتح محادثة واتساب مع العميل مباشرة وإرسال رسالة التهنئة الشاملة مع كود التفعيل الرقمي.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 text-xs font-bold mb-1.5">نص رسالة التهنئة والترخيص الجاهزة للإرسال:</label>
+                      <textarea
+                        readOnly
+                        value={whatsAppModal.message}
+                        rows={8}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl p-3 text-[11px] font-mono text-emerald-400 resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => copyToClipboard(whatsAppModal.message, 'تم نسخ نص رسالة التهنئة بالكامل!')}
+                          className="px-3.5 py-2 bg-[#1e293b] hover:bg-[#334155] text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        >
+                          <Copy size={14} /> نسخ نص التهنئة
+                        </button>
+                        <button
+                          onClick={() => copyToClipboard(JSON.stringify(whatsAppModal.signedLicense, null, 2), 'تم نسخ كود الترخيص المشفر (.marolic)')}
+                          className="px-3.5 py-2 bg-[#1e293b] hover:bg-[#334155] text-emerald-400 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        >
+                          <FileCode size={14} /> نسخ الترخيص فقط
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setWhatsAppModal(null)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs"
+                        >
+                          إغلاق
+                        </button>
+                        <a
+                          href={whatsAppModal.whatsappUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950 transition-all"
+                        >
+                          <Phone size={15} />
+                          فتح تطبيق واتساب وإرسال التهنئة فوراً
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Dev Keys & Signer Form */}
               <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] p-6 space-y-6 shadow-2xl">
                 <div className="flex items-center gap-3 border-b border-[#1e293b] pb-4 justify-between">
@@ -990,12 +1399,20 @@ export const LicenseActivation: React.FC = () => {
                         <p className="text-slate-300 font-bold leading-relaxed">
                           الترخيص جاهز للتصدير والتسليم لعميل السيرفر المحلي. يمكنك استخدامه لتفعيل هذا الجهاز مباشرة بالقرص المحلي.
                         </p>
-                        <div className="pt-2 flex gap-2">
+                        <div className="pt-2 flex flex-wrap gap-2">
                           <button 
                             onClick={handleDownloadGeneratedLicense}
                             className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center gap-1.5 text-[11px] transition-all"
                           >
                             <Download size={14} /> تحميل ملف الترخيص (.marolic)
+                          </button>
+                          <button 
+                            onClick={handleRegisterCentral}
+                            disabled={isRegisteringCentral}
+                            className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 text-white rounded-xl font-bold flex items-center gap-1.5 text-[11px] transition-all"
+                          >
+                            <Server size={14} className={isRegisteringCentral ? "animate-pulse" : ""} />
+                            {isRegisteringCentral ? 'جاري النشر...' : 'نشر وتوقيع في السيرفر المركزي السحابي (تفعيل أونلاين)'}
                           </button>
                         </div>
                       </div>
@@ -1018,7 +1435,239 @@ export const LicenseActivation: React.FC = () => {
                 )}
               </div>
             </div>
-          )}
+
+            {/* Central Cloud Devices Registry control panel */}
+            <div className="bg-[#151b2b] rounded-3xl border border-[#1e293b] p-6 mt-8 space-y-6 shadow-2xl text-right" dir="rtl">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#1e293b] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+                    <Server size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base text-white">لوحة التحكم في تراخيص الأجهزة السحابية النشطة (.maro Central Registry)</h3>
+                    <p className="text-xs text-slate-400">استعرض وتولَّ التعديل أو إلغاء تراخيص الأجهزة المسجلة لدى السيرفر المركزي. تتزامن الأجهزة تلقائياً عند أول اتصال.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={fetchCentralLicenses}
+                  disabled={isFetchingCentral}
+                  className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/20 rounded-xl font-bold text-xs flex items-center gap-2 transition-all"
+                >
+                  <RefreshCw size={14} className={isFetchingCentral ? "animate-spin" : ""} />
+                  تحديث قائمة الأجهزة
+                </button>
+              </div>
+
+              {/* Editing Form Section */}
+              {editingCentralLicense && (
+                <div className="bg-[#0f172a] rounded-2xl border border-indigo-500/30 p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#1e293b] pb-3">
+                    <span className="text-indigo-400 font-bold text-xs">تعديل ترخيص الجهاز: {editingCentralLicense.deviceBinding?.persistentDeviceId}</span>
+                    <button 
+                      onClick={() => setEditingCentralLicense(null)}
+                      className="text-xs text-slate-400 hover:text-white"
+                    >
+                      إلغاء التعديل
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-bold">
+                    <div>
+                      <label className="block text-slate-300 mb-1">اسم المنشأة التجاري</label>
+                      <input 
+                        type="text"
+                        value={editCompanyName}
+                        onChange={(e) => setEditCompanyName(e.target.value)}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 mb-1">نوع النشاط</label>
+                      <input 
+                        type="text"
+                        value={editIndustry}
+                        onChange={(e) => setEditIndustry(e.target.value)}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 mb-1">الباقة / الخطة</label>
+                      <select 
+                        value={editPlan}
+                        onChange={(e) => setEditPlan(e.target.value as LicensePlan)}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2.5 text-white"
+                      >
+                        <option value="TRIAL">Trial</option>
+                        <option value="BASIC">Basic</option>
+                        <option value="PRO">Premium Pro</option>
+                        <option value="ENTERPRISE">Enterprise</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 mb-1">تاريخ انتهاء الصلاحية</label>
+                      <input 
+                        type="date"
+                        value={editExpiresAt}
+                        onChange={(e) => setEditExpiresAt(e.target.value)}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 mb-1">الحد الأقصى لنقاط البيع (POS)</label>
+                      <input 
+                        type="number"
+                        value={editMaxPosDevices}
+                        onChange={(e) => setEditMaxPosDevices(parseInt(e.target.value) || 1)}
+                        className="w-full bg-[#0b0f1a] border border-[#334155] rounded-xl px-4 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Modules checklist inside editor */}
+                  <div className="space-y-2">
+                    <label className="block text-slate-300 text-xs font-bold">الأنظمة والموديولات المفعلة للعميل:</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {MODULE_OPTIONS.map((mod) => {
+                        const isChecked = editModules.includes(mod.code);
+                        return (
+                          <label 
+                            key={mod.code}
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-[11px] font-bold cursor-pointer transition-all ${
+                              isChecked 
+                                ? 'bg-indigo-600/10 border-indigo-500 text-indigo-300' 
+                                : 'bg-[#0b0f1a] border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setEditModules(editModules.filter(c => c !== mod.code));
+                                } else {
+                                  setEditModules([...editModules, mod.code]);
+                                }
+                              }}
+                              className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-600 h-3.5 w-3.5 bg-slate-900"
+                            />
+                            <span>{mod.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button 
+                      onClick={() => setEditingCentralLicense(null)}
+                      className="px-4 py-2 bg-[#1e293b] hover:bg-[#334155] text-slate-300 rounded-xl text-xs font-bold"
+                    >
+                      إلغاء
+                    </button>
+                    <button 
+                      onClick={handleUpdateCentralLicense}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-950"
+                    >
+                      حفظ التعديلات وإعادة التوقيع رقمياً
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Licenses Table / List */}
+              {centralLicenses.length === 0 ? (
+                <div className="p-12 text-center border-2 border-dashed border-[#1e293b] rounded-2xl text-slate-500 text-xs">
+                  لا توجد أجهزة أو تراخيص مسجلة على السيرفر المركزي حالياً.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-[#1e293b]">
+                  <table className="w-full text-right border-collapse">
+                    <thead>
+                      <tr className="bg-[#0b0f1a] text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-[#1e293b]">
+                        <th className="p-4">اسم المنشأة والنشاط</th>
+                        <th className="p-4">معرف الجهاز (UUID)</th>
+                        <th className="p-4">الباقة</th>
+                        <th className="p-4">صلاحية الترخيص</th>
+                        <th className="p-4">الموديولات المفعلة</th>
+                        <th className="p-4 text-center">الإجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1e293b] text-xs font-bold text-slate-300">
+                      {centralLicenses.map((lic: any) => {
+                        const daysLeft = Math.ceil((new Date(lic.validity?.expiresAt).getTime() - Date.now()) / (1000 * 3600 * 24));
+                        const isExpired = daysLeft <= 0;
+                        
+                        return (
+                          <tr key={lic.deviceBinding?.persistentDeviceId} className="hover:bg-slate-900/30 transition-colors">
+                            <td className="p-4">
+                              <div className="font-black text-white">{lic.tenant?.companyName || 'مؤسسة غير معروفة'}</div>
+                              <div className="text-[10px] text-slate-500 mt-0.5">{lic.tenant?.industry || 'نشاط عام'}</div>
+                            </td>
+                            <td className="p-4 font-mono text-[10px] text-slate-400">
+                              {lic.deviceBinding?.persistentDeviceId}
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide ${
+                                lic.entitlements?.plan === 'ENTERPRISE' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                                lic.entitlements?.plan === 'PRO' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                              }`}>
+                                {lic.entitlements?.plan || 'BASIC'}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="text-slate-200">{new Date(lic.validity?.expiresAt).toLocaleDateString('ar-EG')}</div>
+                              <div className={`text-[10px] mt-0.5 ${isExpired ? 'text-red-500 font-bold' : daysLeft < 30 ? 'text-amber-500' : 'text-slate-500'}`}>
+                                {isExpired ? 'منتهي الصلاحية' : `متبقي ${daysLeft} يوم`}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1 max-w-[240px]">
+                                {lic.entitlements?.enabledModules?.slice(0, 4).map((m: string) => (
+                                  <span key={m} className="px-1.5 py-0.5 bg-slate-800 text-[9px] text-slate-400 rounded">
+                                    {m}
+                                  </span>
+                                ))}
+                                {(lic.entitlements?.enabledModules?.length || 0) > 4 && (
+                                  <span className="px-1.5 py-0.5 bg-slate-800 text-[9px] text-slate-400 rounded">
+                                    +{lic.entitlements.enabledModules.length - 4}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => {
+                                    setEditingCentralLicense(lic);
+                                    setEditCompanyName(lic.tenant?.companyName || '');
+                                    setEditIndustry(lic.tenant?.industry || '');
+                                    setEditPlan(lic.entitlements?.plan || 'ENTERPRISE');
+                                    setEditMaxPosDevices(lic.entitlements?.maxPosDevices || 1);
+                                    setEditModules(lic.entitlements?.enabledModules || []);
+                                    setEditExpiresAt(new Date(lic.validity?.expiresAt).toISOString().split('T')[0]);
+                                  }}
+                                  className="px-2.5 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-black transition-colors"
+                                >
+                                  تعديل الترخيص
+                                </button>
+                                <button 
+                                  onClick={() => handleRevokeCentralLicense(lic.deviceBinding?.persistentDeviceId)}
+                                  className="px-2.5 py-1.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 rounded-lg text-[10px] font-black transition-colors"
+                                >
+                                  إلغاء وتجميد
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         </div>
       )}
     </div>

@@ -32,6 +32,8 @@ import { ReportDesigner } from './pages/reports/ReportDesigner';
 import { Manufacturing } from './pages/Manufacturing';
 import { Users } from './pages/Users';
 import { Inventory } from './pages/Inventory';
+import { OpeningBalancesPage } from './pages/OpeningBalancesPage';
+import { PriceAdjustmentPage } from './pages/PriceAdjustmentPage';
 import { Returns } from './pages/Returns';
 import { PurchaseReturns } from './pages/PurchaseReturns';
 import { AlertSettings } from './pages/AlertSettings';
@@ -41,6 +43,7 @@ import { DeveloperConsole } from './pages/DeveloperConsole';
 import { RolePermissions } from './pages/RolePermissions';
 import { SecurityAudit } from './pages/SecurityAudit';
 import { LicenseActivation } from './pages/settings/LicenseActivation';
+import { AndroidActivationSimulator } from './pages/settings/AndroidActivationSimulator';
 import { DemoDataSeeder } from './services/demoDataSeeder';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { initBusinessIntelligence } from './services/biInitializer';
@@ -102,8 +105,8 @@ import { FirstRunActivationWizard } from './components/licensing/FirstRunActivat
 import { useAuth } from './components/AuthProvider';
 
 function AppContent() {
-  const { serverLicense, loading } = useAuth();
-  const [showFirstRun, setShowFirstRun] = useState(DemoDataSeeder.isFirstRun());
+  const { serverLicense, loading, checkServerLicense } = useAuth();
+  const [showFirstRun, setShowFirstRun] = useState(() => DemoDataSeeder.isFirstRun());
 
   if (loading) {
     return (
@@ -116,15 +119,28 @@ function AppContent() {
     );
   }
 
-  // If there is no valid license on the server, show the beautiful, full-screen FirstRunActivationWizard!
+  // If there is no valid license on the server, show the FirstRunActivationWizard with instant activation callback
   if (!serverLicense || !serverLicense.valid) {
-    return <FirstRunActivationWizard />;
+    return (
+      <FirstRunActivationWizard 
+        onActivated={async () => {
+          await checkServerLicense();
+        }} 
+      />
+    );
   }
 
   return (
     <>
       <StockAlerts />
-      {showFirstRun && <FirstRunWizard onComplete={() => setShowFirstRun(false)} />}
+      {showFirstRun && (
+        <FirstRunWizard 
+          onComplete={() => {
+            DemoDataSeeder.markFirstRunCompleted();
+            setShowFirstRun(false);
+          }} 
+        />
+      )}
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -135,6 +151,9 @@ function AppContent() {
           <Route path="/catalog" element={<CustomerOrderPortalApp />} />
 
           <Route element={<ProtectedRoute />}>
+            {/* Standalone Fullscreen Android Activation Simulator without main sidebar & headers */}
+            <Route path="/android-activation-standalone" element={<AndroidActivationSimulator />} />
+
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/pos" element={<POS />} />
@@ -178,8 +197,10 @@ function AppContent() {
 
               {/* Core Supply Chain, Inventory & Sales */}
               <Route path="/products" element={<Products />} />
+              <Route path="/price-adjustments" element={<PriceAdjustmentPage />} />
               <Route path="/warehouses" element={<Warehouses />} />
               <Route path="/inventory" element={<Inventory />} />
+              <Route path="/opening-balances" element={<OpeningBalancesPage />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/suppliers" element={<Suppliers />} />
               <Route path="/invoices" element={<Invoices />} />
@@ -229,6 +250,8 @@ function AppContent() {
               <Route path="/settings/security/roles" element={<RolePermissions />} />
               <Route path="/settings/security/audit" element={<SecurityAudit />} />
               <Route path="/settings/license" element={<LicenseActivation />} />
+              <Route path="/settings/license/android" element={<AndroidActivationSimulator />} />
+              <Route path="/settings/android-activation" element={<AndroidActivationSimulator />} />
               <Route path="/developer/console" element={<DeveloperConsole />} />
               <Route path="/developer/hub" element={<DeveloperPartnerHub />} />
               <Route path="/support/center" element={<SupportCenter />} />
