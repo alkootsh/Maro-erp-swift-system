@@ -287,6 +287,8 @@ export const Layout: React.FC = () => {
       title: 'الإدارة والأمان والترخيص',
       items: [
         { name: 'الإعدادات العامة للشركة', path: '/settings', icon: Settings },
+        { name: 'النسخ الاحتياطي واستعادة البيانات', path: '/settings?tab=database', icon: Database, adminOnly: true },
+        { name: 'تصفير وإعادة تهيئة النظام (System Reset)', path: '/settings?tab=database', icon: RotateCcw, adminOnly: true },
         { name: 'منصة تكييف الأنشطة (Adaptive ERP)', path: '/adaptive-erp', icon: Layers, adminOnly: true },
         { name: 'إدارة المستخدمين والصلاحيات', path: '/users', icon: ShieldCheck, adminOnly: true },
         { name: 'إدارة الأدوار (RBAC)', path: '/settings/security/roles', icon: Lock, adminOnly: true },
@@ -312,6 +314,9 @@ export const Layout: React.FC = () => {
   const currentPath = window.location.pathname;
   const CASHIER_ALLOWED_PATHS = [
     '/pos',
+    '/wholesale-invoices',
+    '/invoices',
+    '/pos-models',
     '/smart-cashier',
     '/cashier-sessions',
     '/sessions',
@@ -490,7 +495,7 @@ export const Layout: React.FC = () => {
                       const Icon = item.icon;
                       return (
                         <button
-                          key={item.path}
+                          key={`${item.name}-${item.path}`}
                           onMouseDown={() => {
                             navigate(item.path);
                             setSearchQuery('');
@@ -663,7 +668,7 @@ export const Layout: React.FC = () => {
                 <div className="space-y-0.5">
                   {filteredItems.map((item) => (
                     <NavLink
-                      key={item.path}
+                      key={`${item.name}-${item.path}`}
                       to={item.path}
                       className={({ isActive }) => cn(
                         "flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all group text-xs font-semibold",

@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Database, 
+  DatabaseZap,
   Download, 
   Upload, 
   Trash2, 
@@ -31,12 +32,17 @@ import {
   Check
 } from 'lucide-react';
 import { BackupService, BackupScheduleConfig, BackupMetadata, SelectiveWipeOptions } from '../../services/backupService';
+import { DataSeeder } from './DataSeeder';
 import { formatCurrency, playSystemChime } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../AuthProvider';
 
 export const BackupManagerPanel: React.FC = () => {
+  const { user } = useAuth();
+  const activeTenantId = user?.tenantId || user?.companyId || 'tenant_maro_main';
+  const activeUserId = user?.id;
   const [config, setConfig] = useState<BackupScheduleConfig>(() => BackupService.getConfig());
-  const [activeTab, setActiveTab] = useState<'backup_restore' | 'wipe_data' | 'dispatch_schedule'>('backup_restore');
+  const [activeTab, setActiveTab] = useState<'backup_restore' | 'wipe_data' | 'dispatch_schedule' | 'seeding'>('backup_restore');
 
   // Inspection & Restore Modal State
   const [inspectModalOpen, setInspectModalOpen] = useState(false);
@@ -131,7 +137,7 @@ export const BackupManagerPanel: React.FC = () => {
   };
 
   // Handle Wipe Execution
-  const handleExecuteWipe = () => {
+  const handleExecuteWipe = async () => {
     const requiredCode = wipeMode === 'factory' ? 'DESTROY' : 'تصفير';
     if (wipeConfirmInput.trim().toUpperCase() !== requiredCode) {
       toast.error(`يرجى كتابة الكلمة التأكيدية الصحيحة: [${requiredCode}] للتنفيذ`);
@@ -143,20 +149,23 @@ export const BackupManagerPanel: React.FC = () => {
     }
 
     setIsWiping(true);
-    setTimeout(() => {
+    try {
       if (wipeMode === 'factory') {
-        BackupService.performTotalFactoryReset();
+        await BackupService.performTotalFactoryReset(activeTenantId, wipeConfirmInput.trim(), activeUserId);
         toast.success('تم مسح وتصفير كافة بيانات النظام وإعادته لحالة المصنع الكاملة');
       } else {
-        const res = BackupService.performSelectiveWipe(wipeOptions);
-        toast.success(`تم التصفير التفصيلي بنجاح! تم حذف (${res.wipedKeysCount}) سجل ومفتاح بيانات`);
+        const res = await BackupService.performSelectiveWipe(activeTenantId, wipeOptions, activeUserId);
+        toast.success(`تم التصفير التفصيلي بنجاح! تم مسح الأقسام: (${res.wipedModules.join(', ')})`);
       }
       setIsWiping(false);
       setWipeConfirmInput('');
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-    }, 1000);
+    } catch (err: any) {
+      setIsWiping(false);
+      toast.error(`فشلت عملية التصفير: ${err.message || err}`);
+    }
   };
 
   // Handle Instant Dispatch
@@ -246,6 +255,18 @@ export const BackupManagerPanel: React.FC = () => {
         >
           <Trash2 size={16} />
           <span>تصفير البيانات (تفصيلي / إجمالي)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('seeding')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            activeTab === 'seeding'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+              : 'bg-[#151b2b] text-slate-400 hover:text-white border border-[#1e293b]'
+          }`}
+        >
+          <DatabaseZap size={16} />
+          <span>توليد البيانات التجريبية (Demo Data)</span>
         </button>
       </div>
 
@@ -428,42 +449,106 @@ export const BackupManagerPanel: React.FC = () => {
                   </label>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1">معدل التكرار:</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">معدل التكرار للجدولة:</label>
                     <select
                       value={config.frequency}
                       onChange={(e) => setConfig(prev => ({ ...prev, frequency: e.target.value as any }))}
                       className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-xl px-3 py-2 text-white text-xs font-bold"
                     >
-                      <option value="daily">يومياً (Daily)</option>
+                      <option value="custom_hours">كل عدد ساعات محدد (Hourly Interval)</option>
+                      <option value="daily">يومياً في توقيت محدد (Daily)</option>
                       <option value="weekly">أسبوعياً (Weekly)</option>
                       <option value="monthly">شهرياً (Monthly)</option>
                     </select>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1">وقت التنفيذ المفضّل:</label>
+                  {config.frequency === 'custom_hours' || config.frequency === 'hourly' ? (
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">التكرار كل (عدد الساعات):</label>
+                      <select
+                        value={config.intervalHours || 2}
+                        onChange={(e) => setConfig(prev => ({ ...prev, intervalHours: Number(e.target.value) }))}
+                        className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-xl px-3 py-2 text-white text-xs font-mono font-bold"
+                      >
+                        <option value={1}>كل ساعة واحدة (Every 1 Hour)</option>
+                        <option value={2}>كل ساعتين (Every 2 Hours)</option>
+                        <option value={3}>كل 3 ساعات (Every 3 Hours)</option>
+                        <option value={4}>كل 4 ساعات (Every 4 Hours)</option>
+                        <option value={6}>كل 6 ساعات (Every 6 Hours)</option>
+                        <option value={8}>كل 8 ساعات (Every 8 Hours)</option>
+                        <option value={12}>كل 12 ساعة (Every 12 Hours)</option>
+                        <option value={24}>كل 24 ساعة (Every 24 Hours)</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">وقت التنفيذ المفضّل:</label>
+                      <input
+                        type="time"
+                        value={config.scheduledTime}
+                        onChange={(e) => setConfig(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                        className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-xl px-3 py-2 text-white text-xs font-mono font-bold"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Startup & Shutdown Triggers */}
+                <div className="pt-3 border-t border-[#1e293b] space-y-2.5">
+                  <span className="text-xs font-bold text-indigo-400 block">أحداث دورة حياة النظام (App Lifecycle Events):</span>
+
+                  <label className="p-2.5 bg-[#0b0f19] border border-[#1e293b] hover:border-indigo-500/40 rounded-xl flex items-center justify-between cursor-pointer transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🚀</span>
+                      <div>
+                        <span className="text-xs font-bold text-white block">نسخ احتياطي تلقائي عند فتح البرنامج</span>
+                        <span className="text-[10px] text-slate-400">يتم إنشاء نسخة فورية عند إقلاع وتشغيل التطبيق</span>
+                      </div>
+                    </div>
                     <input
-                      type="time"
-                      value={config.scheduledTime}
-                      onChange={(e) => setConfig(prev => ({ ...prev, scheduledTime: e.target.value }))}
-                      className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-xl px-3 py-2 text-white text-xs font-mono font-bold"
+                      type="checkbox"
+                      checked={config.onAppStartup}
+                      onChange={(e) => setConfig(prev => ({ ...prev, onAppStartup: e.target.checked }))}
+                      className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
                     />
-                  </div>
+                  </label>
+
+                  <label className="p-2.5 bg-[#0b0f19] border border-[#1e293b] hover:border-rose-500/40 rounded-xl flex items-center justify-between cursor-pointer transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🛑</span>
+                      <div>
+                        <span className="text-xs font-bold text-white block">نسخ احتياطي تلقائي عند إغلاق البرنامج</span>
+                        <span className="text-[10px] text-slate-400">يتم أخذ نسخة أمان قبل خروج المستخدم أو إغلاق المتصفح</span>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={config.onAppShutdown}
+                      onChange={(e) => setConfig(prev => ({ ...prev, onAppShutdown: e.target.checked }))}
+                      className="w-4 h-4 accent-rose-600 rounded cursor-pointer"
+                    />
+                  </label>
                 </div>
 
                 <div className="bg-[#0b0f19] p-3.5 rounded-2xl border border-[#1e293b] space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-400">
-                    <span>حالة الجدولة:</span>
+                    <span>حالة الجدولة والربط:</span>
                     <span className={config.enabled ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
                       {config.enabled ? 'مفعلة وتعمل تلقائياً ✓' : 'متوقفة'}
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-400">
-                    <span>موعد التشغيل القادم:</span>
-                    <span className="font-mono text-purple-300">
-                      {config.nextScheduledBackupAt ? new Date(config.nextScheduledBackupAt).toLocaleString('ar-EG') : 'غير محدد'}
+                    <span>آخر نسخة عند الفتح:</span>
+                    <span className="font-mono text-indigo-300">
+                      {config.lastStartupBackupAt ? new Date(config.lastStartupBackupAt).toLocaleString('ar-EG') : 'لم تنفذ بعد'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>آخر نسخة عند الإغلاق:</span>
+                    <span className="font-mono text-rose-300">
+                      {config.lastShutdownBackupAt ? new Date(config.lastShutdownBackupAt).toLocaleString('ar-EG') : 'لم تنفذ بعد'}
                     </span>
                   </div>
                 </div>
@@ -628,6 +713,13 @@ export const BackupManagerPanel: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB 4: DEMO DATA SEEDING */}
+      {activeTab === 'seeding' && (
+        <div className="bg-[#151b2b] border border-[#1e293b] rounded-3xl p-6 shadow-xl animate-in fade-in slide-in-from-bottom-2">
+          <DataSeeder />
         </div>
       )}
 

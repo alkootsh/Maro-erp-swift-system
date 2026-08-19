@@ -100,6 +100,7 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Session Restore & Tracking states
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
   const [hasBackup, setHasBackup] = useState(false);
   const [trackOrderNumber, setTrackOrderNumber] = useState('');
   const [trackedOrder, setTrackedOrder] = useState<CustomerPortalOrder | null>(null);
@@ -336,19 +337,59 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
     }
   };
 
+  // Auto-restore complete draft (cart + form data) on mount
   useEffect(() => {
     loadCatalog();
     
-    // Check for previous session backup
-    const backup = localStorage.getItem('MARO_PORTAL_CART_BACKUP');
-    if (backup) {
+    let restoredAny = false;
+    const savedDraft = localStorage.getItem('MARO_PORTAL_DRAFT_STATE');
+    
+    if (savedDraft) {
       try {
-        const parsed = JSON.parse(backup);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setHasBackup(true);
+        const draft = JSON.parse(savedDraft);
+        if (draft && typeof draft === 'object') {
+          if (Array.isArray(draft.cart) && draft.cart.length > 0) {
+            setCart(draft.cart);
+            restoredAny = true;
+          }
+          if (draft.customerName) setCustomerName(draft.customerName);
+          if (draft.phone) setPhone(draft.phone);
+          if (draft.deliveryAddress) setDeliveryAddress(draft.deliveryAddress);
+          if (draft.city) setCity(draft.city);
+          if (draft.deliveryLocationLink) setDeliveryLocationLink(draft.deliveryLocationLink);
+          if (draft.deliveryDate) setDeliveryDate(draft.deliveryDate);
+          if (draft.deliveryTime) setDeliveryTime(draft.deliveryTime);
+          if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
+          if (draft.customerNotes) setCustomerNotes(draft.customerNotes);
+          if (draft.checkoutStep && ['CART', 'CUSTOMER_INFO', 'CONFIRMATION'].includes(draft.checkoutStep)) {
+            setCheckoutStep(draft.checkoutStep);
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Failed to parse portal draft state:', e);
+      }
+    } else {
+      // Fallback to legacy MARO_PORTAL_CART_BACKUP
+      const legacyBackup = localStorage.getItem('MARO_PORTAL_CART_BACKUP');
+      if (legacyBackup) {
+        try {
+          const parsed = JSON.parse(legacyBackup);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCart(parsed);
+            restoredAny = true;
+          }
+        } catch (e) {}
+      }
     }
+
+    if (restoredAny) {
+      toast.success('⚡ تم استرجاع محتويات السلة والبيانات غير المكتملة تلقائياً من الجلسة السابقة!', {
+        duration: 4500,
+        icon: '🛒'
+      });
+    }
+
+    setIsDraftRestored(true);
   }, []);
 
   // Update form fields when logged customer changes
@@ -405,13 +446,53 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
     setDeliveryAddress('');
   };
 
-  // Sync cart to backup storage
+  // Auto-sync cart and uncompleted form fields to localStorage automatically
   useEffect(() => {
-    if (cart.length > 0) {
+    if (!isDraftRestored) return;
+
+    const hasDataToSave = 
+      cart.length > 0 || 
+      customerName.trim() !== '' || 
+      phone.trim() !== '' || 
+      deliveryAddress.trim() !== '' ||
+      customerNotes.trim() !== '';
+
+    if (hasDataToSave && checkoutStep !== 'SUCCESS') {
+      const draftState = {
+        cart,
+        customerName,
+        phone,
+        deliveryAddress,
+        city,
+        deliveryLocationLink,
+        deliveryDate,
+        deliveryTime,
+        paymentMethod,
+        customerNotes,
+        checkoutStep,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem('MARO_PORTAL_DRAFT_STATE', JSON.stringify(draftState));
       localStorage.setItem('MARO_PORTAL_CART_BACKUP', JSON.stringify(cart));
       setHasBackup(false);
+    } else if (cart.length === 0 && checkoutStep === 'CART') {
+      localStorage.removeItem('MARO_PORTAL_DRAFT_STATE');
+      localStorage.removeItem('MARO_PORTAL_CART_BACKUP');
     }
-  }, [cart]);
+  }, [
+    isDraftRestored,
+    cart,
+    customerName,
+    phone,
+    deliveryAddress,
+    city,
+    deliveryLocationLink,
+    deliveryDate,
+    deliveryTime,
+    paymentMethod,
+    customerNotes,
+    checkoutStep
+  ]);
 
   const restoreSession = () => {
     const backup = localStorage.getItem('MARO_PORTAL_CART_BACKUP');
@@ -511,6 +592,8 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
   const clearCart = () => {
     setCart([]);
     setCheckoutStep('CART');
+    localStorage.removeItem('MARO_PORTAL_DRAFT_STATE');
+    localStorage.removeItem('MARO_PORTAL_CART_BACKUP');
   };
 
   // Calculations
@@ -671,6 +754,8 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
       setLastSubmittedOrder(order);
       setCheckoutStep('SUCCESS');
       setCart([]);
+      localStorage.removeItem('MARO_PORTAL_DRAFT_STATE');
+      localStorage.removeItem('MARO_PORTAL_CART_BACKUP');
     } catch (err: any) {
       setErrorMessage(err.message || 'حدث خطأ أثناء إرسال الطلب');
     } finally {
@@ -775,6 +860,13 @@ export const CustomerOrderPortalApp: React.FC<Props> = ({ isSimulator = false })
               <Mic size={16} className="text-purple-400 animate-pulse" />
               <span className="hidden md:inline">الطلب الصوتي 🎙️</span>
             </button>
+
+            {cart.length > 0 && (
+              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold" title="يتم حفظ السلة والبيانات تلقائياً في حالة انقطاع الاتصال أو تحديث الصفحة">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>حفظ تلقائي</span>
+              </div>
+            )}
 
             <button
               onClick={() => {

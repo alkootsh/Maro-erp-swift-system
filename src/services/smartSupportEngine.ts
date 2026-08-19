@@ -16,12 +16,13 @@ import {
   SupportAnalyticsOverview,
   SimilarTicketMatch
 } from '../types/smartSupport';
+import { EXTENDED_ENTERPRISE_KNOWLEDGE_ARTICLES } from './behaviorKnowledgeEngine';
 
 // =========================================================================
 // INITIAL ENTERPRISE KNOWLEDGE BASE SEED
 // =========================================================================
 
-export const DEFAULT_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
+export const BASE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
   {
     id: 'kb_pos_save_error',
     tenantId: 'global',
@@ -343,6 +344,11 @@ export const DEFAULT_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     createdAt: '2026-03-15T09:00:00Z',
     updatedAt: '2026-08-17T16:00:00Z'
   }
+];
+
+export const DEFAULT_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
+  ...BASE_KNOWLEDGE_ARTICLES,
+  ...EXTENDED_ENTERPRISE_KNOWLEDGE_ARTICLES
 ];
 
 export const DEFAULT_PROBLEM_CLUSTERS: ProblemCluster[] = [

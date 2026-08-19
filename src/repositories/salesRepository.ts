@@ -49,7 +49,13 @@ export class SalesRepository {
     // Convert to Base64
     let binary = '';
     combined.forEach(b => { binary += String.fromCharCode(b); });
-    return typeof btoa !== 'undefined' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+    if (typeof btoa !== 'undefined') {
+      return btoa(binary);
+    }
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(binary, 'binary').toString('base64');
+    }
+    return '';
   }
 
   static getInvoices(): SalesInvoice[] {
@@ -61,7 +67,7 @@ export class SalesRepository {
     return MaroSyncEngine.getLocalDocument<SalesInvoice>(INVOICE_COLLECTION, id);
   }
 
-  static async createInvoice(invoiceData: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'createdAt'>): Promise<SalesInvoice> {
+  static async createInvoice(invoiceData: Partial<SalesInvoice> & { items: any[] }): Promise<SalesInvoice> {
     const invoices = this.getInvoices();
     const invoiceNumber = InvoiceNumberingEngine.generateDailySequentialInvoiceNumber('INV');
     const id = `inv_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -111,6 +117,10 @@ export class SalesRepository {
     );
 
     const fullInvoice: SalesInvoice = {
+      type: invoiceData.type || 'RETAIL',
+      branchId: invoiceData.branchId || 'BR-MAIN',
+      warehouseId: invoiceData.warehouseId || 'WH-MAIN',
+      paymentMethod: invoiceData.paymentMethod || 'CASH',
       ...invoiceData,
       id,
       invoiceNumber,

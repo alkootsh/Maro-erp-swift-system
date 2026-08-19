@@ -3,6 +3,7 @@
  * @module ملف إضافي في النظام
  * @description ملف جزء من نظام MARO ERP. الوظيفة: main.tsx.
  */
+import './polyfills';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';

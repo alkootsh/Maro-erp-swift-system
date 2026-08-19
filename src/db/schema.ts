@@ -3,7 +3,7 @@
  * @module ملف إضافي في النظام
  * @description ملف جزء من نظام MARO ERP. الوظيفة: schema.ts.
  */
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
   serial,
@@ -15,7 +15,9 @@ import {
   numeric,
   jsonb,
   uuid,
-  index
+  index,
+  uniqueIndex,
+  date
 } from 'drizzle-orm/pg-core';
 
 // ==========================================
@@ -487,4 +489,100 @@ export const supportProblemClusters = pgTable('support_problem_clusters', {
   commonResolution: text('common_resolution'),
   subClusters: jsonb('sub_clusters').default([]),
 });
+
+// ==========================================
+// CORE 8: FISCAL YEARS & SYSTEM MAINTENANCE
+// ==========================================
+
+export const fiscalYears = pgTable('fiscal_years', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  startDate: date('start_date').notNull(), // PostgreSQL DATE type
+  endDate: date('end_date').notNull(), // PostgreSQL DATE type
+  status: varchar('status', { length: 20 }).default('OPEN').notNull(), // OPEN, CLOSING, CLOSED
+  isCurrent: boolean('is_current').default(false).notNull(),
+  closedAt: timestamp('closed_at'),
+  closedBy: uuid('closed_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('fiscal_years_tenant_idx').on(table.tenantId),
+  tenantStatusIdx: index('fiscal_years_tenant_status_idx').on(table.tenantId, table.status),
+  tenantCurrentIdx: index('fiscal_years_tenant_current_idx').on(table.tenantId, table.isCurrent),
+  tenantCurrentUniqueIdx: uniqueIndex('fiscal_years_tenant_current_uniq_idx')
+    .on(table.tenantId)
+    .where(sql`is_current = true`),
+}));
+
+export const openingBalances = pgTable('opening_balances', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  fiscalYearId: uuid('fiscal_year_id').references(() => fiscalYears.id, { onDelete: 'cascade' }).notNull(),
+  accountId: uuid('account_id').references(() => chartOfAccounts.id),
+  accountCode: varchar('account_code', { length: 100 }).notNull(),
+  accountName: varchar('account_name', { length: 255 }).notNull(),
+  entityType: varchar('entity_type', { length: 50 }).default('ACCOUNT').notNull(), // ACCOUNT, CUSTOMER, SUPPLIER
+  entityId: varchar('entity_id', { length: 255 }),
+  entityName: varchar('entity_name', { length: 255 }),
+  debitAmount: numeric('debit_amount', { precision: 15, scale: 2 }).default('0.00').notNull(),
+  creditAmount: numeric('credit_amount', { precision: 15, scale: 2 }).default('0.00').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantFyIdx: index('opening_balances_tenant_fy_idx').on(table.tenantId, table.fiscalYearId),
+  entityTypeIdx: index('opening_balances_entity_type_idx').on(table.tenantId, table.entityType),
+  tenantFyAccountUniqueIdx: uniqueIndex('opening_balances_tenant_fy_acc_uniq_idx')
+    .on(table.tenantId, table.fiscalYearId, table.accountId)
+    .where(sql`entity_type = 'ACCOUNT'`),
+  tenantFyEntityUniqueIdx: uniqueIndex('opening_balances_tenant_fy_entity_uniq_idx')
+    .on(table.tenantId, table.fiscalYearId, table.entityType, table.entityId)
+    .where(sql`entity_type != 'ACCOUNT'`),
+}));
+
+export const openingStock = pgTable('opening_stock', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  fiscalYearId: uuid('fiscal_year_id').references(() => fiscalYears.id, { onDelete: 'cascade' }).notNull(),
+  warehouseId: uuid('warehouse_id').references(() => warehouses.id, { onDelete: 'cascade' }).notNull(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  productSku: varchar('product_sku', { length: 100 }),
+  productName: varchar('product_name', { length: 255 }).notNull(),
+  quantity: numeric('quantity', { precision: 15, scale: 4 }).notNull(),
+  unitCost: numeric('unit_cost', { precision: 15, scale: 4 }).notNull(),
+  totalCost: numeric('total_cost', { precision: 15, scale: 2 }).notNull(),
+  batchNumber: varchar('batch_number', { length: 100 }),
+  expiryDate: timestamp('expiry_date'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  tenantFyIdx: index('opening_stock_tenant_fy_idx').on(table.tenantId, table.fiscalYearId),
+  tenantWhIdx: index('opening_stock_tenant_wh_idx').on(table.tenantId, table.warehouseId),
+  tenantProdIdx: index('opening_stock_tenant_prod_idx').on(table.tenantId, table.productId),
+  tenantFyWhProdNoBatchUniqueIdx: uniqueIndex('opening_stock_tenant_fy_wh_prod_no_batch_uniq_idx')
+    .on(table.tenantId, table.fiscalYearId, table.warehouseId, table.productId)
+    .where(sql`batch_number IS NULL`),
+  tenantFyWhProdWithBatchUniqueIdx: uniqueIndex('opening_stock_tenant_fy_wh_prod_with_batch_uniq_idx')
+    .on(table.tenantId, table.fiscalYearId, table.warehouseId, table.productId, table.batchNumber)
+    .where(sql`batch_number IS NOT NULL`),
+}));
+
+export const maintenanceLogs = pgTable('maintenance_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id),
+  operationType: varchar('operation_type', { length: 100 }).notNull(), // BACKUP_CREATE, BACKUP_RESTORE, DATA_RESET, FISCAL_YEAR_CLOSE, FISCAL_YEAR_SETTINGS_UPDATE
+  fiscalYearId: uuid('fiscal_year_id').references(() => fiscalYears.id),
+  status: varchar('status', { length: 50 }).notNull(), // PENDING, SUCCESS, FAILED, ROLLBACK
+  details: jsonb('details').default({}),
+  ipAddress: varchar('ip_address', { length: 100 }),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  tenantOpIdx: index('maintenance_logs_tenant_op_idx').on(table.tenantId, table.operationType),
+  createdAtIdx: index('maintenance_logs_created_at_idx').on(table.startedAt),
+}));
+
 

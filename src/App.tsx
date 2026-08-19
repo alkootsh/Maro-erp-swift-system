@@ -104,10 +104,17 @@ import { HardwareThermalBarcodeHub } from './pages/HardwareThermalBarcodeHub';
 
 import { FirstRunActivationWizard } from './components/licensing/FirstRunActivationWizard';
 import { useAuth } from './components/AuthProvider';
+import { BackupService } from './services/backupService';
+import { SupportTicketAlertOverlay } from './components/support/SupportTicketAlertOverlay';
 
 function AppContent() {
   const { serverLicense, loading, checkServerLicense } = useAuth();
   const [showFirstRun, setShowFirstRun] = useState(() => DemoDataSeeder.isFirstRun());
+
+  useEffect(() => {
+    const cleanup = BackupService.initAutoBackupEngine();
+    return () => cleanup();
+  }, []);
 
   if (loading) {
     return (
@@ -134,6 +141,7 @@ function AppContent() {
   return (
     <>
       <StockAlerts />
+      <SupportTicketAlertOverlay />
       {showFirstRun && (
         <FirstRunWizard 
           onComplete={() => {

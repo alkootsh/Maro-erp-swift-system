@@ -187,6 +187,7 @@ export interface ProductMaster {
   departmentId?: string;
   categoryId?: string;
   category?: string; // legacy support
+  categoryName?: string;
   tags?: string[];
   collections?: string[];
   season?: string;
@@ -226,6 +227,7 @@ export interface ProductMaster {
   sellingPrice2?: number;
   sellingPrice3?: number;
   wholesalePrice?: number;
+  retailPrice?: number;
   distributorPrice?: number;
   vipPrice?: number;
   onlinePrice?: number;

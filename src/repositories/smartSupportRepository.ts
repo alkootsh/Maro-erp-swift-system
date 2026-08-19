@@ -14,6 +14,7 @@ import {
   SimilarTicketMatch
 } from '../types/smartSupport';
 import { DEFAULT_KNOWLEDGE_ARTICLES, DEFAULT_PROBLEM_CLUSTERS, SmartSupportClassifier } from '../services/smartSupportEngine';
+import { SupportTicketDispatchService } from '../services/supportTicketDispatchService';
 
 const LOCAL_STORAGE_KEYS = {
   SESSIONS: 'maro_support_sessions_cache',
@@ -160,6 +161,10 @@ export class SmartSupportRepository {
           const tickets = await this.getTickets();
           tickets.unshift(data.ticket);
           localStorage.setItem(LOCAL_STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
+
+          // Trigger Support Ticket Dispatch & Audio-Visual Repeating Alarm Engine
+          SupportTicketDispatchService.dispatchNewTicket(data.ticket);
+
           return { success: true, ticket: data.ticket };
         }
       }
@@ -216,6 +221,9 @@ export class SmartSupportRepository {
     const tickets = await this.getTickets();
     tickets.unshift(offlineTicket);
     localStorage.setItem(LOCAL_STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
+
+    // Trigger Support Ticket Dispatch & Audio-Visual Repeating Alarm Engine
+    SupportTicketDispatchService.dispatchNewTicket(offlineTicket);
 
     return { success: true, ticket: offlineTicket, isOfflineQueued: true };
   }

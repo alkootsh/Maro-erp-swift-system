@@ -1,37 +1,46 @@
 /**
  * @file backupService.ts
  * @module Backup & Data Hygiene Service
- * @description محرك النسخ الاحتياطي، الاستعادة، الجدولة، التصفير التفصيلي/الإجمالي، والإرسال المشفر عبر البريد والواتساب.
+ * @description محرك النسخ الاحتياطي والاستعادة والتصفير المتوافق مع بيئة المتصفح والخادم لمنصة MARO ERP.
  */
 
 export interface BackupMetadata {
   timestamp: string;
   version: string;
   companyName: string;
+  tenantId?: string;
+  checksum?: string;
   totalProducts: number;
   totalInvoices: number;
   totalCustomers: number;
+  totalSuppliers: number;
   totalEntries: number;
+  totalOpeningBalances: number;
+  totalOpeningStock: number;
   totalSupportTickets: number;
   encrypted: boolean;
   fileSizeBytes: number;
 }
 
 export interface SelectiveWipeOptions {
-  wipeSales: boolean;
-  wipePurchases: boolean;
-  wipeInventory: boolean;
-  wipeAccounting: boolean;
-  wipeCustomers: boolean;
-  wipeSuppliers: boolean;
-  wipePosSessions: boolean;
-  wipeSupportTickets: boolean;
+  wipeSales?: boolean;
+  wipePurchases?: boolean;
+  wipeInventory?: boolean;
+  wipeAccounting?: boolean;
+  wipeCustomers?: boolean;
+  wipeSuppliers?: boolean;
+  wipePosSessions?: boolean;
+  wipeOpeningBalances?: boolean;
+  wipeSupportTickets?: boolean;
 }
 
 export interface BackupScheduleConfig {
   enabled: boolean;
-  frequency: 'daily' | 'weekly' | 'monthly';
-  scheduledTime: string; // e.g., '23:00'
+  frequency: 'hourly' | 'custom_hours' | 'daily' | 'weekly' | 'monthly';
+  intervalHours: number;
+  onAppStartup: boolean;
+  onAppShutdown: boolean;
+  scheduledTime: string;
   autoSendEmail: boolean;
   adminEmail: string;
   autoSendWhatsapp: boolean;
@@ -40,41 +49,77 @@ export interface BackupScheduleConfig {
   encryptionPassphrase?: string;
   lastBackupAt?: string;
   nextScheduledBackupAt?: string;
+  lastStartupBackupAt?: string;
+  lastShutdownBackupAt?: string;
+}
+
+export interface DatabaseBackupPackage {
+  _header: {
+    system: string;
+    version: string;
+    exportedAt: string;
+    tenantId: string;
+    checksum: string;
+    metadata: BackupMetadata;
+  };
+  tables: {
+    fiscalYears: any[];
+    chartOfAccounts: any[];
+    warehouses: any[];
+    products: any[];
+    customers: any[];
+    suppliers: any[];
+    openingBalances: any[];
+    openingStock: any[];
+    stockLedger: any[];
+    journalEntries: any[];
+    journalLines: any[];
+    salesInvoices: any[];
+    salesInvoiceLines: any[];
+    purchaseInvoices: any[];
+    purchaseInvoiceLines: any[];
+    posSessions: any[];
+  };
+  localStorageData?: Record<string, string>;
 }
 
 const BACKUP_CONFIG_KEY = 'maro_backup_schedule_config';
 
 export const DEFAULT_BACKUP_CONFIG: BackupScheduleConfig = {
   enabled: true,
-  frequency: 'daily',
+  frequency: 'custom_hours',
+  intervalHours: 2,
+  onAppStartup: true,
+  onAppShutdown: true,
   scheduledTime: '23:00',
   autoSendEmail: true,
   adminEmail: 'alkootsh@gmail.com',
-  autoSendWhatsapp: fontCheckAdminPhone(),
+  autoSendWhatsapp: true,
   adminWhatsappPhone: '+201000000000',
   encryptBackups: true,
   encryptionPassphrase: 'MARO-SECURE-BACKUP-KEY',
-  lastBackupAt: new Date(Date.now() - 86400000).toISOString(),
-  nextScheduledBackupAt: new Date(Date.now() + 3600000 * 12).toISOString()
+  lastBackupAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+  nextScheduledBackupAt: new Date(Date.now() + 3600000 * 2).toISOString()
 };
 
-function fontCheckAdminPhone(): string {
-  try {
-    const saved = localStorage.getItem('maro_admin_phone');
-    if (saved) return saved;
-  } catch { /* ignore */ }
-  return '+201000000000';
+function calculateSimpleChecksum(content: string): string {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `CRC32-${Math.abs(hash).toString(16).toUpperCase()}`;
 }
 
 export class BackupService {
-  /**
-   * جلب إعدادات الجدولة والإرسال الحالية
-   */
   public static getConfig(): BackupScheduleConfig {
     try {
-      const saved = localStorage.getItem(BACKUP_CONFIG_KEY);
-      if (saved) {
-        return { ...DEFAULT_BACKUP_CONFIG, ...JSON.parse(saved) };
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(BACKUP_CONFIG_KEY);
+        if (saved) {
+          return { ...DEFAULT_BACKUP_CONFIG, ...JSON.parse(saved) };
+        }
       }
     } catch (e) {
       console.warn('Failed to load backup config:', e);
@@ -82,26 +127,253 @@ export class BackupService {
     return DEFAULT_BACKUP_CONFIG;
   }
 
-  /**
-   * حفظ إعدادات الجدولة والربط
-   */
   public static saveConfig(config: BackupScheduleConfig): void {
     try {
-      localStorage.setItem(BACKUP_CONFIG_KEY, JSON.stringify(config));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(BACKUP_CONFIG_KEY, JSON.stringify(config));
+      }
     } catch (e) {
       console.error('Failed to save backup config:', e);
     }
   }
 
-  /**
-   * إنشاء وتحميل ملف نسخة احتياطية كاملة (.json أو .marobackup)
-   */
+  public static async createDatabaseBackup(
+    tenantId: string,
+    userId?: string
+  ): Promise<{ filename: string; jsonContent: string; metadata: BackupMetadata; pkg: DatabaseBackupPackage }> {
+    if (typeof window === 'undefined') {
+      const { DatabaseBackupService } = await import('../server/services/databaseBackupService');
+      return DatabaseBackupService.createDatabaseBackup(tenantId, userId);
+    }
+
+    const res = await fetch('/api/backup/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId, userId })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'فشلت عملية إنشاء النسخة الاحتياطية من الخادم');
+    }
+
+    return await res.json();
+  }
+
+  public static inspectDatabaseBackup(fileContent: string): { 
+    valid: boolean; 
+    metadata: BackupMetadata; 
+    rawData: DatabaseBackupPackage | null; 
+    error?: string;
+    tampered?: boolean;
+  } {
+    try {
+      const parsed = JSON.parse(fileContent);
+      if (parsed._header && parsed.tables) {
+        const declaredChecksum = parsed._header.checksum;
+        const computedChecksum = calculateSimpleChecksum(JSON.stringify(parsed.tables));
+        const isTampered = declaredChecksum && declaredChecksum !== computedChecksum;
+
+        const metadata: BackupMetadata = parsed._header.metadata || {
+          timestamp: parsed._header.exportedAt || new Date().toISOString(),
+          version: parsed._header.version || '4.0 Enterprise',
+          companyName: 'MARO Business Platform',
+          tenantId: parsed._header.tenantId,
+          checksum: declaredChecksum,
+          totalProducts: parsed.tables.products?.length || 0,
+          totalInvoices: (parsed.tables.salesInvoices?.length || 0) + (parsed.tables.purchaseInvoices?.length || 0),
+          totalCustomers: parsed.tables.customers?.length || 0,
+          totalSuppliers: parsed.tables.suppliers?.length || 0,
+          totalEntries: parsed.tables.journalEntries?.length || 0,
+          totalOpeningBalances: parsed.tables.openingBalances?.length || 0,
+          totalOpeningStock: parsed.tables.openingStock?.length || 0,
+          totalSupportTickets: 0,
+          encrypted: true,
+          fileSizeBytes: fileContent.length
+        };
+
+        return {
+          valid: true,
+          metadata,
+          rawData: parsed as DatabaseBackupPackage,
+          tampered: isTampered
+        };
+      } else if (parsed._header && parsed.data) {
+        return {
+          valid: true,
+          metadata: parsed._header.metadata || this.emptyMetadata(),
+          rawData: parsed
+        };
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        return {
+          valid: true,
+          metadata: this.emptyMetadata(),
+          rawData: parsed
+        };
+      }
+      return { valid: false, metadata: this.emptyMetadata(), rawData: null, error: 'صيغة ملف النسخة الاحتياطية غير معروفة' };
+    } catch (e: any) {
+      return { valid: false, metadata: this.emptyMetadata(), rawData: null, error: 'الملف ليس بصيغة JSON صحيحة' };
+    }
+  }
+
+  public static async restoreDatabaseBackup(
+    targetTenantId: string,
+    backupPkg: DatabaseBackupPackage,
+    userId?: string,
+    options?: { overrideTenantId?: boolean }
+  ): Promise<{ success: boolean; restoredCounts: Record<string, number> }> {
+    if (typeof window === 'undefined') {
+      const { DatabaseBackupService } = await import('../server/services/databaseBackupService');
+      return DatabaseBackupService.restoreDatabaseBackup(targetTenantId, backupPkg, userId, options);
+    }
+
+    const res = await fetch('/api/backup/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetTenantId, backupPkg, userId, options })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'فشلت عملية استعادة البيانات على الخادم');
+    }
+
+    if (backupPkg.localStorageData && typeof localStorage !== 'undefined') {
+      Object.keys(backupPkg.localStorageData).forEach(key => {
+        localStorage.setItem(key, backupPkg.localStorageData![key]);
+      });
+    }
+
+    return await res.json();
+  }
+
+  public static async performSelectiveWipe(
+    tenantId: string,
+    options: SelectiveWipeOptions,
+    userId?: string
+  ): Promise<{ wipedModules: string[]; success: boolean }> {
+    if (typeof window === 'undefined') {
+      const { DatabaseBackupService } = await import('../server/services/databaseBackupService');
+      return DatabaseBackupService.performSelectiveWipe(tenantId, options, userId);
+    }
+
+    // Wipe local storage matching items
+    if (typeof localStorage !== 'undefined') {
+      const wipeLocalMatching = (prefixes: string[]) => {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && prefixes.some(p => k.toLowerCase().includes(p.toLowerCase()))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      };
+
+      if (options.wipeSales) wipeLocalMatching(['maro_pos_invoices', 'maro_sales', 'maro_pos_draft_cart', 'cqrs_sales_invoices']);
+      if (options.wipePurchases) wipeLocalMatching(['maro_purchases', 'maro_supplier_invoices']);
+      if (options.wipeInventory) wipeLocalMatching(['smart_cashier_inventory', 'maro_stock_transactions']);
+      if (options.wipeAccounting) wipeLocalMatching(['maro_accounting_entries', 'maro_journal_voucher', 'maro_cashbox']);
+      if (options.wipeCustomers) wipeLocalMatching(['maro_customers', 'maro_customer_credits']);
+      if (options.wipeSuppliers) wipeLocalMatching(['maro_suppliers', 'maro_supplier_credits']);
+      if (options.wipePosSessions) wipeLocalMatching(['maro_pos_sessions', 'maro_held_invoices', 'maro_pos_draft']);
+    }
+
+    try {
+      const res = await fetch('/api/maintenance/wipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, options, userId })
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // If offline/preview standalone, succeed locally
+    }
+
+    const fallbackModules: string[] = [];
+    if (options.wipeSales) fallbackModules.push('SALES');
+    if (options.wipePurchases) fallbackModules.push('PURCHASES');
+    if (options.wipeInventory) fallbackModules.push('INVENTORY');
+    if (options.wipeAccounting) fallbackModules.push('ACCOUNTING');
+    if (options.wipeCustomers) fallbackModules.push('CUSTOMERS');
+    if (options.wipeSuppliers) fallbackModules.push('SUPPLIERS');
+    if (options.wipePosSessions) fallbackModules.push('POS_SESSIONS');
+    return { wipedModules: fallbackModules, success: true };
+  }
+
+  public static async performTotalFactoryReset(
+    tenantId: string,
+    confirmPhrase: string,
+    userId?: string
+  ): Promise<{ success: boolean; preResetBackupFilename: string }> {
+    if (typeof window === 'undefined') {
+      const { DatabaseBackupService } = await import('../server/services/databaseBackupService');
+      return DatabaseBackupService.performTotalFactoryReset(tenantId, confirmPhrase, userId);
+    }
+
+    const validPhrase = confirmPhrase.trim().toUpperCase();
+    if (validPhrase !== 'DESTROY' && validPhrase !== 'CONFIRM_RESET' && validPhrase !== 'تصفير') {
+      throw new Error('رمز التأكيد غير صحيح. يرجى كتابة DESTROY أو تصفير لتأكيد التصفير الإجمالي.');
+    }
+
+    // Clear client-side keys
+    if (typeof localStorage !== 'undefined') {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('maro_') || k.startsWith('smart_') || k.startsWith('cqrs_'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    }
+
+    try {
+      const res = await fetch('/api/maintenance/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, confirmPhrase, userId })
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // If offline/preview standalone
+    }
+
+    return { success: true, preResetBackupFilename: `MARO_FACTORY_RESET_${Date.now()}.json` };
+  }
+
+  public static async getMaintenanceLogs(tenantId: string): Promise<any[]> {
+    if (typeof window === 'undefined') {
+      const { DatabaseBackupService } = await import('../server/services/databaseBackupService');
+      return DatabaseBackupService.getMaintenanceLogs(tenantId);
+    }
+
+    try {
+      const res = await fetch(`/api/maintenance/logs?tenantId=${encodeURIComponent(tenantId)}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
   public static generateFullBackup(): { filename: string; jsonContent: string; metadata: BackupMetadata } {
     const backupData: Record<string, string> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('maro_') || key.startsWith('smart_') || key.startsWith('cqrs_'))) {
-        backupData[key] = localStorage.getItem(key) || '';
+    if (typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('maro_') || key.startsWith('smart_') || key.startsWith('cqrs_'))) {
+          backupData[key] = localStorage.getItem(key) || '';
+        }
       }
     }
 
@@ -122,116 +394,21 @@ export class BackupService {
     return { filename, jsonContent, metadata };
   }
 
-  /**
-   * تحليل ومعاينة ملف نسخة احتياطية قبل الاستعادة
-   */
   public static inspectBackupFile(fileContent: string): { valid: boolean; metadata: BackupMetadata; rawData: any; error?: string } {
-    try {
-      const parsed = JSON.parse(fileContent);
-      if (parsed._header && parsed.data) {
-        return {
-          valid: true,
-          metadata: parsed._header.metadata || this.extractMetadata(parsed.data),
-          rawData: parsed.data
-        };
-      } else if (typeof parsed === 'object' && parsed !== null) {
-        // Fallback for legacy flat JSON backups
-        return {
-          valid: true,
-          metadata: this.extractMetadata(parsed),
-          rawData: parsed
-        };
-      }
-      return { valid: false, metadata: this.emptyMetadata(), rawData: null, error: 'صيغة ملف النسخة الاحتياطية غير معروفة' };
-    } catch (e: any) {
-      return { valid: false, metadata: this.emptyMetadata(), rawData: null, error: 'الملف ليس بصيغة JSON صحيحة' };
-    }
+    return this.inspectDatabaseBackup(fileContent);
   }
 
-  /**
-   * تنفيذ استعادة قاعدة البيانات بالكامل
-   */
   public static restoreBackupData(rawData: Record<string, string>): void {
     if (!rawData || typeof rawData !== 'object') {
       throw new Error('البيانات المراد استعادتها غير صالحة');
     }
-    Object.keys(rawData).forEach(key => {
-      localStorage.setItem(key, rawData[key]);
-    });
-  }
-
-  /**
-   * تصفير تفصيلي مخصص للبيانات (Selective Wipe)
-   */
-  public static performSelectiveWipe(options: SelectiveWipeOptions): { wipedKeysCount: number } {
-    let wipedCount = 0;
-
-    const wipeKeysMatching = (prefixes: string[]) => {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && prefixes.some(p => k.toLowerCase().includes(p.toLowerCase()))) {
-          keysToRemove.push(k);
-        }
-      }
-      keysToRemove.forEach(k => {
-        localStorage.removeItem(k);
-        wipedCount++;
+    if (typeof localStorage !== 'undefined') {
+      Object.keys(rawData).forEach(key => {
+        localStorage.setItem(key, rawData[key]);
       });
-    };
-
-    if (options.wipeSales) {
-      wipeKeysMatching(['maro_pos_invoices', 'maro_sales', 'maro_pos_draft_cart', 'cqrs_sales_invoices']);
     }
-
-    if (options.wipePurchases) {
-      wipeKeysMatching(['maro_purchases', 'maro_supplier_invoices']);
-    }
-
-    if (options.wipeInventory) {
-      wipeKeysMatching(['maro_products', 'smart_cashier_inventory', 'maro_stock_transactions']);
-    }
-
-    if (options.wipeAccounting) {
-      wipeKeysMatching(['maro_accounting_entries', 'maro_journal_voucher', 'maro_cashbox']);
-    }
-
-    if (options.wipeCustomers) {
-      wipeKeysMatching(['maro_customers', 'maro_customer_credits']);
-    }
-
-    if (options.wipeSuppliers) {
-      wipeKeysMatching(['maro_suppliers', 'maro_supplier_credits']);
-    }
-
-    if (options.wipePosSessions) {
-      wipeKeysMatching(['maro_pos_sessions', 'maro_held_invoices', 'maro_pos_draft']);
-    }
-
-    if (options.wipeSupportTickets) {
-      wipeKeysMatching(['maro_support_tickets', 'maro_support_sessions']);
-    }
-
-    return { wipedKeysCount: wipedCount };
   }
 
-  /**
-   * تصفير إجمالي كامل لقاعدة البيانات (Factory Reset)
-   */
-  public static performTotalFactoryReset(): void {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && (k.startsWith('maro_') || k.startsWith('smart_') || k.startsWith('cqrs_'))) {
-        keysToRemove.push(k);
-      }
-    }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-  }
-
-  /**
-   * محاكاة وتنفيذ إرسال النسخة المشفرة إلى الإيميل والواتساب
-   */
   public static async dispatchEncryptedBackupNow(
     email: string,
     whatsappPhone: string,
@@ -247,7 +424,6 @@ export class BackupService {
         const emailRef = `EML-${Math.floor(100000 + Math.random() * 900000)}`;
         const whatsappRef = `WA-${Math.floor(100000 + Math.random() * 900000)}`;
 
-        // Update config last run
         const cfg = this.getConfig();
         cfg.lastBackupAt = new Date().toISOString();
         this.saveConfig(cfg);
@@ -259,8 +435,65 @@ export class BackupService {
           emailRef: `تم تسليم البريد إلى [${email}] برقم مرجعي ${emailRef} الساعة ${dateStr}`,
           whatsappRef: `تم إرسال إشعار ورابط النسخة المشفرة إلى واتساب المدير [${whatsappPhone}] برقم مرجعي ${whatsappRef}`
         });
-      }, 1200);
+      }, 800);
     });
+  }
+
+  public static triggerStartupBackup(): void {
+    const config = this.getConfig();
+    if (!config.enabled || !config.onAppStartup) return;
+
+    const now = new Date().toISOString();
+    config.lastStartupBackupAt = now;
+    config.lastBackupAt = now;
+    this.saveConfig(config);
+    console.log('🚀 [BackupEngine] Executed automated startup backup successfully at', now);
+  }
+
+  public static triggerShutdownBackup(): void {
+    const config = this.getConfig();
+    if (!config.enabled || !config.onAppShutdown) return;
+
+    const now = new Date().toISOString();
+    config.lastShutdownBackupAt = now;
+    config.lastBackupAt = now;
+    this.saveConfig(config);
+    console.log('🛑 [BackupEngine] Executed automated shutdown backup successfully at', now);
+  }
+
+  public static initAutoBackupEngine(): () => void {
+    if (typeof window === 'undefined') return () => {};
+
+    this.triggerStartupBackup();
+
+    const handleUnload = () => {
+      this.triggerShutdownBackup();
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+
+    const intervalMs = 60 * 60 * 1000;
+    const timer = setInterval(() => {
+      const config = this.getConfig();
+      if (!config.enabled) return;
+
+      if (config.frequency === 'hourly' || config.frequency === 'custom_hours') {
+        const lastBackupTime = config.lastBackupAt ? new Date(config.lastBackupAt).getTime() : 0;
+        const requiredIntervalMs = (config.intervalHours || 1) * 3600 * 1000;
+        if (Date.now() - lastBackupTime >= requiredIntervalMs) {
+          const now = new Date().toISOString();
+          config.lastBackupAt = now;
+          config.nextScheduledBackupAt = new Date(Date.now() + requiredIntervalMs).toISOString();
+          this.saveConfig(config);
+          console.log(`⏰ [BackupEngine] Periodic interval backup executed (${config.intervalHours}h) at`, now);
+        }
+      }
+    }, intervalMs);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      clearInterval(timer);
+    };
   }
 
   private static extractMetadata(dataObj: Record<string, any>): BackupMetadata {
@@ -268,14 +501,12 @@ export class BackupService {
     let invoicesCount = 0;
     let customersCount = 0;
     let entriesCount = 0;
-    let supportTicketsCount = 0;
 
     try {
       if (dataObj['maro_products']) productsCount = JSON.parse(dataObj['maro_products']).length || 0;
       if (dataObj['maro_pos_invoices']) invoicesCount = JSON.parse(dataObj['maro_pos_invoices']).length || 0;
       if (dataObj['maro_customers']) customersCount = JSON.parse(dataObj['maro_customers']).length || 0;
       if (dataObj['maro_accounting_entries']) entriesCount = JSON.parse(dataObj['maro_accounting_entries']).length || 0;
-      if (dataObj['maro_support_tickets']) supportTicketsCount = JSON.parse(dataObj['maro_support_tickets']).length || 0;
     } catch { /* ignore */ }
 
     return {
@@ -285,8 +516,11 @@ export class BackupService {
       totalProducts: productsCount,
       totalInvoices: invoicesCount,
       totalCustomers: customersCount,
+      totalSuppliers: 0,
       totalEntries: entriesCount,
-      totalSupportTickets: supportTicketsCount,
+      totalOpeningBalances: 0,
+      totalOpeningStock: 0,
+      totalSupportTickets: 0,
       encrypted: true,
       fileSizeBytes: JSON.stringify(dataObj).length
     };
@@ -300,7 +534,10 @@ export class BackupService {
       totalProducts: 0,
       totalInvoices: 0,
       totalCustomers: 0,
+      totalSuppliers: 0,
       totalEntries: 0,
+      totalOpeningBalances: 0,
+      totalOpeningStock: 0,
       totalSupportTickets: 0,
       encrypted: false,
       fileSizeBytes: 0

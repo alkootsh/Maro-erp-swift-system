@@ -815,7 +815,7 @@ export const SmartCashier: React.FC = () => {
           category: p.category,
           unit: 'كجم',
           isWeighted: true
-        }))}
+        })) as any}
         initialProduct={scaleProduct}
         onConfirm={(prod, weightKg, totalAmount) => {
           const cartItem: CartItem = {
@@ -853,7 +853,7 @@ export const SmartCashier: React.FC = () => {
           quantity: p.stock,
           category: p.category,
           unit: 'قطعة'
-        }))}
+        })) as any}
         onGroupsChanged={(updated) => setCustomGroups(updated)}
       />
     </div>

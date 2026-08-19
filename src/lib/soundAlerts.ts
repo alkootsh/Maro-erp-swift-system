@@ -124,6 +124,95 @@ class SoundAlertsEngine {
       console.warn('Could not play warning sound alert:', err);
     }
   }
+
+  /**
+   * Plays a repeated audio alarm based on support ticket severity
+   */
+  public playSupportTicketAlarm(severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL') {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+
+      if (severity === 'CRITICAL') {
+        // High-pitched dual siren alarm (Emergency Red Alert)
+        const tones = [1046.50, 1318.51, 1046.50, 1318.51, 1567.98];
+        tones.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+
+          gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.15);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.15);
+        });
+      } else if (severity === 'HIGH') {
+        // Double sharp warning beep
+        const tones = [880.00, 880.00];
+        tones.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+
+          gain.gain.setValueAtTime(0.2, now + idx * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.15 + 0.12);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now + idx * 0.15);
+          osc.stop(now + idx * 0.15 + 0.12);
+        });
+      } else if (severity === 'MEDIUM') {
+        // Moderate double chime
+        const tones = [587.33, 880.00];
+        tones.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.18);
+
+          gain.gain.setValueAtTime(0.18, now + idx * 0.18);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.18 + 0.2);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now + idx * 0.18);
+          osc.stop(now + idx * 0.18 + 0.2);
+        });
+      } else {
+        // Soft ping
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
+      }
+    } catch (err) {
+      console.warn('Could not play ticket alarm sound:', err);
+    }
+  }
 }
 
 export const soundAlerts = new SoundAlertsEngine();

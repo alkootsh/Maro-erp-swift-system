@@ -8,6 +8,7 @@
 export interface Customer {
   id: string;
   name: string;
+  code?: string;
   phone?: string;
   email?: string;
   taxNumber?: string;
@@ -65,7 +66,7 @@ export interface SupplierLedger {
 }
 
 export interface SalesInvoiceItem {
-  id: string;
+  id?: string;
   productId: string;
   productName: string;
   sku: string;
@@ -97,7 +98,7 @@ export interface SalesInvoice {
   grandTotal: number;
   paidAmount: number;
   dueAmount: number;
-  paymentMethod: 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT';
+  paymentMethod: 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT' | 'BANK';
   status: SalesInvoiceStatus;
   notes?: string;
   previousBalance?: number;
@@ -472,7 +473,7 @@ export interface CreditCheckResult {
 // --- Event Bus Event Schema ---
 export interface MaroEvent {
   id: string;
-  type: 'ProductCreated' | 'InvoiceCreated' | 'InvoicePosted' | 'PurchaseApproved' | 'PaymentReceived' | 'StockAdjusted' | 'InventoryMoved' | 'ReturnProcessed' | 'BusinessHealthCalculated' | 'POSSessionClosed' | 'POSFunctionKeysUpdated' | 'LICENSE_UPDATED' | 'FEATURE_FLAGS_UPDATED' | 'AUDIT_LOG_ADDED' | 'SECURITY_ALERT_TRIGGERED' | 'MAINTENANCE_MODE_CHANGED' | 'NAVIGATE_INTENT' | 'CREATE_NEW_INVOICE_INTENT' | 'MODULE_STATE_CHANGED' | 'CUSTOM_MODULE_REGISTERED' | 'NOTIFICATION_DISPATCHED' | 'MERCHANT_ORDER_CONVERTED' | 'TRANSFER_RX_TO_POS' | 'DEVELOPER_PHONE_CONFIG_UPDATED' | 'DEVELOPER_OTP_SENT' | 'DEVELOPER_PHONE_2FA_SUCCESS';
+  type: string;
   timestamp: string;
   payload: Record<string, any>;
 }

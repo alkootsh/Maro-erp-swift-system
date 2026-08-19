@@ -63,7 +63,7 @@ export class POSCustomGroupService {
     const seeded = [...DEFAULT_POS_GROUPS];
     if (products.length > 0) {
       // Auto assign non-barcoded or weighted items to 'grp_no_barcode' & 'grp_scale_items'
-      const scaleIds = products.filter(p => p.isWeighted || !p.barcode || p.unit === 'كجم').map(p => p.id);
+      const scaleIds = products.filter(p => (p as any).isWeighted || p.allowFraction || p.units?.[0]?.name === 'كجم' || !p.barcode).map(p => p.id);
       const fastIds = products.slice(0, 8).map(p => p.id);
 
       seeded[0].productIds = scaleIds;

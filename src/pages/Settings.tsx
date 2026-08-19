@@ -3,8 +3,8 @@
  * @module واجهات وصفحات النظام (UI Pages)
  * @description ملف جزء من نظام MARO ERP. الوظيفة: Settings.tsx.
  */
-import React, { useState, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { IndustryModuleEngine } from '../lib/industryModuleEngine';
 import { 
   Building2, 
@@ -51,7 +51,24 @@ import { BackupManagerPanel } from '../components/settings/BackupManagerPanel';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules' | 'database' | 'sync' | 'developer'>('tenant');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const validTabs = ['tenant', 'industry', 'finance', 'modules', 'database', 'sync', 'developer'];
+  const [activeTab, setActiveTab] = useState<'tenant' | 'industry' | 'finance' | 'modules' | 'database' | 'sync' | 'developer'>(
+    urlTab && validTabs.includes(urlTab) ? (urlTab as any) : 'tenant'
+  );
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab && validTabs.includes(currentTab)) {
+      setActiveTab(currentTab as any);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabId: 'tenant' | 'industry' | 'finance' | 'modules' | 'database' | 'sync' | 'developer') => {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+  };
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
@@ -324,7 +341,7 @@ export const Settings: React.FC = () => {
     { id: 'finance', name: 'المحاسبة والمالية (Finance Core)', icon: Wallet },
     { id: 'modules', name: 'الوحدات (Module Enablement)', icon: Boxes },
     { id: 'sync', name: 'المزامنة السحابية والعمل دون إنترنت (Offline-First Sync)', icon: Cloud },
-    { id: 'database', name: 'النسخ الاحتياطي والتبادل (Data Exchange & Backup)', icon: Database },
+    { id: 'database', name: 'النسخ الاحتياطي والبيانات التجريبية (Data, Backup & Seed)', icon: Database },
     { id: 'developer', name: 'خيارات المطور وتوليد البيانات (Developer & Seed)', icon: Code },
   ];
 
@@ -356,7 +373,7 @@ export const Settings: React.FC = () => {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => handleTabChange(tab.id as any)}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-xs transition-all whitespace-nowrap",
               activeTab === tab.id 

@@ -7,6 +7,8 @@ import { SecurityEngine } from '../../lib/securityEngine';
 import { ProductRepository } from '../../repositories/productRepository';
 import { MaroEventBus } from '../../lib/eventBus';
 import { toast } from 'react-hot-toast';
+import { DEFAULT_KNOWLEDGE_ARTICLES } from '../../services/smartSupportEngine';
+import { BehaviorAnalyticsEngine } from '../../services/behaviorKnowledgeEngine';
 
 export interface AIProvider {
   id: 'gemini' | 'openai' | 'claude' | 'ollama' | 'local';
@@ -191,47 +193,45 @@ If you just want to talk, output regular text. Do not wrap regular text in JSON.
   }
 
   private static processLocalCommand(message: string, context: AIContext): AIMessage {
-    const msgLower = message.toLowerCase();
-    let response = "أنا وكيل الذكاء الاصطناعي المؤسسي لـ MARO ERP. يمكنني توجيهك سريرياً في الصيدلية، تحليل الأداء المالي، أو فتح أي شاشة.";
-    
-    // Clinical Pharmacy Triage Case
-    if (msgLower.includes('برد') || msgLower.includes('كحة') || msgLower.includes('ضغط') || msgLower.includes('صيدل') || msgLower.includes('مريض') || msgLower.includes('علاج') || msgLower.includes('دواء')) {
+    const msgLower = message.toLowerCase().trim();
+    let response = "أنا مساعد مارو الذكي للمؤسسات (MARO Enterprise Copilot). استفسر عن أي عملية في النظام، البيع، الميزان، الحسابات، أو التصفير وسأجيبك فوراً بدقة وافية.";
+
+    // 1. Check knowledge articles first for exact or semantic matches
+    const matchedArticle = DEFAULT_KNOWLEDGE_ARTICLES.find(article => {
+      const inTitle = article.titleArabic.toLowerCase().includes(msgLower) || article.title.toLowerCase().includes(msgLower);
+      const inSymptoms = article.symptoms.some(s => msgLower.includes(s.toLowerCase()) || s.toLowerCase().includes(msgLower));
+      const inTags = article.tags.some(t => msgLower.includes(t.toLowerCase()));
+      return inTitle || inSymptoms || inTags;
+    });
+
+    if (matchedArticle) {
+      response = `### 💡 ${matchedArticle.titleArabic}\n\n${matchedArticle.solutionArabic}\n\n` +
+        `**خطوات التشخيص والحل التفاعلي:**\n` +
+        matchedArticle.diagnosticSteps.map(s => `${s.step}. **${s.title}**: ${s.instruction}`).join('\n') +
+        `\n\n📌 **حلول بديلة:**\n` +
+        matchedArticle.alternativeSolutions.map(alt => `- ${alt}`).join('\n');
+
+      // Check if we should trigger an action automatically
+      if (matchedArticle.module === 'POS') {
+        if (msgLower.includes('ميزان') || msgLower.includes('مسطرة')) {
+          this.executeAction({ action: 'NAVIGATE', payload: { path: '/pos' } }, context);
+        }
+      } else if (matchedArticle.module === 'ACCOUNTING') {
+        this.executeAction({ action: 'NAVIGATE', payload: { path: '/reports' } }, context);
+      } else if (matchedArticle.module === 'SECURITY_LICENSING') {
+        this.executeAction({ action: 'NAVIGATE', payload: { path: '/settings' } }, context);
+      }
+    } else if (msgLower.includes('برد') || msgLower.includes('كحة') || msgLower.includes('ضغط') || msgLower.includes('صيدل') || msgLower.includes('مريض') || msgLower.includes('علاج') || msgLower.includes('دواء')) {
       if (msgLower.includes('ضغط') || msgLower.includes('هايبرتنشن')) {
-        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):
-
-**حالة المريض:** نزلة برد / احتقان لمريض يعاني من **ارتفاع ضغط الدم (Hypertension)**.
-
-#### ⚠️ محاذير أمان حاسمة (Contraindications):
-- **ممنوع تماماً:** أدوية البرد المركبة (مثل Congestal, Cold-Free, 123, Flumox, Comtrex) لاحتوائها على **Pseudoephedrine / Phenylephrine**، حيث تسبب انقباض الأوعية الدموية وارتفاعاً حاداً ومفاجئاً في ضغط الدم.
-
-#### 💊 البروتوكول العلاجي الآمن من مخزون الصيدلية:
-1. **بانادول أزرق 500 مجم (Panadol Blue)**: قرص كل 8 ساعات بعد الأكل (باراسيتامول نقي آمن للضغط).
-2. **تلفاست 120 مجم (Telfast 120mg)**: قرص واحد يومياً مساءً لإزالة الرشح والعطس.
-3. **بخاخ ماء بحر طبيعي فزيومير (Physiomer)**: بخة في كل فتحة أنف 3 مرات يومياً لإزالة الاحتقان طبيعياً.
-4. **أقراص استحلاب ستربسلز (Strepsils)**: قرص كل 4 ساعات لتلطيف الحلق.
-
-👉 يمكنك فتح موديول **وكيل الذكاء الاصطناعي الصيدلاني** لتحويل الأدوية مباشرة لسلة الكاشير (POS).`;
+        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):\n\n**حالة المريض:** نزلة برد / احتقان لمريض يعاني من **ارتفاع ضغط الدم (Hypertension)**.\n\n#### ⚠️ محاذير أمان حاسمة (Contraindications):\n- **ممنوع تماماً:** أدوية البرد المركبة (مثل Congestal, Cold-Free, 123, Flumox, Comtrex) لاحتوائها على **Pseudoephedrine / Phenylephrine**، حيث تسبب انقباض الأوعية الدموية وارتفاعاً حاداً ومفاجئاً في ضغط الدم.\n\n#### 💊 البروتوكول العلاجي الآمن من مخزون الصيدلية:\n1. **بانادول أزرق 500 مجم (Panadol Blue)**: قرص كل 8 ساعات بعد الأكل (باراسيتامول نقي آمن للضغط).\n2. **تلفاست 120 مجم (Telfast 120mg)**: قرص واحد يومياً مساءً لإزالة الرشح والعطس.\n3. **بخاخ ماء بحر طبيعي فزيومير (Physiomer)**: بخة في كل فتحة أنف 3 مرات يومياً لإزالة الاحتقان طبيعياً.\n4. **أقراص استحلاب ستربسلز (Strepsils)**: قرص كل 4 ساعات لتلطيف الحلق.\n\n👉 يمكنك فتح موديول **وكيل الذكاء الاصطناعي الصيدلاني** لتحويل الأدوية مباشرة لسلة الكاشير (POS).`;
       } else if (msgLower.includes('بلغم') || msgLower.includes('كحة')) {
-        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):
-
-**الأسئلة السريرية الواجب توجيهها للمريض للوصول للوصف الدقيق:**
-1. هل الكحة جافة (Dry) أم رطبة مصحوبة ببلغم ومخاط (Productive)؟
-2. هل المريض يعاني من ربو، سكري، أو قرحة معدة؟
-3. هل توجد حرارة مرتفعة (> 38.5) أو ضيق في التنفس؟
-
-#### 💊 التوصية الدوائية الفورية:
-- **في حال كحة ببلغم:** كيس فوار **أسيتيل سيستايين 600 مجم (Acetylcysteine)** مرتين يومياً + شراب ميكوسولفان (Mucosolvan).
-- **في حال كحة جافة مهيجة:** شراب **نوتوسيل (Notussil)** أو إكسير برونشيكم أعشاب طبيعية (Bronchicum).`;
+        response = `### 🩺 توجيه الوكيل الصيدلاني السريري (Clinical Triage):\n\n**الأسئلة السريرية الواجب توجيهها للمريض للوصول للوصف الدقيق:**\n1. هل الكحة جافة (Dry) أم رطبة مصحوبة ببلغم ومخاط (Productive)؟\n2. هل المريض يعاني من ربو، سكري، أو قرحة معدة؟\n3. هل توجد حرارة مرتفعة (> 38.5) أو ضيق في التنفس؟\n\n#### 💊 التوصية الدوائية الفورية:\n- **في حال كحة ببلغم:** كيس فوار **أسيتيل سيستايين 600 مجم (Acetylcysteine)** مرتين يومياً + شراب ميكوسولفان (Mucosolvan).\n- **في حال كحة جافة مهيجة:** شراب **نوتوسيل (Notussil)** أو إكسير برونشيكم أعشاب طبيعية (Bronchicum).`;
       } else {
-        response = `### 🩺 بروتوكول التوجيه الصيدلاني السريري:
-عند استقبال مريض يشتكي من أعراض مرضية، يبدأ الوكيل بتوجيهك بأسئلة الفحص الأولي:
-1. **الفئة والعمر:** طفل / بالغ / سيدة حامل أو مرضع / مسن.
-2. **الأمراض المزمنة:** هل يعاني من ضغط دم، سكري، ربو، أو قرحة معدة؟
-3. **نوع الأعراض ومدتها:** استبعاد موانع الاستعمال وتحديد العلاج الآمن OTC مع الجرعات.`;
+        response = `### 🩺 بروتوكول التوجيه الصيدلاني السريري:\nعند استقبال مريض يشتكي من أعراض مرضية، يبدأ الوكيل بتوجيهك بأسئلة الفحص الأولي:\n1. **الفئة والعمر:** طفل / بالغ / سيدة حامل أو مرضع / مسن.\n2. **الأمراض المزمنة:** هل يعاني من ضغط دم، سكري، ربو، أو قرحة معدة؟\n3. **نوع الأعراض ومدتها:** استبعاد موانع الاستعمال وتحديد العلاج الآمن OTC مع الجرعات.`;
       }
     } else if (msgLower.includes('فاتورة') || msgLower.includes('بيع') || msgLower.includes('كاشير')) {
       this.executeAction({ action: 'NAVIGATE', payload: { path: '/pos' } }, context);
-      response = "تم فتح شاشة نقطة البيع السريعة (POS).";
+      response = "تم فتح شاشة نقطة البيع السريعة (POS). يمكنك البدء بإصدار الفواتير أو استخدام زر المسطرة (Space) لأصناف الميزان.";
     } else if (msgLower.includes('تصنيع') || msgLower.includes('تشغيل') || msgLower.includes('إنتاج') || msgLower.includes('bom')) {
       this.executeAction({ action: 'NAVIGATE', payload: { path: '/manufacturing' } }, context);
       response = "تم فتح وحدة إدارة التصنيع وأوامر التشغيل (MRP & Production).";
@@ -244,6 +244,9 @@ If you just want to talk, output regular text. Do not wrap regular text in JSON.
     } else if (msgLower.includes('منتجات') || msgLower.includes('مخزن') || msgLower.includes('أصناف')) {
       this.executeAction({ action: 'NAVIGATE', payload: { path: '/products' } }, context);
       response = "تم فتح شاشة إدارة المنتجات وقائمة الأصناف.";
+    } else if (msgLower.includes('نسخ') || msgLower.includes('تصفير') || msgLower.includes('إعدادات')) {
+      this.executeAction({ action: 'NAVIGATE', payload: { path: '/settings' } }, context);
+      response = "تم الانتقال لشاشة إعدادات النظام للتحكم في النسخ الاحتياطي، الجدولة، وتصفير البيانات.";
     }
 
     const assistantMsg: AIMessage = {

@@ -28,7 +28,8 @@ import {
   ChevronRight, 
   User, 
   Smartphone,
-  Check
+  Check,
+  PhoneCall
 } from 'lucide-react';
 import { ScreenHubTabs } from '../components/common/ScreenHubTabs';
 import { SmartSupportRepository } from '../repositories/smartSupportRepository';
@@ -45,9 +46,10 @@ import { InteractiveResolutionFlow } from '../components/support/InteractiveReso
 import { TicketDetailIntelligenceView } from '../components/support/TicketDetailIntelligenceView';
 import { KnowledgeBaseManager } from '../components/support/KnowledgeBaseManager';
 import { SupportAnalyticsDashboard } from '../components/support/SupportAnalyticsDashboard';
+import { SupportPhoneNumbersPanel } from '../components/support/SupportPhoneNumbersPanel';
 
 export const SupportCenter: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'assistant' | 'tickets' | 'kb' | 'analytics' | 'offline'>('assistant');
+  const [activeTab, setActiveTab] = useState<'assistant' | 'tickets' | 'kb' | 'analytics' | 'offline' | 'phone_config'>('assistant');
   
   // Data States
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -280,6 +282,18 @@ export const SupportCenter: React.FC = () => {
                     {offlineQueue.length}
                   </span>
                 )}
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('phone_config'); setSelectedTicket(null); }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition ${
+                  activeTab === 'phone_config'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                <span>أرقام الدعم والتنبيه</span>
               </button>
             </div>
           </div>
@@ -625,6 +639,11 @@ export const SupportCenter: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* 6. TAB: SUPPORT PHONE NUMBERS & ALERT REPEAT CONFIGURATION */}
+      {activeTab === 'phone_config' && (
+        <SupportPhoneNumbersPanel />
       )}
     </div>
   );

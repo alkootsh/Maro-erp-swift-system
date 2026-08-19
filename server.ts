@@ -15,6 +15,7 @@ import { AuditLogger } from './src/server/security/auditLogger';
 import { requireAuth, requireModule, requireRole } from './src/server/security/securityMiddleware';
 import { DeviceEngine } from './src/lib/crypto/deviceEngine';
 import { Ed25519Engine, MARO_DEFAULT_PRIVATE_KEY_PEM } from './src/lib/crypto/ed25519Engine';
+import { DatabaseBackupService } from './src/server/services/databaseBackupService';
 import { 
   DEFAULT_KNOWLEDGE_ARTICLES, 
   DEFAULT_PROBLEM_CLUSTERS, 
@@ -1315,6 +1316,65 @@ ${JSON.stringify(signedLicense)}
     } catch (err: any) {
       console.error("MARO Sync Engine Error:", err);
       res.status(500).json({ error: err.message || "Sync execution failed" });
+    }
+  });
+
+  // =========================================================================
+  // MARO DATABASE BACKUP, RESTORE & MAINTENANCE HYGIENE APIS
+  // =========================================================================
+
+  app.post("/api/backup/export", async (req, res) => {
+    try {
+      const { tenantId = 'tenant_maro_main', userId } = req.body || {};
+      const backupResult = await DatabaseBackupService.createDatabaseBackup(tenantId, userId);
+      res.json(backupResult);
+    } catch (err: any) {
+      console.error("Backup export error:", err);
+      res.status(500).json({ error: err.message || "Failed to create database backup" });
+    }
+  });
+
+  app.post("/api/backup/restore", async (req, res) => {
+    try {
+      const { targetTenantId = 'tenant_maro_main', backupPkg, userId, options } = req.body || {};
+      const restoreResult = await DatabaseBackupService.restoreDatabaseBackup(targetTenantId, backupPkg, userId, options);
+      res.json(restoreResult);
+    } catch (err: any) {
+      console.error("Backup restore error:", err);
+      res.status(500).json({ error: err.message || "Failed to restore database backup" });
+    }
+  });
+
+  app.post("/api/maintenance/wipe", async (req, res) => {
+    try {
+      const { tenantId = 'tenant_maro_main', options = {}, userId } = req.body || {};
+      const wipeResult = await DatabaseBackupService.performSelectiveWipe(tenantId, options, userId);
+      res.json(wipeResult);
+    } catch (err: any) {
+      console.error("Selective wipe error:", err);
+      res.status(500).json({ error: err.message || "Failed to execute selective wipe" });
+    }
+  });
+
+  app.post("/api/maintenance/reset", async (req, res) => {
+    try {
+      const { tenantId = 'tenant_maro_main', confirmPhrase, userId } = req.body || {};
+      const resetResult = await DatabaseBackupService.performTotalFactoryReset(tenantId, confirmPhrase, userId);
+      res.json(resetResult);
+    } catch (err: any) {
+      console.error("Factory reset error:", err);
+      res.status(500).json({ error: err.message || "Failed to execute factory reset" });
+    }
+  });
+
+  app.get("/api/maintenance/logs", async (req, res) => {
+    try {
+      const tenantId = (req.query.tenantId as string) || 'tenant_maro_main';
+      const logs = await DatabaseBackupService.getMaintenanceLogs(tenantId);
+      res.json(logs);
+    } catch (err: any) {
+      console.error("Maintenance logs error:", err);
+      res.status(500).json({ error: err.message || "Failed to fetch maintenance logs" });
     }
   });
 

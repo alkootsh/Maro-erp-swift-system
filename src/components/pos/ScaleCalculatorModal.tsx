@@ -12,18 +12,23 @@ import { formatCurrency, playSystemChime, parseArabicNumbers } from '../../lib/u
 interface ScaleCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  product: ProductMaster | null;
-  allProducts: ProductMaster[];
+  product?: ProductMaster | null;
+  initialProduct?: ProductMaster | null;
+  allProducts?: ProductMaster[];
+  products?: ProductMaster[];
   onConfirm: (product: ProductMaster, weightKg: number, totalAmount: number) => void;
 }
 
 export const ScaleCalculatorModal: React.FC<ScaleCalculatorModalProps> = ({
   isOpen,
   onClose,
-  product: initialProduct,
+  product,
+  initialProduct: passedInitialProduct,
   allProducts,
+  products,
   onConfirm
 }) => {
+  const initialProduct = product || passedInitialProduct || null;
   const [selectedProduct, setSelectedProduct] = useState<ProductMaster | null>(initialProduct);
   const [searchQuery, setSearchQuery] = useState('');
   const [weightKgInput, setWeightKgInput] = useState<string>('1.000');
@@ -34,10 +39,13 @@ export const ScaleCalculatorModal: React.FC<ScaleCalculatorModalProps> = ({
   const weightInputRef = useRef<HTMLInputElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
+  const safeProducts = (allProducts || products || []) as any[];
+
   // Filter scale & non-barcoded products if user wants to pick an item inside modal
-  const scaleProducts = allProducts.filter(p => {
-    const isScale = p.isWeighted || p.category?.includes('ميزان') || p.category?.includes('خضروات') || p.category?.includes('لحوم') || p.unit === 'كجم' || !p.barcode;
-    const matchesSearch = searchQuery ? (p.name.includes(searchQuery) || p.sku.includes(searchQuery)) : true;
+  const scaleProducts = safeProducts.filter(p => {
+    if (!p) return false;
+    const isScale = p.isWeighted || p.allowFraction || p.units?.[0]?.name === 'كجم' || p.category?.includes('ميزان') || p.category?.includes('خضروات') || p.category?.includes('لحوم') || !p.barcode;
+    const matchesSearch = searchQuery ? (p.name?.includes(searchQuery) || p.sku?.includes(searchQuery)) : true;
     return isScale && matchesSearch;
   });
 
@@ -47,8 +55,8 @@ export const ScaleCalculatorModal: React.FC<ScaleCalculatorModalProps> = ({
       const price = initialProduct.price || 1;
       setWeightKgInput('1.000');
       setTotalAmountInput(price.toFixed(2));
-    } else if (allProducts.length > 0) {
-      const firstScale = allProducts.find(p => p.isWeighted || p.unit === 'كجم' || !p.barcode) || allProducts[0];
+    } else if (safeProducts.length > 0) {
+      const firstScale = safeProducts.find(p => p.isWeighted || p.allowFraction || p.units?.[0]?.name === 'كجم' || !p.barcode) || safeProducts[0];
       setSelectedProduct(firstScale);
       setWeightKgInput('1.000');
       setTotalAmountInput((firstScale.price || 1).toFixed(2));
