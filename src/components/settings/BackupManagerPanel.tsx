@@ -144,10 +144,6 @@ export const BackupManagerPanel: React.FC = () => {
       return;
     }
 
-    if (!window.confirm('⚠️ تنبيه أمني خطير: هل أنت متأكد تماماً من تنفيذ مسح وتصفير البيانات المحدد؟ لا يمكن التراجع عن هذه الخطوة!')) {
-      return;
-    }
-
     setIsWiping(true);
     try {
       if (wipeMode === 'factory') {
@@ -161,7 +157,7 @@ export const BackupManagerPanel: React.FC = () => {
       setWipeConfirmInput('');
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
       setIsWiping(false);
       toast.error(`فشلت عملية التصفير: ${err.message || err}`);
@@ -190,7 +186,7 @@ export const BackupManagerPanel: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 text-right dir-rtl font-sans" dir="rtl">
+    <div className="space-y-6 text-right dir-rtl font-sans pb-28" dir="rtl">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#151b2b] via-[#101726] to-[#0f172a] p-6 rounded-3xl border border-[#1e293b] shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -693,19 +689,19 @@ export const BackupManagerPanel: React.FC = () => {
               لتأكيد التنفيذ، يرجى كتابة الكلمة التأكيدية [{wipeMode === 'factory' ? 'DESTROY' : 'تصفير'}]:
             </label>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <input
                 type="text"
                 placeholder={wipeMode === 'factory' ? 'أدخل كلمة DESTROY لتأكيد المسح الكلي' : 'أدخل كلمة تصفير للتأكيد'}
                 value={wipeConfirmInput}
                 onChange={(e) => setWipeConfirmInput(e.target.value)}
-                className="flex-1 bg-[#151b2b] border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-rose-500"
+                className="flex-1 bg-[#151b2b] border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-rose-500 min-w-0"
               />
 
               <button
                 onClick={handleExecuteWipe}
                 disabled={isWiping}
-                className={`px-6 py-2.5 font-bold text-xs rounded-xl text-white shadow-lg transition-all cursor-pointer whitespace-nowrap ${
+                className={`w-full sm:w-auto px-6 py-3 font-bold text-xs rounded-xl text-white shadow-lg transition-all cursor-pointer whitespace-nowrap ${
                   wipeMode === 'factory' ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30' : 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
                 }`}
               >

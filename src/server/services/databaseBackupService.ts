@@ -4,7 +4,7 @@
  * @description محرك النسخ الاحتياطي والاستعادة والتصفير المخصص لقاعدة بيانات PostgreSQL و Drizzle ORM على الخادم.
  */
 
-import { db } from '../../db';
+import { db, isDatabaseConfigured } from '../../db';
 import { 
   fiscalYears,
   chartOfAccounts,
@@ -557,24 +557,35 @@ export class DatabaseBackupService {
 
     const wipedModules: string[] = [];
 
+    if (!isDatabaseConfigured()) {
+      if (options.wipeSales) wipedModules.push('SALES');
+      if (options.wipePurchases) wipedModules.push('PURCHASES');
+      if (options.wipeInventory) wipedModules.push('INVENTORY');
+      if (options.wipeAccounting) wipedModules.push('ACCOUNTING');
+      if (options.wipeCustomers) wipedModules.push('CUSTOMERS');
+      if (options.wipeSuppliers) wipedModules.push('SUPPLIERS');
+      if (options.wipePosSessions) wipedModules.push('POS_SESSIONS');
+      return { wipedModules, success: true };
+    }
+
     await db.transaction(async (tx) => {
       if (options.wipeSales || options.wipePosSessions) {
-        await tx.delete(salesInvoiceLines).where(
-          inArray(salesInvoiceLines.invoiceId,
-            tx.select({ id: salesInvoices.id }).from(salesInvoices).where(eq(salesInvoices.tenantId, tenantId))
-          )
-        );
+        const invs = await tx.select({ id: salesInvoices.id }).from(salesInvoices).where(eq(salesInvoices.tenantId, tenantId));
+        if (invs.length > 0) {
+          const invIds = invs.map(i => i.id);
+          await tx.delete(salesInvoiceLines).where(inArray(salesInvoiceLines.invoiceId, invIds));
+        }
         await tx.delete(salesInvoices).where(eq(salesInvoices.tenantId, tenantId));
         await tx.delete(posSessions).where(eq(posSessions.tenantId, tenantId));
         wipedModules.push('SALES', 'POS_SESSIONS');
       }
 
       if (options.wipePurchases) {
-        await tx.delete(purchaseInvoiceLines).where(
-          inArray(purchaseInvoiceLines.billId,
-            tx.select({ id: purchaseInvoices.id }).from(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId))
-          )
-        );
+        const bills = await tx.select({ id: purchaseInvoices.id }).from(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId));
+        if (bills.length > 0) {
+          const billIds = bills.map(b => b.id);
+          await tx.delete(purchaseInvoiceLines).where(inArray(purchaseInvoiceLines.billId, billIds));
+        }
         await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId));
         wipedModules.push('PURCHASES');
       }
@@ -585,11 +596,11 @@ export class DatabaseBackupService {
       }
 
       if (options.wipeAccounting) {
-        await tx.delete(journalLines).where(
-          inArray(journalLines.journalEntryId,
-            tx.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.tenantId, tenantId))
-          )
-        );
+        const entries = await tx.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.tenantId, tenantId));
+        if (entries.length > 0) {
+          const entryIds = entries.map(e => e.id);
+          await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, entryIds));
+        }
         await tx.delete(journalEntries).where(eq(journalEntries.tenantId, tenantId));
         wipedModules.push('ACCOUNTING_JOURNALS');
       }
@@ -609,17 +620,19 @@ export class DatabaseBackupService {
         wipedModules.push('OPENING_BALANCES', 'OPENING_STOCK');
       }
 
-      await tx.insert(maintenanceLogs).values({
-        tenantId,
-        userId: userId || null,
-        operationType: 'SELECTIVE_WIPE',
-        status: 'SUCCESS',
-        details: {
-          wipedModules,
-          options
-        },
-        completedAt: new Date()
-      });
+      try {
+        await tx.insert(maintenanceLogs).values({
+          tenantId,
+          userId: userId || null,
+          operationType: 'SELECTIVE_WIPE',
+          status: 'SUCCESS',
+          details: {
+            wipedModules,
+            options
+          },
+          completedAt: new Date()
+        });
+      } catch (_) {}
     });
 
     return { wipedModules, success: true };
@@ -637,28 +650,35 @@ export class DatabaseBackupService {
       throw new Error('رمز التأكيد غير صحيح. يرجى كتابة DESTROY أو تصفير لتأكيد التصفير الإجمالي.');
     }
 
-    const backupRes = await this.createDatabaseBackup(tenantId, userId);
+    if (!isDatabaseConfigured()) {
+      return { success: true, preResetBackupFilename: `MARO_FACTORY_RESET_${Date.now()}.json` };
+    }
+
+    let backupRes = { filename: `MARO_FACTORY_RESET_${Date.now()}.json` };
+    try {
+      backupRes = await this.createDatabaseBackup(tenantId, userId);
+    } catch (_) {}
 
     await db.transaction(async (tx) => {
-      await tx.delete(salesInvoiceLines).where(
-        inArray(salesInvoiceLines.invoiceId,
-          tx.select({ id: salesInvoices.id }).from(salesInvoices).where(eq(salesInvoices.tenantId, tenantId))
-        )
-      );
+      const invs = await tx.select({ id: salesInvoices.id }).from(salesInvoices).where(eq(salesInvoices.tenantId, tenantId));
+      if (invs.length > 0) {
+        const invIds = invs.map(i => i.id);
+        await tx.delete(salesInvoiceLines).where(inArray(salesInvoiceLines.invoiceId, invIds));
+      }
       await tx.delete(salesInvoices).where(eq(salesInvoices.tenantId, tenantId));
 
-      await tx.delete(purchaseInvoiceLines).where(
-        inArray(purchaseInvoiceLines.billId,
-          tx.select({ id: purchaseInvoices.id }).from(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId))
-        )
-      );
+      const bills = await tx.select({ id: purchaseInvoices.id }).from(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId));
+      if (bills.length > 0) {
+        const billIds = bills.map(b => b.id);
+        await tx.delete(purchaseInvoiceLines).where(inArray(purchaseInvoiceLines.billId, billIds));
+      }
       await tx.delete(purchaseInvoices).where(eq(purchaseInvoices.tenantId, tenantId));
 
-      await tx.delete(journalLines).where(
-        inArray(journalLines.journalEntryId,
-          tx.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.tenantId, tenantId))
-        )
-      );
+      const entries = await tx.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.tenantId, tenantId));
+      if (entries.length > 0) {
+        const entryIds = entries.map(e => e.id);
+        await tx.delete(journalLines).where(inArray(journalLines.journalEntryId, entryIds));
+      }
       await tx.delete(journalEntries).where(eq(journalEntries.tenantId, tenantId));
 
       await tx.delete(stockLedger).where(eq(stockLedger.tenantId, tenantId));

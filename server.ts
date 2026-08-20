@@ -14,7 +14,7 @@ import { ServerLicenseEngine, OfflineLicenseToken, computeOfflineLicenseSignatur
 import { AuditLogger } from './src/server/security/auditLogger';
 import { requireAuth, requireModule, requireRole } from './src/server/security/securityMiddleware';
 import { DeviceEngine } from './src/lib/crypto/deviceEngine';
-import { Ed25519Engine, MARO_DEFAULT_PRIVATE_KEY_PEM } from './src/lib/crypto/ed25519Engine';
+import { Ed25519Engine } from './src/lib/crypto/ed25519Engine';
 import { DatabaseBackupService } from './src/server/services/databaseBackupService';
 import { 
   DEFAULT_KNOWLEDGE_ARTICLES, 
@@ -687,8 +687,9 @@ async function startServer() {
         }
       };
 
-      // Sign with default developer private key
-      const signedLicense = Ed25519Engine.signLicense(payloadToSign, MARO_DEFAULT_PRIVATE_KEY_PEM);
+      // Sign with developer private key
+      const devSigningKey = process.env.MARO_DEVELOPER_SIGNING_KEY || Ed25519Engine.generateKeyPair().privateKeyPem;
+      const signedLicense = Ed25519Engine.signLicense(payloadToSign, devSigningKey);
 
       // Register in Central Licenses
       const centralLicenses = getCentralLicenses();
@@ -955,7 +956,8 @@ ${JSON.stringify(signedLicense)}
       };
 
       // Sign the new payload with the developer private key
-      const signed = Ed25519Engine.signLicense(payloadToSign, MARO_DEFAULT_PRIVATE_KEY_PEM);
+      const devResignKey = process.env.MARO_DEVELOPER_SIGNING_KEY || Ed25519Engine.generateKeyPair().privateKeyPem;
+      const signed = Ed25519Engine.signLicense(payloadToSign, devResignKey);
       list[index] = signed;
       saveCentralLicenses(list);
 

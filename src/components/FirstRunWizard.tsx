@@ -55,37 +55,38 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#111625] border border-blue-500/20 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden text-right" dir="rtl">
-        <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-amber-500"></div>
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-[#111625] border border-blue-500/20 rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl relative my-auto max-h-[92vh] flex flex-col overflow-hidden text-right" dir="rtl">
+        <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-amber-500 z-30"></div>
 
-        <div className="p-8 space-y-6 relative">
+        {/* Scrollable Modal Body */}
+        <div className="p-4 sm:p-8 space-y-5 overflow-y-auto flex-1 relative">
           {/* Top-Right Close/Exit button */}
           <button 
             onClick={() => {
               DemoDataSeeder.markFirstRunCompleted();
               onComplete();
             }}
-            className="absolute top-5 left-5 text-slate-500 hover:text-white text-base font-bold transition-colors w-8 h-8 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center cursor-pointer z-10"
+            className="absolute top-4 left-4 sm:top-5 sm:left-5 text-slate-400 hover:text-white text-sm font-bold transition-colors w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700/80 flex items-center justify-center cursor-pointer z-30 shadow-lg"
             title="خروج وإنهاء"
           >
             ✕
           </button>
 
           {/* Header */}
-          <div className="flex items-center gap-4 border-b border-slate-800/60 pb-5">
-            <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/10">
-              <Sparkles size={28} className="animate-pulse" />
+          <div className="flex items-center gap-3 sm:gap-4 border-b border-slate-800/60 pb-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/10">
+              <Sparkles size={24} className="animate-pulse" />
             </div>
-            <div className="flex-1">
-              <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-[10px] font-black font-mono">
+            <div className="flex-1 min-w-0">
+              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-[9px] sm:text-[10px] font-black font-mono">
                 MARO ENTERPRISE PLATFORM v4.0
               </span>
-              <h2 className="text-xl font-black text-white tracking-tight mt-1">مساعد تهيئة وإعداد النظام الذكي</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">خطوات مخصصة لبناء بيئة عمل مثالية تلائم نشاطك وحجم أعمالك</p>
+              <h2 className="text-base sm:text-xl font-black text-white tracking-tight mt-0.5">مساعد تهيئة وإعداد النظام الذكي</h2>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">خطوات مخصصة لبناء بيئة عمل مثالية تلائم نشاطك وحجم أعمالك</p>
             </div>
             {step < 3 && (
-              <span className="text-xs text-slate-500 font-bold ml-6">الخطوة {step} من 2</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-bold shrink-0">الخطوة {step} من 2</span>
             )}
           </div>
 
@@ -288,35 +289,35 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) =>
               </div>
             </div>
           )}
-
-          {/* Navigation Controls */}
-          {step < 3 && (
-            <div className="flex items-center gap-3 pt-4 border-t border-slate-800/60">
-              {step > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setStep(step - 1)}
-                  className="px-5 py-3.5 bg-[#151b2b] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl font-bold text-xs transition-all border border-[#1e293b] cursor-pointer"
-                >
-                  السابق
-                </button>
-              )}
-              <button
-                onClick={handleNextStep}
-                className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-blue-600/10 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-              >
-                <span>{step === 1 ? 'متابعة لاختيار القطاع الرئيسي' : 'تأكيد وإنشاء البيئة التجريبية'}</span>
-                <ArrowRight size={16} className="rotate-180" />
-              </button>
-              <button
-                onClick={handleStartEmpty}
-                className="px-5 py-3.5 bg-[#151b2b] hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-[#1e293b] cursor-pointer"
-              >
-                بدء بدون بيانات
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Sticky Fixed Footer for Navigation Controls */}
+        {step < 3 && (
+          <div className="bg-[#151b2b] p-3 sm:p-5 border-t border-slate-800/80 flex items-center gap-2 sm:gap-3 shrink-0 z-20">
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={() => setStep(step - 1)}
+                className="px-3 sm:px-5 py-3 bg-[#1e293b] hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-bold text-xs transition-all border border-slate-700 cursor-pointer"
+              >
+                السابق
+              </button>
+            )}
+            <button
+              onClick={handleNextStep}
+              className="flex-1 py-3 sm:py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer min-w-0"
+            >
+              <span className="truncate">{step === 1 ? 'متابعة لاختيار القطاع الرئيسي' : 'تأكيد وإنشاء البيئة'}</span>
+              <ArrowRight size={16} className="rotate-180 shrink-0" />
+            </button>
+            <button
+              onClick={handleStartEmpty}
+              className="px-3 sm:px-5 py-3 bg-[#1e293b] hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-slate-700 cursor-pointer shrink-0"
+            >
+              بدء بدون بيانات
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

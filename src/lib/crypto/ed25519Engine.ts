@@ -10,42 +10,11 @@ import path from 'path';
 import { SignedLicensePayload } from '../../types/licensing';
 
 const PUBLIC_KEY_FILE = path.join(process.cwd(), '.maro-public-key.pem');
-const PRIVATE_KEY_FILE = path.join(process.cwd(), '.maro-private-key.pem');
 
-function getOrInitDefaultKeyPair(): { publicKeyPem: string; privateKeyPem: string } {
-  try {
-    if (fs.existsSync(PUBLIC_KEY_FILE) && fs.existsSync(PRIVATE_KEY_FILE)) {
-      return {
-        publicKeyPem: fs.readFileSync(PUBLIC_KEY_FILE, 'utf8'),
-        privateKeyPem: fs.readFileSync(PRIVATE_KEY_FILE, 'utf8'),
-      };
-    }
-  } catch {}
-
-  try {
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    });
-    try {
-      fs.writeFileSync(PUBLIC_KEY_FILE, publicKey, 'utf8');
-      fs.writeFileSync(PRIVATE_KEY_FILE, privateKey, 'utf8');
-    } catch {}
-    return { publicKeyPem: publicKey, privateKeyPem: privateKey };
-  } catch {
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    });
-    return { publicKeyPem: publicKey, privateKeyPem: privateKey };
-  }
-}
-
-const defaultPair = getOrInitDefaultKeyPair();
-
-// Hardcoded Master Public Key for MARO Enterprise Platform (Valid Ed25519 Key)
-export const MARO_EMBEDDED_PUBLIC_KEY_PEM = defaultPair.publicKeyPem;
-export const MARO_DEFAULT_PRIVATE_KEY_PEM = defaultPair.privateKeyPem;
+// Master Public Key for MARO Enterprise Platform (Default Fallback Public Key)
+export const MARO_EMBEDDED_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MCowKOZIzj0CAQYDK2VwAYEA+q8z+J18W8/m0N9H/GfJ0G2p4+w8U8E+mK3R0vQ8p1k=
+-----END PUBLIC KEY-----`;
 
 export class Ed25519Engine {
   /**

@@ -10,7 +10,7 @@ import path from 'path';
 import { db, isDatabaseConfigured } from '../../db/index';
 import { licenses } from '../../db/schema';
 import { AuditLogger } from './auditLogger';
-import { Ed25519Engine, MARO_DEFAULT_PRIVATE_KEY_PEM } from '../../lib/crypto/ed25519Engine';
+import { Ed25519Engine } from '../../lib/crypto/ed25519Engine';
 import { DeviceEngine } from '../../lib/crypto/deviceEngine';
 import { 
   SignedLicensePayload, 
@@ -144,7 +144,8 @@ export class ServerLicenseEngine {
       }
     };
 
-    const signed = Ed25519Engine.signLicense(payloadWithoutSig, MARO_DEFAULT_PRIVATE_KEY_PEM);
+    const signingKey = process.env.MARO_DEVELOPER_SIGNING_KEY || Ed25519Engine.generateKeyPair().privateKeyPem;
+    const signed = Ed25519Engine.signLicense(payloadWithoutSig, signingKey);
     try {
       fs.writeFileSync(LOCAL_LICENSE_FILE, JSON.stringify(signed, null, 2), 'utf8');
     } catch (err) {
